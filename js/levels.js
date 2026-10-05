@@ -3,9 +3,14 @@ window.Delve = window.Delve || {};
   const T = () => Delve.T, C = () => Delve.CONFIG;
 
   Delve.newRun = function(){
-    const mhp = Delve.maxHp();
-    Delve.G = { floor:1, runShards:0, hp:mhp, grid:[], monsters:[], boss:null, stairs:{x:-1,y:-1}, px:1, py:1, msg:"", msgUntil:0 };
+    Delve.G = {
+      floor:1, runShards:0, hp:Delve.maxHp(),
+      grid:[], monsters:[], boss:null, stairs:{x:-1,y:-1},
+      px:1, py:1, msg:"", msgUntil:0,
+      secondWindUsed:false, dead:false
+    };
     Delve.genFloor();
+    Delve.updateHUD();
   };
 
   Delve.genFloor = function(){
@@ -16,7 +21,6 @@ window.Delve = window.Delve || {};
     for(let x=0;x<size;x++){ g[0][x]=T().WALL; g[size-1][x]=T().WALL; }
     for(let y=0;y<size;y++){ g[y][0]=T().WALL; g[y][size-1]=T().WALL; }
 
-    // Pillars for chokepoints
     const pillars = Math.floor(size*size*0.06);
     let placed=0, guard=0;
     while(placed<pillars && guard++<500){
@@ -31,7 +35,6 @@ window.Delve = window.Delve || {};
 
     G.monsters=[]; G.boss=null;
 
-    // Gentle mob ramp (fixed)
     const count = isBoss
       ? Math.min(6, 2 + Math.floor(G.floor/2))
       : Delve.rng(3,5) + Math.min(4, Math.floor(G.floor/2));
@@ -46,10 +49,12 @@ window.Delve = window.Delve || {};
     if(isBoss){
       const x=G.stairs.x, y=G.stairs.y;
       g[y][x]=T().BOSS;
-      G.boss = { x, y, isBoss:true,
+      G.boss = {
+        x, y, isBoss:true, hasActed:false,
         hp: Delve.bossHp(),
         atk: Delve.bossAtk(),
-        shards: cfg.bossShardBase + cfg.bossShardPerFloor*G.floor };
+        shards: cfg.bossShardBase + cfg.bossShardPerFloor*G.floor
+      };
       G.stairs = {x:-1,y:-1};
     }
     G.grid = g;
@@ -57,10 +62,12 @@ window.Delve = window.Delve || {};
 
   function makeMonster(x,y){
     const cfg=C(), f=Delve.G.floor;
-    return { x, y, isBoss:false,
+    return {
+      x, y, isBoss:false, hasActed:false,
       hp: cfg.monsterHpBase + cfg.monsterHpPerFloor*(f-1),
       atk: Math.round(cfg.monsterAtkBase + cfg.monsterAtkPerFloor*f),
-      shards: cfg.monsterShardBase + cfg.monsterShardPerFloor*f };
+      shards: cfg.monsterShardBase + cfg.monsterShardPerFloor*f
+    };
   }
 
   Delve.bossHp  = function(){ const c=C(); return c.bossHpBase + c.bossHpPerFloor*Delve.G.floor; };
