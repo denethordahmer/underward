@@ -6,33 +6,35 @@ Delve.CONFIG = {
   hpPerLevel: 5,
   atkPerLevel: 1,
 
-  // ---- Permanent upgrade costs (shards) ----
-  hpBaseCost: 20,
-  atkBaseCost: 15,
-  costGrowth: 1.45,
+  // ---- Tuned upgrade economy ----
+  // Higher base stops Run-1 snowball; 1.28 growth stops late-game wall
+  hpBaseCost: 50,
+  atkBaseCost: 40,
+  costGrowth: 1.28,
 
   // ---- Run structure ----
-  bossEvery: 10,          // full boss on floors 10, 20, 30...
-  healOnDescendPct: 0.5,  // heal % of max HP when descending a floor
+  bossEvery: 10,
+  healOnDescendPct: 0.50,
 
   // ---- Normal monsters (scale with floor) ----
   monsterHpBase: 5,
-  monsterHpPerFloor: 2,
+  monsterHpPerFloor: 1.5,
   monsterAtkBase: 1,
-  monsterAtkPerFloor: 0.8,
-  monsterShardBase: 3,
-  monsterShardPerFloor: 1,
+  monsterAtkPerFloor: 0.5,
+  monsterShardBase: 2,
+  monsterShardPerFloor: 0.5,
 
-  // ---- Boss (scale with floor) ----
-  bossHpBase: 45,
-  bossHpPerFloor: 15,
+  // ---- Boss (floor 10 benchmark: 160 HP, 8 ATK, 240 shards) ----
+  bossHpBase: 40,
+  bossHpPerFloor: 12,
   bossAtkBase: 3,
-  bossAtkPerFloor: 0.6,
+  bossAtkPerFloor: 0.5,
   bossShardBase: 40,
-  bossShardPerFloor: 20
+  bossShardPerFloor: 20,
 
-  // ---- Mini-boss (TODO: add later, spawns every 7th floor) ----
-  // miniBossEvery: 7,
-  // miniBossHpBase: ...,
-  // ...
+  // ---- Consumables (INERT — requires items.js, not built yet) ----
+  itemDropChance: 0.26,
+  potionHealPct: 0.30,
+  bombDamage: 12,
+  maxItemSlots: 1
 };
