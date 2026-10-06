@@ -2,13 +2,12 @@ window.Delve = window.Delve || {};
 (function(){
   let camX=0, camY=0;
 
-  // Biome tints — shift subtly as you descend so each stretch feels different.
   function biomeTint(floor){
     const t = [
-      {wall:"#10151d", wallEdge:"#39444f", floor:"#2a3440", speck:"#232c37"},   // 1-4  : cold stone
-      {wall:"#0e1a15", wallEdge:"#2f4a3f", floor:"#253c33", speck:"#1e322b"},   // 5-9  : mossy ruins
-      {wall:"#15111d", wallEdge:"#4a3750", floor:"#2d2640", speck:"#251f35"},   // 10-14: thrumming deep
-      {wall:"#1a120d", wallEdge:"#574127", floor:"#3d3122", speck:"#342919"}    // 15+  : hot foundry
+      {wall:"#10151d", wallEdge:"#39444f", floor:"#2a3440", speck:"#232c37"},
+      {wall:"#0e1a15", wallEdge:"#2f4a3f", floor:"#253c33", speck:"#1e322b"},
+      {wall:"#15111d", wallEdge:"#4a3750", floor:"#2d2640", speck:"#251f35"},
+      {wall:"#1a120d", wallEdge:"#574127", floor:"#3d3122", speck:"#342919"}
     ];
     if(floor <= 4)  return t[0];
     if(floor <= 9)  return t[1];
@@ -16,7 +15,6 @@ window.Delve = window.Delve || {};
     return t[3];
   }
 
-  // Deterministic tile hash — same tile always looks the same (no flicker).
   function hash2(x,y){
     let n = x*374761393 + y*668265263;
     n = (n ^ (n>>13)) * 1274126177;
@@ -45,13 +43,10 @@ window.Delve = window.Delve || {};
         const c=G.grid[gy][gx];
 
         if(c===Delve.T.WALL){
-          // wall body
           ctx.fillStyle=B.wall; ctx.fillRect(sx,sy,ts,ts);
-          // raised top/left edge
           ctx.fillStyle=B.wallEdge;
           ctx.fillRect(sx,sy,ts,Math.max(2,ts*0.10));
           ctx.fillRect(sx,sy,Math.max(2,ts*0.10),ts);
-          // brick lines (deterministic)
           ctx.strokeStyle="rgba(0,0,0,0.35)"; ctx.lineWidth=1;
           if(ts>=24){
             ctx.beginPath();
@@ -63,11 +58,9 @@ window.Delve = window.Delve || {};
           continue;
         }
 
-        // floor base
         const shade = ((gx+gy)%2===0) ? B.floor : B.speck;
         ctx.fillStyle = shade; ctx.fillRect(sx,sy,ts,ts);
 
-        // stone speckle/cracks for texture
         if(ts>=26){
           ctx.fillStyle="rgba(0,0,0,0.22)";
           for(let s=0;s<3;s++){
@@ -75,7 +68,7 @@ window.Delve = window.Delve || {};
             const ry = sy + 2 + hash2(gx*13+s, gy*7+s)* (ts-4);
             ctx.fillRect(rx, ry, 2, 2);
           }
-          if(hash2(gx,gy*3)>0.82){ // occasional crack
+          if(hash2(gx,gy*3)>0.82){
             ctx.strokeStyle="rgba(0,0,0,0.28)"; ctx.lineWidth=1;
             ctx.beginPath();
             ctx.moveTo(sx+ts*0.15, sy+ts*0.2);
@@ -85,7 +78,6 @@ window.Delve = window.Delve || {};
           }
         }
 
-        // faint tile grid
         ctx.strokeStyle="rgba(0,0,0,0.22)"; ctx.lineWidth=1;
         ctx.strokeRect(sx+0.5, sy+0.5, ts, ts);
 
@@ -121,41 +113,70 @@ window.Delve = window.Delve || {};
     for(const m of G.monsters) drawMob(m);
     if(G.boss) drawMob(G.boss);
 
+    // ---- dropped items ----
+    for(const it of G.items){
+      if(it.x < camX || it.y < camY || it.x >= camX+vw || it.y >= camY+vh) continue;
+      const sx=(it.x-camX)*ts, sy=(it.y-camY)*ts;
+      const cx=sx+ts/2, cy=sy+ts/2;
+      const col = Delve.TIERS.colors[it.tier] || "#ffffff";
+
+      ctx.fillStyle="rgba(0,0,0,0.4)";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy+ts*0.28, ts*0.22, ts*0.10, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle="rgba(255,255,255,0.08)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, ts*0.32, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.fillStyle=col;
+      ctx.strokeStyle="rgba(255,255,255,0.85)";
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy-ts*0.26);
+      ctx.lineTo(cx+ts*0.26, cy);
+      ctx.lineTo(cx, cy+ts*0.26);
+      ctx.lineTo(cx-ts*0.26, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle="rgba(255,255,255,0.9)";
+      ctx.fillRect(cx-ts*0.06, cy-ts*0.06, ts*0.12, ts*0.12);
+    }
+
     // ---- player ----
     const pxp=(G.px-camX)*ts, pyp=(G.py-camY)*ts;
-    const cx=pxp+ts/2, cy=pyp+ts/2;
+    const pcx=pxp+ts/2, pcy=pyp+ts/2;
 
-    // warm player light radius (atmosphere)
-    const light = ctx.createRadialGradient(cx,cy,ts*0.2,cx,cy,ts*3.2);
+    const light = ctx.createRadialGradient(pcx,pcy,ts*0.2,pcx,pcy,ts*3.2);
     light.addColorStop(0,"rgba(80,190,255,0.20)");
     light.addColorStop(0.5,"rgba(80,170,255,0.06)");
     light.addColorStop(1,"rgba(0,0,0,0.35)");
     ctx.fillStyle=light;
     ctx.fillRect(pxp-ts*2, pyp-ts*2, ts*5, ts*5);
 
-    // body
     ctx.fillStyle="#4fd8ff";
     ctx.beginPath();
-    ctx.moveTo(cx, cy-ts*0.34);
-    ctx.lineTo(cx+ts*0.34, cy);
-    ctx.lineTo(cx, cy+ts*0.34);
-    ctx.lineTo(cx-ts*0.34, cy);
+    ctx.moveTo(pcx, pcy-ts*0.34);
+    ctx.lineTo(pcx+ts*0.34, pcy);
+    ctx.lineTo(pcx, pcy+ts*0.34);
+    ctx.lineTo(pcx-ts*0.34, pcy);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle="#e8fbff"; ctx.lineWidth=2;
     ctx.stroke();
-    // inner core
     ctx.fillStyle="rgba(255,255,255,0.85)";
-    ctx.fillRect(cx-ts*0.08, cy-ts*0.08, ts*0.16, ts*0.16);
+    ctx.fillRect(pcx-ts*0.08, pcy-ts*0.08, ts*0.16, ts*0.16);
 
-    // vignette (drawn last = depth around edges)
+    // vignette
     const vig = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.25,W/2,H/2,Math.max(W,H)*0.75);
     vig.addColorStop(0,"rgba(0,0,0,0)");
     vig.addColorStop(1,"rgba(0,0,0,0.42)");
     ctx.fillStyle=vig;
     ctx.fillRect(0,0,W,H);
 
-    // ---- message ----
     if(G.msg && Date.now()<G.msgUntil){
       ctx.font="700 16px system-ui";
       ctx.textAlign="center";
