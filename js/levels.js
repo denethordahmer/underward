@@ -6,6 +6,7 @@ window.Delve = window.Delve || {};
     Delve.G = {
       floor:1, runShards:0, hp:Delve.maxHp(), gold:0,
       grid:[], monsters:[], boss:null, stairs:{x:-1,y:-1},
+      items:[], inventory:[], equip:{weapon:null, armour:null, trinkets:[]}, atkBuff:0,
       px:1, py:1, msg:"", msgUntil:0,
       secondWindUsed:false, dead:false
     };
@@ -17,7 +18,6 @@ window.Delve = window.Delve || {};
     const G = Delve.G, cfg = C();
     const size = Math.min(21, 11 + G.floor*2);
 
-    // Attempt generation up to 60 times — guarantees an open path spawn→stairs.
     for(let attempt=0; attempt<60; attempt++){
       const g = buildGrid(size);
       if(hasPath(g, 1, 1, size-2, size-2)){
@@ -25,12 +25,13 @@ window.Delve = window.Delve || {};
         return;
       }
     }
-    // Fallback: open field with just border walls.
     G.grid = buildGrid(size, true);
   };
 
   function buildGrid(size, noPillars){
     const G = Delve.G, cfg = C();
+    G.items = [];   // world items reset each floor (inventory persists)
+
     const g = [];
     for(let y=0;y<size;y++){
       g[y]=[];
@@ -39,8 +40,8 @@ window.Delve = window.Delve || {};
     for(let x=0;x<size;x++){ g[0][x]=T().WALL; g[size-1][x]=T().WALL; }
     for(let y=0;y<size;y++){ g[y][0]=T().WALL; g[y][size-1]=T().WALL; }
 
-    const sx=1, sy=1;                    // spawn
-    const tx=size-2, ty=size-2;          // stairs
+    const sx=1, sy=1;
+    const tx=size-2, ty=size-2;
 
     if(!noPillars){
       const pillars = Math.floor(size*size*0.04);
@@ -48,7 +49,6 @@ window.Delve = window.Delve || {};
       while(placed<pillars && guard++<800){
         const x=Delve.rng(2,size-3), y=Delve.rng(2,size-3);
         if(g[y][x]!==T().FLOOR) continue;
-        // Clear zones: never beside spawn or stairs
         const dSpawn = Math.abs(x-sx)+Math.abs(y-sy);
         const dStair = Math.abs(x-tx)+Math.abs(y-ty);
         if(dSpawn<=2 || dStair<=2) continue;
@@ -85,10 +85,26 @@ window.Delve = window.Delve || {};
       };
       G.stairs = {x:-1,y:-1};
     }
+
+    // Hidden cache — Luck-driven chance to hide a better item on the floor
+    const cacheChance = cfg.loot.cacheBase + Delve.luckPts() * cfg.loot.cacheLuck;
+    if(Math.random() < cacheChance){
+      let found=false, tries=0;
+      while(!found && tries++<200){
+        const cx=Delve.rng(2,size-3), cy=Delve.rng(2,size-3);
+        if(g[cy][cx]===T().FLOOR && Math.abs(cx-sx)+Math.abs(cy-sy)>3){
+          const tier = Math.max(2, Delve.rollTier(G.floor));
+          const item = Delve.makeItem(tier);
+          item.x=cx; item.y=cy; item.fromCache=true;
+          G.items.push(item);
+          found=true;
+        }
+      }
+    }
+
     return g;
   }
 
-  // Flood fill: can the player walk from (fx,fy) to (tx,ty)?
   function hasPath(g, fx, fy, tx, ty){
     const seen = [];
     for(let y=0;y<g.length;y++) seen[y]=[];
@@ -102,7 +118,6 @@ window.Delve = window.Delve || {};
         const nx=x+dx, ny=y+dy;
         if(g[ny] && g[ny][nx]!==undefined && !seen[ny][nx]){
           seen[ny][nx]=true;
-          // Walls block; monsters/stairs are passable
           if(g[ny][nx]!==T().WALL) q.push([nx,ny]);
         }
       }
