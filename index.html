@@ -35,6 +35,10 @@
   .ico.floor{background:#9b8cff;box-shadow:0 0 5px #9b8cff}
   .spacer{flex:1}
 
+  #invBar { display:flex; flex-wrap:wrap; gap:5px; width:100%; }
+  .invchip { background:#141b23; border:1px solid #2a3440; border-radius:8px;
+    padding:3px 8px; font-size:12px; font-weight:700; }
+
   #hint { position:absolute; bottom:14px; left:0; right:0; text-align:center;
     font-size:15px; font-weight:700; color:#c6d6e6; z-index:5;
     pointer-events:none; text-shadow:0 1px 3px #000; }
@@ -86,6 +90,7 @@
     <span class="spacer"></span>
     <span class="stat"><span class="ico gold"></span><span id="hudGold">0</span></span>
     <span class="stat"><span class="ico shard"></span><span id="hudShards">0</span></span>
+    <div id="invBar"></div>
   </div>
 
   <div id="hint" style="display:none">Tap a lit square to move, or tap a monster to attack</div>
@@ -109,6 +114,7 @@
 <script src="js/config.js"></script>
 <script src="js/save.js"></script>
 <script src="js/attrs.js"></script>
+<script src="js/items.js"></script>
 <script src="js/state.js"></script>
 <script src="js/levels.js"></script>
 <script src="js/combat.js"></script>
