@@ -10,6 +10,7 @@ window.Delve = window.Delve || {};
     document.getElementById("hudAgi").textContent   = Math.round(Delve.dodge()*100) + "%";
     document.getElementById("hudLuc").textContent   = Delve.luckPts();
     document.getElementById("hudFloor").textContent = G.floor;
+    document.getElementById("hudGold").textContent  = G.gold;
     document.getElementById("hudShards").textContent = Delve.save.shards;
   };
 
