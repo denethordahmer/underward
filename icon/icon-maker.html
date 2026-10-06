@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>underward — icon maker</title>
+<style>
+  body {
+    margin:0; min-height:100vh; background:#0b0f14; color:#d7e3ee;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:18px; padding:24px; text-align:center;
+  }
+  h1 { font-size:24px; margin:0; letter-spacing:1px; }
+  p { color:#8fa3b8; font-size:15px; max-width:360px; margin:0; }
+  canvas { border:2px solid #2a3440; border-radius:16px; box-shadow:0 8px 40px rgba(0,0,0,.6); }
+  button {
+    background:#1f7a5c; color:#eafff5; border:none; border-radius:14px;
+    padding:16px 22px; font-size:18px; font-weight:800; width:280px;
+    box-shadow:0 4px 0 #0e3d2e;
+  }
+  button:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
+</style>
+</head>
+<body>
+  <h1>underward icon maker</h1>
+  <p>Tap each button. Two PNGs download to your phone. Upload both into the <b>icons/</b> folder of your repo.</p>
+  <canvas id="preview" width="192" height="192"></canvas>
+  <button onclick="downloadIcon(192)">Download icon-192.png</button>
+  <button onclick="downloadIcon(512)">Download icon-512.png</button>
+
+<script>
+function drawIcon(size){
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const x = c.getContext("2d");
+
+  // full-bleed dark background (required for maskable icons)
+  x.fillStyle = "#0b0f14";
+  x.fillRect(0,0,size,size);
+
+  // depth gradient
+  const bg = x.createRadialGradient(size*0.5,size*0.42,size*0.05,size*0.5,size*0.42,size*0.78);
+  bg.addColorStop(0,"#1a2532");
+  bg.addColorStop(1,"#070a0e");
+  x.fillStyle = bg;
+  x.fillRect(0,0,size,size);
+
+  // player diamond with glow (kept inside the maskable safe zone)
+  const cx = size*0.5, cy = size*0.45, r = size*0.24;
+  const glow = x.createRadialGradient(cx,cy,r*0.2,cx,cy,r*1.8);
+  glow.addColorStop(0,"rgba(80,200,255,0.40)");
+  glow.addColorStop(1,"rgba(0,0,0,0)");
+  x.fillStyle = glow;
+  x.fillRect(0,0,size,size);
+
+  x.fillStyle = "#4fd8ff";
+  x.strokeStyle = "#e8fbff";
+  x.lineWidth = Math.max(2, size*0.018);
+  x.beginPath();
+  x.moveTo(cx, cy-r);
+  x.lineTo(cx+r, cy);
+  x.lineTo(cx, cy+r);
+  x.lineTo(cx-r, cy);
+  x.closePath();
+  x.fill();
+  x.stroke();
+
+  // bright core
+  x.fillStyle = "rgba(255,255,255,0.9)";
+  const core = size*0.05;
+  x.fillRect(cx-core/2, cy-core/2, core, core);
+
+  // descending stair chevrons (the "under" in underward)
+  x.strokeStyle = "rgba(42,208,176,0.9)";
+  x.lineWidth = Math.max(2, size*0.022);
+  x.lineCap = "round";
+  x.lineJoin = "round";
+  for(let i=0;i<2;i++){
+    const yy = cy + r*1.42 + i*size*0.07;
+    const hw = size*(0.11 - i*0.022);
+    x.beginPath();
+    x.moveTo(cx-hw, yy);
+    x.lineTo(cx, yy-size*0.055);
+    x.lineTo(cx+hw, yy);
+    x.stroke();
+  }
+  return c;
+}
+
+function downloadIcon(size){
+  const c = drawIcon(size);
+  const preview = document.getElementById("preview");
+  const small = document.createElement("canvas");
+  small.width = small.height = 192;
+  small.getContext("2d").drawImage(c, 0, 0, 192, 192);
+  preview.getContext("2d").clearRect(0,0,192,192);
+  preview.getContext("2d").drawImage(c, 0, 0, 192, 192);
+
+  c.toBlob(function(blob){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "icon-" + size + ".png";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+}
+
+// show the preview on load
+(function(){ drawIcon(192).then ? null : null; })();
+const preview = document.getElementById("preview");
+preview.getContext("2d").drawImage(drawIcon(192), 0, 0);
+</script>
+</body>
+</html>
