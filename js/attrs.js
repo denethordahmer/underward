@@ -3,22 +3,50 @@ window.Delve = window.Delve || {};
   const C = () => Delve.CONFIG;
   const bought = id => Delve.save.lvls[id] || 0;
 
-  // ---- derived player stats ----
-  Delve.maxHp  = function(){ const a=C().ATTRS.con; return a.base + a.perLevel*bought("con"); };
-  Delve.atk    = function(){ const a=C().ATTRS.str; return a.base + a.perLevel*bought("str"); };
-  Delve.luckPts= function(){ return C().ATTRS.luc.base + bought("luc"); };
+  // ---- derived player stats (base + equipment) ----
+  Delve.baseMaxHp = function(){ const a=C().ATTRS.con; return a.base + a.perLevel*bought("con"); };
+  Delve.maxHp = function(){
+    let m = Delve.baseMaxHp();
+    if(Delve.G && Delve.G.equip) m += Delve.itemBuffs().hp;
+    return m;
+  };
+
+  Delve.baseAtk = function(){ const a=C().ATTRS.str; return a.base + a.perLevel*bought("str"); };
+  Delve.atk = function(){
+    let a = Delve.baseAtk();
+    if(Delve.G){
+      a += (Delve.G.atkBuff || 0);
+      if(Delve.G.equip) a += Delve.itemBuffs().atk;
+    }
+    return a;
+  };
+
+  Delve.baseLuck = function(){ return C().ATTRS.luc.base + bought("luc"); };
+  Delve.luckPts = function(){
+    let l = Delve.baseLuck();
+    if(Delve.G && Delve.G.equip) l += Delve.itemBuffs().luck;
+    return l;
+  };
+
   Delve.agiPts = function(){ return C().ATTRS.agi.base + bought("agi"); };
   Delve.touPts = function(){ return C().ATTRS.tou.base + bought("tou"); };
 
+  // toughness: % reduction (sim-validated)
   Delve.dmgRed = function(){
     const a = C().ATTRS.tou;
     return Math.min(a.cap, Delve.touPts() * a.perLevel);
   };
-  Delve.dodge  = function(){
+  // armour: flat reduction (from equipped armour)
+  Delve.flatRed = function(){
+    if(Delve.G && Delve.G.equip) return Delve.itemBuffs().red;
+    return 0;
+  };
+
+  Delve.dodge = function(){
     const s = C().secondaries;
     return Math.min(s.dodgeCap, Delve.agiPts() * s.dodgePerAgi);
   };
-  Delve.crit   = function(){
+  Delve.crit = function(){
     const s = C().secondaries;
     return Math.min(s.critCap, Delve.luckPts() * s.critPerLuck);
   };
