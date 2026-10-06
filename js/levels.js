@@ -4,7 +4,7 @@ window.Delve = window.Delve || {};
 
   Delve.newRun = function(){
     Delve.G = {
-      floor:1, runShards:0, hp:Delve.maxHp(),
+      floor:1, runShards:0, hp:Delve.maxHp(), gold:0,
       grid:[], monsters:[], boss:null, stairs:{x:-1,y:-1},
       px:1, py:1, msg:"", msgUntil:0,
       secondWindUsed:false, dead:false
@@ -25,7 +25,7 @@ window.Delve = window.Delve || {};
         return;
       }
     }
-    // Never happens in practice; fallback = open field with just border walls.
+    // Fallback: open field with just border walls.
     G.grid = buildGrid(size, true);
   };
 
@@ -77,9 +77,12 @@ window.Delve = window.Delve || {};
     if(isBoss){
       const x=tx, y=ty;
       g[y][x]=T().BOSS;
-      G.boss = { x, y, isBoss:true, hasActed:false,
+      G.boss = {
+        x, y, isBoss:true, hasActed:false,
         hp: Delve.bossHp(), atk: Delve.bossAtk(),
-        shards: cfg.bossShardBase + cfg.bossShardPerFloor*G.floor };
+        shards: cfg.bossShardBase + cfg.bossShardPerFloor*G.floor,
+        gold: cfg.goldBossBase
+      };
       G.stairs = {x:-1,y:-1};
     }
     return g;
@@ -109,10 +112,13 @@ window.Delve = window.Delve || {};
 
   function makeMonster(x,y){
     const cfg=C(), f=Delve.G.floor;
-    return { x, y, isBoss:false, hasActed:false,
+    return {
+      x, y, isBoss:false, hasActed:false,
       hp: cfg.monsterHpBase + cfg.monsterHpPerFloor*(f-1),
       atk: Math.round(cfg.monsterAtkBase + cfg.monsterAtkPerFloor*f),
-      shards: cfg.monsterShardBase + cfg.monsterShardPerFloor*f };
+      shards: cfg.monsterShardBase + cfg.monsterShardPerFloor*f,
+      gold: Math.round(cfg.goldKillBase + cfg.goldKillPerFloor*f)
+    };
   }
 
   Delve.bossHp  = function(){ const c=C(); return c.bossHpBase + c.bossHpPerFloor*Delve.G.floor; };
