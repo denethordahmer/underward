@@ -12,7 +12,7 @@ Delve.CONFIG = {
     tou: { name:"Toughness",    short:"TOU", base:4,  perLevel:0.05, costBase:45, cap:0.50,
            desc:"+5% damage reduction per level (cap 50%). TOU 5 total: Bulwark (hits capped at 60% max HP)", kind:"pct" },
     luc: { name:"Luck",         short:"LCK", base:1,  perLevel:1, costBase:60,
-           desc:"Loot rolls (future) and +1% crit chance per point", kind:"luck" },
+           desc:"Loot rolls and +1% crit chance per point", kind:"luck" },
     agi: { name:"Agility",      short:"AGI", base:1,  perLevel:1, costBase:45,
            desc:"+4% dodge per point. 3+ levels: First Strike bonus vs unalerted enemies", kind:"agi" },
     eng: { name:"Energy",       short:"ENG", base:10, perLevel:1, costBase:55,
@@ -20,7 +20,6 @@ Delve.CONFIG = {
   },
   ATTR_ORDER: ["con","str","tou","luc","agi","eng"],
 
-  // secondary effects tuning
   secondaries: {
     secondWindUnlock: 3, secondWindTrigger: 0.20, secondWindHeal: 0.30,
     overkillUnlock: 3,  overkillHealPct: 0.5,
@@ -39,12 +38,18 @@ Delve.CONFIG = {
   monsterAtkBase: 1, monsterAtkPerFloor: 0.5,
   monsterShardBase: 2, monsterShardPerFloor: 0.5,
 
-  // ---------- BOSS (floor 10: 120 HP, 6 ATK, 240 shards — sim-validated) ----------
+  // ---------- BOSS (floor 10: 120 HP, 6 ATK, 240 shards) ----------
   bossHpBase: 30, bossHpPerFloor: 9,
   bossAtkBase: 2, bossAtkPerFloor: 0.4,
   bossShardBase: 40, bossShardPerFloor: 20,
 
-  // ---------- LOOT (Luck engine — sim-validated, inert until items.js) ----------
+  // ---------- GOLD (in-run currency — the fix Claude caught) ----------
+  goldKillBase: 2,
+  goldKillPerFloor: 0.5,
+  goldBossBase: 60,
+  goldLuckMult: 0.05,
+
+  // ---------- LOOT (Luck engine — sim-validated) ----------
   loot: {
     baseDrop: 0.08, luckDrop: 0.015, dropCap: 0.25,
     cacheBase: 0.015, cacheLuck: 0.005,
