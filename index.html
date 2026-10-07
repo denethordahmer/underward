@@ -67,6 +67,8 @@
   .btn:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
   .btn:disabled { background:#2f3d48; color:#83939f; box-shadow:none; cursor:default; }
   .btn.big { width:100%; max-width:460px; padding:20px; font-size:22px; }
+  #levelupScreen { display:none; }
+  #levelupChoices { display:flex; flex-direction:column; gap:12px; width:100%; max-width:460px; }
 </style>
 </head>
 <body>
@@ -87,6 +89,12 @@
   </div>
 
   <div id="hint" style="display:none">Tap a lit square to move, or tap a monster to attack</div>
+
+  <div id="levelupScreen" class="overlay">
+    <h1>LEVEL UP</h1>
+    <p class="sub">Choose a trait. Traits last for this run only.</p>
+    <div id="levelupChoices"></div>
+  </div>
 
   <div id="hubScreen" class="overlay">
     <h1>underward</h1>
@@ -112,6 +120,7 @@
 <script src="js/monsters.js"></script>
 <script src="js/state.js"></script>
 <script src="js/levels.js"></script>
+<script src="js/traits.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/render.js"></script>
 <script src="js/input.js"></script>
