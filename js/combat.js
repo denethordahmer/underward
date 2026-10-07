@@ -7,12 +7,16 @@ window.Delve = window.Delve || {};
     const G = Delve.G, sec = C().secondaries;
     if(G.hp <= 0 || G.dead) return;
     G.hp -= hit;
+    G.playerHit = Date.now();
+    Delve.addFloater("-" + hit, G.px, G.py, "#ff5c5c");
+    Delve.addShake(1);
     if(G.hp <= 0){ Delve.die(); return; }
     if(Delve.hasSecondWind() && !G.secondWindUsed &&
        G.hp <= Math.floor(Delve.maxHp() * sec.secondWindTrigger)){
       const heal = Math.round(Delve.maxHp() * sec.secondWindHeal);
       G.hp = Math.min(Delve.maxHp(), G.hp + heal);
       G.secondWindUsed = true;
+      Delve.addFloater("+" + heal, G.px, G.py, "#7ee08a");
       Delve.flash("Second Wind! +" + heal);
     }
   }
@@ -24,12 +28,10 @@ window.Delve = window.Delve || {};
 
     const manh = Math.abs(tx - G.px) + Math.abs(ty - G.py);
     if(manh !== 1){
-      // tapping a far monster = "that's too far" — no free attacks at range
       Delve.flash("Too far — move closer to engage");
       return;
     }
 
-    // face the direction of the action
     if(tx > G.px) G.lastDir = "right";
     else if(tx < G.px) G.lastDir = "left";
     else if(ty > G.py) G.lastDir = "down";
@@ -45,10 +47,8 @@ window.Delve = window.Delve || {};
     } else if(cell === T().WALL){
       return;
     } else {
-      // move onto the open tile
       G.px = tx; G.py = ty;
 
-      // walk-over pickup
       const idx = G.items.findIndex(function(i){ return i.x === tx && i.y === ty; });
       if(idx >= 0){
         const it = G.items[idx];
@@ -66,18 +66,20 @@ window.Delve = window.Delve || {};
     const G = Delve.G, sec = C().secondaries;
     if(G.dead) return;
 
+    G.swing = Date.now();
+    m.hitFlash = Date.now();
+
     let dmg = Delve.atk();
     if(m.isBoss) dmg += Delve.itemBuffs().bossAtk;
 
-    // First Strike: monsters that have never swung at you take extra
     const fs = Delve.firstStrikeBonus();
     if(fs && !m.hasActed) dmg += fs;
 
     if(Math.random() < Delve.crit()){
       dmg = Math.round(dmg * sec.critMult);
-      Delve.flash("Critical! -" + dmg);
+      Delve.addFloater("CRIT " + dmg, m.x, m.y, "#ff9d3d");
     } else {
-      Delve.flash("You hit " + m.name + " for " + dmg);
+      Delve.addFloater("-" + dmg, m.x, m.y, "#ffd75e");
     }
 
     m.hp -= dmg;
@@ -88,13 +90,12 @@ window.Delve = window.Delve || {};
         const heal = Math.round(excess * sec.overkillHealPct);
         if(heal > 0){
           G.hp = Math.min(Delve.maxHp(), G.hp + heal);
-          Delve.flash("Overkill +" + heal + " HP");
+          Delve.addFloater("+" + heal, G.px, G.py, "#7ee08a");
         }
       }
       Delve.killMonster(m);
     }
 
-    // the monster (and any others adjacent) get their retaliation/action now
     Delve.enemiesTurn();
   };
 
@@ -109,18 +110,23 @@ window.Delve = window.Delve || {};
       G.stairs = {x: m.x, y: m.y};
       g[m.y][m.x] = T().STAIR;
       Delve.flash("BOSS DOWN!");
+      Delve.addShake(5);
     } else {
       G.monsters = G.monsters.filter(function(x){ return x !== m; });
+      Delve.addShake(2);
     }
 
-    Delve.save.shards += m.shards + buffs.shardBonus;
-    G.runShards += m.shards + buffs.shardBonus;
+    const shardGain = m.shards + buffs.shardBonus;
+    Delve.save.shards += shardGain;
+    G.runShards += shardGain;
     Delve.persist();
 
     const gMult = 1 + Delve.luckPts() * C().goldLuckMult + buffs.goldBonus;
-    G.gold += Math.round(m.gold * gMult);
+    const goldGain = Math.round(m.gold * gMult);
+    G.gold += goldGain;
 
-    Delve.rollKillDrop(m.x, m.y, { guaranteed: !!m.isBoss, minTier: m.isBoss ? 2 : 1 });
+    Delve.addFloater("+" + shardGain + " \u25C7", m.x, m.y, "#7ee0ff");
+    Delve.addFloater("+" + goldGain + " g", m.x, m.y, "#ffd75e");
   };
 
   Delve.enemiesTurn = function(){
@@ -133,20 +139,18 @@ window.Delve = window.Delve || {};
     }
   };
 
-  // SENTRIES: attack ONLY if the player is in an adjacent square.
-  // They do not move. Ever. The player chooses when to engage.
   function actMob(m){
     const G = Delve.G;
 
     if(m.skipNext){ m.skipNext = false; return; }
 
     const manh = Math.abs(G.px - m.x) + Math.abs(G.py - m.y);
-    if(manh !== 1) return;      // not adjacent — sentry holds position
+    if(manh !== 1) return;
 
-    m.hasActed = true;          // has now attacked you — First Strike gone for this one
+    m.hasActed = true;
 
     if(Math.random() < Delve.dodge()){
-      Delve.flash("Dodged");
+      Delve.addFloater("dodged", G.px, G.py, "#c2ff4d");
       return;
     }
 
@@ -157,7 +161,7 @@ window.Delve = window.Delve || {};
 
   Delve.descend = function(){
     const G = Delve.G;
-    G.hp = Math.min(Delve.maxHp(), G.hp + Math.round(Delve.maxHp() * C().healOnDescendPct));
+    G.hp = Math.min(Delve.maxHp(), G.hp + Math.round(Delve.maxHp()*C().healOnDescendPct));
     G.floor++;
     if(G.floor > Delve.save.bestFloor){ Delve.save.bestFloor = G.floor; Delve.persist(); }
     G.secondWindUsed = false;
