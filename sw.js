@@ -1,135 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>underward</title>
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0b0f14">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<style>
-  :root { color-scheme: dark; }
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { height:100%; }
-  body {
-    background:#0b0f14; color:#d7e3ee;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none;
-    font-size:16px;
-  }
-  #app { position:fixed; inset:0; }
-  #canvas { display:block; width:100%; height:100%; }
+const CACHE = "underward-v6";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./manifest.webmanifest",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./js/config.js",
+  "./js/save.js",
+  "./js/attrs.js",
+  "./js/items.js",
+  "./js/state.js",
+  "./js/levels.js",
+  "./js/combat.js",
+  "./js/render.js",
+  "./js/input.js",
+  "./js/ui.js",
+  "./js/main.js"
+];
 
-  /* ---------- HUD (in-run) ---------- */
-  #hud { position:absolute; top:0; left:0; right:0; z-index:5;
-    display:flex; flex-wrap:wrap; align-items:center; gap:6px;
-    padding:8px 10px; background:rgba(10,14,18,.86); backdrop-filter:blur(4px); }
-  .stat { display:flex; align-items:center; gap:6px; background:#141b23;
-    border:1px solid #2a3440; border-radius:10px; padding:6px 9px;
-    font-size:14px; font-weight:700; white-space:nowrap; }
-  .ico { width:10px; height:10px; border-radius:50%; display:inline-block; }
-  .ico.hp{background:#ff5c5c;box-shadow:0 0 6px #ff5c5c}
-  .ico.atk{background:#ffcf4a;box-shadow:0 0 6px #ffcf4a}
-  .ico.tou{background:#ff8a3d;box-shadow:0 0 6px #ff8a3d}
-  .ico.agi{background:#c2ff4d;box-shadow:0 0 6px #c2ff4d}
-  .ico.luc{background:#9dffcf;box-shadow:0 0 6px #9dffcf}
-  .ico.shard{background:#7ee0ff;box-shadow:0 0 8px #7ee0ff}
-  .ico.gold{background:#ffd75e;box-shadow:0 0 6px #ffd75e}
-  .ico.floor{background:#9b8cff;box-shadow:0 0 5px #9b8cff}
-  .spacer{flex:1}
+self.addEventListener("install", e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+  );
+});
 
-  #invBar { display:flex; flex-wrap:wrap; gap:5px; width:100%; }
-  .invchip { background:#141b23; border:1px solid #2a3440; border-radius:8px;
-    padding:3px 8px; font-size:12px; font-weight:700; }
+self.addEventListener("activate", e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
+  );
+});
 
-  #hint { position:absolute; bottom:14px; left:0; right:0; text-align:center;
-    font-size:15px; font-weight:700; color:#c6d6e6; z-index:5;
-    pointer-events:none; text-shadow:0 1px 3px #000; }
-
-  /* ---------- Hub & death overlays ---------- */
-  .overlay { position:absolute; inset:0; z-index:10; overflow-y:auto;
-    display:flex; flex-direction:column; align-items:center;
-    gap:18px; padding:22px 18px calc(22px + env(safe-area-inset-bottom));
-    text-align:center; background:rgba(8,11,15,.96); }
-
-  .overlay h1 { font-size:clamp(40px, 11vw, 64px); letter-spacing:2px; margin:6px 0 0; line-height:1; }
-  .overlay h2 { font-size:clamp(24px, 7vw, 34px); color:#ff9a9a; margin:0; }
-
-  .sub { color:#a9bccd; font-size:17px; line-height:1.45; max-width:420px; }
-
-  .walletbar { display:flex; align-items:center; gap:10px;
-    font-size:22px; font-weight:800; background:#141b23;
-    border:1px solid #2a3440; border-radius:14px; padding:12px 20px; }
-  .walletbar .ico { width:14px; height:14px; }
-
-  .shop { display:flex; flex-direction:column; gap:12px;
-    width:100%; max-width:460px; }
-  .upgrade { display:flex; justify-content:space-between; align-items:center;
-    gap:14px; background:#141b23; border:1px solid #2a3440;
-    border-radius:16px; padding:16px 18px; width:100%; }
-  .upgrade .name { font-weight:800; font-size:20px; text-align:left; }
-  .upgrade .desc { font-size:14.5px; line-height:1.4; color:#9fb3c5; text-align:left; margin-top:4px; }
-  .lvl { color:#7f94a8; font-size:14px; font-weight:700; margin-left:4px; }
-
-  .btn { background:#1f7a5c; color:#eafff5; border:none; border-radius:14px;
-    padding:16px 18px; font-size:19px; font-weight:800; cursor:pointer;
-    min-width:104px; box-shadow:0 4px 0 #0e3d2e; flex-shrink:0; }
-  .btn:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
-  .btn:disabled { background:#2f3d48; color:#83939f; box-shadow:none; cursor:default; }
-  .btn.big { width:100%; max-width:460px; padding:20px; font-size:22px; }
-</style>
-</head>
-<body>
-<div id="app">
-  <canvas id="canvas"></canvas>
-
-  <div id="hud" style="display:none">
-    <span class="stat"><span class="ico hp"></span><span id="hudHp">30/30</span></span>
-    <span class="stat"><span class="ico atk"></span><span id="hudAtk">6</span></span>
-    <span class="stat"><span class="ico tou"></span><span id="hudTou">20%</span></span>
-    <span class="stat"><span class="ico agi"></span><span id="hudAgi">4%</span></span>
-    <span class="stat"><span class="ico luc"></span><span id="hudLuc">1</span></span>
-    <span class="stat"><span class="ico floor"></span><span id="hudFloor">1</span></span>
-    <span class="spacer"></span>
-    <span class="stat"><span class="ico gold"></span><span id="hudGold">0</span></span>
-    <span class="stat"><span class="ico shard"></span><span id="hudShards">0</span></span>
-    <div id="invBar"></div>
-  </div>
-
-  <div id="hint" style="display:none">Tap a lit square to move, or tap a monster to attack</div>
-
-  <div id="hubScreen" class="overlay">
-    <h1>underward</h1>
-    <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
-    <div class="walletbar"><span class="ico shard"></span><span id="hubShards">0</span></div>
-    <div class="shop" id="shop"></div>
-    <button class="btn big" id="startBtn">START RUN</button>
-  </div>
-
-  <div id="deathScreen" class="overlay" style="display:none">
-    <h1>YOU DIED</h1>
-    <h2 id="deathInfo"></h2>
-    <div class="walletbar"><span class="ico shard"></span><span id="deathShards">0</span></div>
-    <button class="btn big" id="deathBtn">BACK TO HUB</button>
-  </div>
-</div>
-
-<script src="js/config.js"></script>
-<script src="js/save.js"></script>
-<script src="js/attrs.js"></script>
-<script src="js/items.js"></script>
-<script src="js/state.js"></script>
-<script src="js/levels.js"></script>
-<script src="js/combat.js"></script>
-<script src="js/render.js"></script>
-<script src="js/input.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
-
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
-  }
-</script>
-</body>
-</html>
+self.addEventListener("fetch", e => {
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request))
+  );
+});
