@@ -30,7 +30,7 @@ window.Delve = window.Delve || {};
 
   function buildGrid(size, noPillars){
     const G = Delve.G, cfg = C();
-    G.items = [];   // world items reset each floor (inventory persists)
+    G.items = [];
 
     const g = [];
     for(let y=0;y<size;y++){
@@ -44,14 +44,11 @@ window.Delve = window.Delve || {};
     const tx=size-2, ty=size-2;
 
     if(!noPillars){
-      const pillars = Math.floor(size*size*0.04);
       let placed=0, guard=0;
-      while(placed<pillars && guard++<800){
+      while(placed<Math.floor(size*size*0.04) && guard++<800){
         const x=Delve.rng(2,size-3), y=Delve.rng(2,size-3);
         if(g[y][x]!==T().FLOOR) continue;
-        const dSpawn = Math.abs(x-sx)+Math.abs(y-sy);
-        const dStair = Math.abs(x-tx)+Math.abs(y-ty);
-        if(dSpawn<=2 || dStair<=2) continue;
+        if(Math.abs(x-sx)+Math.abs(y-sy)<=2 || Math.abs(x-tx)+Math.abs(y-ty)<=2) continue;
         g[y][x]=T().WALL; placed++;
       }
     }
@@ -78,7 +75,7 @@ window.Delve = window.Delve || {};
       const x=tx, y=ty;
       g[y][x]=T().BOSS;
       G.boss = {
-        x, y, isBoss:true, hasActed:false,
+        x, y, isBoss:true, hasActed:false, kind:"boss",
         hp: Delve.bossHp(), atk: Delve.bossAtk(),
         shards: cfg.bossShardBase + cfg.bossShardPerFloor*G.floor,
         gold: cfg.goldBossBase
@@ -86,7 +83,6 @@ window.Delve = window.Delve || {};
       G.stairs = {x:-1,y:-1};
     }
 
-    // Hidden cache — Luck-driven chance to hide a better item on the floor
     const cacheChance = cfg.loot.cacheBase + Delve.luckPts() * cfg.loot.cacheLuck;
     if(Math.random() < cacheChance){
       let found=false, tries=0;
@@ -111,11 +107,12 @@ window.Delve = window.Delve || {};
     const q = [[fx,fy]];
     seen[fy][fx]=true;
     while(q.length){
-      const [x,y] = q.shift();
+      const c = q.shift();
+      const x=c[0], y=c[1];
       if(x===tx && y===ty) return true;
       const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-      for(const [dx,dy] of dirs){
-        const nx=x+dx, ny=y+dy;
+      for(let i=0;i<dirs.length;i++){
+        const nx=x+dirs[i][0], ny=y+dirs[i][1];
         if(g[ny] && g[ny][nx]!==undefined && !seen[ny][nx]){
           seen[ny][nx]=true;
           if(g[ny][nx]!==T().WALL) q.push([nx,ny]);
@@ -127,8 +124,13 @@ window.Delve = window.Delve || {};
 
   function makeMonster(x,y){
     const cfg=C(), f=Delve.G.floor;
+
+    let kind = "goblin";
+    if(f >= 8) kind = (Math.random() < 0.5) ? "wraith" : "brute";
+    else if(f >= 4) kind = (Math.random() < 0.4) ? "brute" : "goblin";
+
     return {
-      x, y, isBoss:false, hasActed:false,
+      x, y, isBoss:false, hasActed:false, kind:kind,
       hp: cfg.monsterHpBase + cfg.monsterHpPerFloor*(f-1),
       atk: Math.round(cfg.monsterAtkBase + cfg.monsterAtkPerFloor*f),
       shards: cfg.monsterShardBase + cfg.monsterShardPerFloor*f,
