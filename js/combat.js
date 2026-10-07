@@ -11,6 +11,7 @@ window.Delve = window.Delve || {};
     Delve.addFloater("-" + hit, G.px, G.py, "#ff5c5c");
     Delve.addShake(1);
     if(G.hp <= 0){ Delve.die(); return; }
+
     if(Delve.hasSecondWind() && !G.secondWindUsed &&
        G.hp <= Math.floor(Delve.maxHp() * sec.secondWindTrigger)){
       const heal = Math.round(Delve.maxHp() * sec.secondWindHeal);
@@ -24,6 +25,18 @@ window.Delve = window.Delve || {};
   Delve.tryAct = function(tx,ty){
     const G = Delve.G, g = G.grid;
     if(!G || G.dead) return;
+
+    // if targeting an ability, resolve it instead of move/attack
+    if(G.targetingAbility){
+      const okCast = Delve.castAbility(G.targetingAbility, tx, ty);
+      G.targetingAbility = null;
+      if(okCast !== false){
+        Delve.enemiesTurn();
+        Delve.updateHUD();
+        return;
+      }
+    }
+
     if(!g[ty] || g[ty][tx] === undefined) return;
 
     const manh = Math.abs(tx - G.px) + Math.abs(ty - G.py);
@@ -107,7 +120,7 @@ window.Delve = window.Delve || {};
 
     if(m.isBoss){
       G.boss = null;
-      G.stairs = {x: m.x, y: m.y};
+      G.stairs = {x:m.x, y:m.y};
       g[m.y][m.x] = T().STAIR;
       Delve.flash("BOSS DOWN!");
       Delve.addShake(5);
@@ -116,17 +129,18 @@ window.Delve = window.Delve || {};
       Delve.addShake(2);
     }
 
-    const shardGain = m.shards + buffs.shardBonus;
-    Delve.save.shards += shardGain;
-    G.runShards += shardGain;
+    const rewards = Delve.killRewards(m);
+    Delve.save.shards += rewards.shards;
+    G.runShards += rewards.shards;
     Delve.persist();
 
-    const gMult = 1 + Delve.luckPts() * C().goldLuckMult + buffs.goldBonus;
-    const goldGain = Math.round(m.gold * gMult);
-    G.gold += goldGain;
+    G.gold += rewards.gold;
+    Delve.addFloater("+" + rewards.shards + " \u25C7", m.x, m.y, "#7ee0ff");
+    Delve.addFloater("+" + rewards.gold + " g", m.x, m.y, "#ffd75e");
 
-    Delve.addFloater("+" + shardGain + " \u25C7", m.x, m.y, "#7ee0ff");
-    Delve.addFloater("+" + goldGain + " g", m.x, m.y, "#ffd75e");
+    // XP on kill + energy regen
+    if(Delve.addXP) Delve.addXP(rewards.xp);
+    G.energy = Math.min(Delve.maxEnergy ? Delve.maxEnergy() : 100, (G.energy||0) + C().energyPerKill);
   };
 
   Delve.enemiesTurn = function(){
@@ -137,11 +151,12 @@ window.Delve = window.Delve || {};
       if(G.hp <= 0 || G.dead) break;
       actMob(m);
     }
+    // tick stone skin
+    if(G.stoneSkin > 0) G.stoneSkin--;
   };
 
   function actMob(m){
     const G = Delve.G;
-
     if(m.skipNext){ m.skipNext = false; return; }
 
     const manh = Math.abs(G.px - m.x) + Math.abs(G.py - m.y);
@@ -155,6 +170,7 @@ window.Delve = window.Delve || {};
     }
 
     let hit = Math.max(1, Math.round(m.atk * (1 - Delve.dmgRed())) - Delve.flatRed());
+    if(G.stoneSkin > 0) hit = Math.round(hit * 0.4);
     if(Delve.hasBulwark()) hit = Math.min(hit, Delve.hitCap());
     applyHurt(hit);
   }
