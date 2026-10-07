@@ -1,4 +1,4 @@
-const CACHE = "underward-v9";
+const CACHE = "underward-v10";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,8 +10,10 @@ const ASSETS = [
   "./js/attrs.js",
   "./js/items.js",
   "./js/sprites.js",
+  "./js/monsters.js",
   "./js/state.js",
   "./js/levels.js",
+  "./js/traits.js",
   "./js/combat.js",
   "./js/render.js",
   "./js/input.js",
