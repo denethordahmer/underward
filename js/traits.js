@@ -30,6 +30,7 @@ window.Delve = window.Delve || {};
       G.pendingLevelUps = (G.pendingLevelUps || 0) + 1;
       if(!G.levelUpOpen){
         G.levelUpOpen = true;
+        if(Delve.logXP) Delve.logXP(0, G.level);
         showLevelUpChoices();
       }
       return true;
