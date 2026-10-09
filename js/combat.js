@@ -138,6 +138,9 @@ window.Delve = window.Delve || {};
     Delve.addFloater("+" + rewards.shards + " \u25C7", m.x, m.y, "#7ee0ff");
     Delve.addFloater("+" + rewards.gold + " g", m.x, m.y, "#ffd75e");
 
+    // Item drop roll
+    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y);
+
     // XP on kill + energy regen
     if(Delve.addXP) Delve.addXP(rewards.xp);
     G.energy = Math.min(Delve.maxEnergy ? Delve.maxEnergy() : 100, (G.energy||0) + C().energyPerKill);
@@ -197,3 +200,41 @@ window.Delve = window.Delve || {};
     document.getElementById("deathScreen").style.display = "flex";
   };
 })();
+
+// Step version used by pathfinder — same as tryAct but always adjacent
+Delve.tryActOnStep = function(tx, ty){
+  const G = Delve.G, g = G.grid;
+  if(!G || G.dead) return;
+  if(!g[ty] || g[ty][tx] === undefined) return;
+
+  if(tx > G.px) G.lastDir = "right";
+  else if(tx < G.px) G.lastDir = "left";
+  else if(ty > G.py) G.lastDir = "down";
+  else G.lastDir = "up";
+
+  const T = Delve.T;
+  const cell = g[ty][tx];
+
+  if(cell === T.MONSTER){
+    const m = G.monsters.find(function(m){ return m.x === tx && m.y === ty; });
+    if(m){ Delve.attackMonster(m); G._path = null; } // stop pathing when attacking
+  } else if(cell === T.BOSS){
+    if(G.boss && G.boss.x === tx && G.boss.y === ty){ Delve.attackMonster(G.boss); G._path = null; }
+  } else if(cell === T.WALL){
+    G._path = null;
+  } else {
+    G.px = tx; G.py = ty;
+    const idx = G.items.findIndex(function(i){ return i.x === tx && i.y === ty; });
+    if(idx >= 0){
+      const it = G.items[idx];
+      G.items.splice(idx, 1);
+      Delve.pickupItem(it);
+    }
+    Delve.enemiesTurn();
+    if(G.hp > 0 && !G.dead && cell === T.STAIR){
+      G._path = null;
+      Delve.descend();
+    }
+  }
+  Delve.updateHUD();
+};
