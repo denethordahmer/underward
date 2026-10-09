@@ -2,101 +2,451 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>underward — icon maker</title>
 <style>
+  :root { color-scheme: dark; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   body {
-    margin:0; min-height:100vh; background:#0b0f14; color:#d7e3ee;
+    background:#0b0f14; color:#d7e3ee;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:18px; padding:24px; text-align:center;
+    min-height:100vh; padding:24px 18px 40px;
   }
-  h1 { font-size:24px; margin:0; letter-spacing:1px; }
-  p { color:#8fa3b8; font-size:15px; max-width:360px; margin:0; }
-  canvas { border:2px solid #2a3440; border-radius:16px; box-shadow:0 8px 40px rgba(0,0,0,.6); }
-  button {
-    background:#1f7a5c; color:#eafff5; border:none; border-radius:14px;
-    padding:16px 22px; font-size:18px; font-weight:800; width:280px;
-    box-shadow:0 4px 0 #0e3d2e;
+  h1 { font-size:22px; font-weight:900; letter-spacing:1px; color:#eafff5; margin-bottom:4px; }
+  .sub { color:#7f94a8; font-size:14px; margin-bottom:22px; }
+
+  .card {
+    background:#111820; border:1px solid #1e2c38; border-radius:16px;
+    padding:18px; margin-bottom:14px;
   }
-  button:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
+  .card-title { font-size:12px; font-weight:800; color:#7f94a8; letter-spacing:.06em; margin-bottom:12px; }
+
+  /* Preview */
+  #previewWrap {
+    display:flex; justify-content:center; gap:18px; flex-wrap:wrap; margin-bottom:6px;
+  }
+  .prev-item { display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .prev-label { font-size:11px; color:#7f94a8; }
+  canvas { border-radius:22%; border:2px solid #2a3440; display:block; }
+
+  /* Style picker */
+  .style-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .style-btn {
+    background:#141b23; border:2px solid #2a3440; border-radius:10px;
+    padding:10px 6px; font-size:12px; font-weight:700; color:#a9bccd;
+    cursor:pointer; text-align:center; transition:all .15s;
+  }
+  .style-btn.active { border-color:#2ad0b0; color:#2ad0b0; background:#0d1e1a; }
+  .style-btn .icon { font-size:22px; display:block; margin-bottom:4px; }
+
+  /* Colour row */
+  .color-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .color-swatch {
+    width:34px; height:34px; border-radius:50%; cursor:pointer;
+    border:2px solid transparent; transition:border-color .15s;
+    flex-shrink:0;
+  }
+  .color-swatch.active { border-color:#fff; }
+  input[type=color] {
+    width:34px; height:34px; border-radius:50%; border:2px solid #2a3440;
+    padding:2px; background:#141b23; cursor:pointer; flex-shrink:0;
+  }
+
+  /* GitHub section */
+  .field { margin-bottom:10px; }
+  .field label { font-size:12px; color:#7f94a8; font-weight:700; display:block; margin-bottom:5px; }
+  .field input {
+    width:100%; background:#0d1520; border:1px solid #2a3440; border-radius:10px;
+    color:#eafff5; font-size:15px; padding:11px 13px; font-family:inherit;
+    outline:none;
+  }
+  .field input:focus { border-color:#2ad0b0; }
+
+  /* Buttons */
+  .btn {
+    display:block; width:100%; padding:17px; border:none; border-radius:14px;
+    font-size:18px; font-weight:800; cursor:pointer; font-family:inherit;
+    margin-bottom:10px; touch-action:manipulation;
+  }
+  .btn-primary { background:#1f7a5c; color:#eafff5; box-shadow:0 4px 0 #0e3d2e; }
+  .btn-primary:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
+  .btn-secondary { background:#141b23; color:#7ee0ff; border:1px solid #7ee0ff44; }
+  .btn-secondary:active { background:#1a2a3a; }
+  .btn:disabled { background:#1e2a34; color:#4a5a68; box-shadow:none; cursor:default; }
+
+  #status {
+    font-size:13px; min-height:20px; text-align:center; padding:4px 0;
+    font-weight:700; border-radius:8px;
+  }
+  .ok { color:#7ee08a; }
+  .err { color:#ff9a9a; }
+  .info { color:#7ee0ff; }
+
+  .steps { counter-reset:step; display:flex; flex-direction:column; gap:10px; }
+  .step {
+    display:flex; gap:10px; align-items:flex-start;
+    font-size:13px; color:#a9bccd; line-height:1.5;
+  }
+  .step::before {
+    counter-increment:step;
+    content:counter(step);
+    background:#1f2d3c; color:#7ee0ff; border-radius:50%;
+    width:22px; height:22px; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800; flex-shrink:0; margin-top:1px;
+  }
+  code { background:#141b23; padding:2px 6px; border-radius:5px; font-size:12px; color:#c2ff4d; }
 </style>
 </head>
 <body>
-  <h1>underward icon maker</h1>
-  <p>Tap each button. Two PNGs download to your phone. Upload both into the <b>icons/</b> folder of your repo.</p>
-  <canvas id="preview" width="192" height="192"></canvas>
-  <button onclick="downloadIcon(192)">Download icon-192.png</button>
-  <button onclick="downloadIcon(512)">Download icon-512.png</button>
+
+<h1>⚔️ underward icon maker</h1>
+<p class="sub">Design your icons and push them straight to GitHub.</p>
+
+<!-- Preview -->
+<div class="card">
+  <div class="card-title">PREVIEW</div>
+  <div id="previewWrap">
+    <div class="prev-item">
+      <canvas id="prev192" width="192" height="192"></canvas>
+      <span class="prev-label">192 × 192</span>
+    </div>
+    <div class="prev-item">
+      <canvas id="prev64" width="64" height="64"></canvas>
+      <span class="prev-label">64 × 64</span>
+    </div>
+  </div>
+</div>
+
+<!-- Style -->
+<div class="card">
+  <div class="card-title">STYLE</div>
+  <div class="style-grid" id="styleGrid">
+    <div class="style-btn active" data-style="diamond">
+      <span class="icon">◆</span>Diamond
+    </div>
+    <div class="style-btn" data-style="sword">
+      <span class="icon">⚔️</span>Sword
+    </div>
+    <div class="style-btn" data-style="skull">
+      <span class="icon">💀</span>Skull
+    </div>
+    <div class="style-btn" data-style="dungeon">
+      <span class="icon">🏛️</span>Dungeon
+    </div>
+    <div class="style-btn" data-style="rune">
+      <span class="icon">🔮</span>Rune
+    </div>
+    <div class="style-btn" data-style="ward">
+      <span class="icon">🔱</span>Ward
+    </div>
+  </div>
+</div>
+
+<!-- Colour -->
+<div class="card">
+  <div class="card-title">ACCENT COLOUR</div>
+  <div class="color-row" id="colorRow">
+    <div class="color-swatch active" data-col="#2ad0b0" style="background:#2ad0b0"></div>
+    <div class="color-swatch" data-col="#7ee0ff" style="background:#7ee0ff"></div>
+    <div class="color-swatch" data-col="#ff7d93" style="background:#ff7d93"></div>
+    <div class="color-swatch" data-col="#c98aff" style="background:#c98aff"></div>
+    <div class="color-swatch" data-col="#ffd75e" style="background:#ffd75e"></div>
+    <div class="color-swatch" data-col="#ff9d3d" style="background:#ff9d3d"></div>
+    <input type="color" id="customCol" value="#2ad0b0" title="Custom colour">
+  </div>
+</div>
+
+<!-- GitHub -->
+<div class="card">
+  <div class="card-title">PUSH TO GITHUB</div>
+  <div class="field">
+    <label>GitHub Token (classic, scope: repo)</label>
+    <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+  </div>
+  <div class="field">
+    <label>Repository</label>
+    <input type="text" id="ghRepo" value="denethordahmer/underward" spellcheck="false">
+  </div>
+  <div class="field">
+    <label>Branch</label>
+    <input type="text" id="ghBranch" value="main" spellcheck="false">
+  </div>
+  <button class="btn btn-primary" id="pushBtn">⬆ Push icons to GitHub</button>
+  <div id="status"></div>
+</div>
+
+<!-- Manual fallback -->
+<div class="card">
+  <div class="card-title">OR DOWNLOAD MANUALLY</div>
+  <button class="btn btn-secondary" onclick="downloadIcon(192)">⬇ Download icon-192.png</button>
+  <button class="btn btn-secondary" onclick="downloadIcon(512)">⬇ Download icon-512.png</button>
+  <br>
+  <div class="steps">
+    <div class="step">Download both PNGs above.</div>
+    <div class="step">In your GitHub repo open the <code>icons/</code> folder (create it if missing).</div>
+    <div class="step">Click <strong>Add file → Upload files</strong> and drop both PNGs in. Commit.</div>
+  </div>
+</div>
 
 <script>
-function drawIcon(size){
+// ── State ───────────────────────────────────────────────────
+let currentStyle = "diamond";
+let currentCol   = "#2ad0b0";
+
+// ── Draw ────────────────────────────────────────────────────
+function drawIcon(size, style, col){
   const c = document.createElement("canvas");
   c.width = c.height = size;
   const x = c.getContext("2d");
+  const s = size, h = size / 2;
 
-  // full-bleed dark background (required for maskable icons)
+  // Background
   x.fillStyle = "#0b0f14";
-  x.fillRect(0,0,size,size);
-
-  // depth gradient
-  const bg = x.createRadialGradient(size*0.5,size*0.42,size*0.05,size*0.5,size*0.42,size*0.78);
-  bg.addColorStop(0,"#1a2532");
-  bg.addColorStop(1,"#070a0e");
+  x.fillRect(0,0,s,s);
+  const bg = x.createRadialGradient(h, h*0.9, s*0.04, h, h*0.9, s*0.75);
+  bg.addColorStop(0, "#1a2532");
+  bg.addColorStop(1, "#070a0e");
   x.fillStyle = bg;
-  x.fillRect(0,0,size,size);
+  x.fillRect(0,0,s,s);
 
-  // player diamond with glow (kept inside the maskable safe zone)
-  const cx = size*0.5, cy = size*0.45, r = size*0.24;
-  const glow = x.createRadialGradient(cx,cy,r*0.2,cx,cy,r*1.8);
-  glow.addColorStop(0,"rgba(80,200,255,0.40)");
-  glow.addColorStop(1,"rgba(0,0,0,0)");
-  x.fillStyle = glow;
-  x.fillRect(0,0,size,size);
+  const DRAW = {
+    diamond: drawDiamond,
+    sword:   drawSword,
+    skull:   drawSkull,
+    dungeon: drawDungeon,
+    rune:    drawRune,
+    ward:    drawWard,
+  };
+  (DRAW[style] || drawDiamond)(x, s, col);
 
-  x.fillStyle = "#4fd8ff";
-  x.strokeStyle = "#e8fbff";
-  x.lineWidth = Math.max(2, size*0.018);
-  x.beginPath();
-  x.moveTo(cx, cy-r);
-  x.lineTo(cx+r, cy);
-  x.lineTo(cx, cy+r);
-  x.lineTo(cx-r, cy);
-  x.closePath();
-  x.fill();
-  x.stroke();
-
-  // bright core
-  x.fillStyle = "rgba(255,255,255,0.9)";
-  const core = size*0.05;
-  x.fillRect(cx-core/2, cy-core/2, core, core);
-
-  // descending stair chevrons (the "under" in underward)
-  x.strokeStyle = "rgba(42,208,176,0.9)";
-  x.lineWidth = Math.max(2, size*0.022);
+  // Chevrons bottom
+  x.strokeStyle = col + "bb";
+  x.lineWidth = Math.max(2, s * 0.022);
   x.lineCap = "round";
-  x.lineJoin = "round";
-  for(let i=0;i<2;i++){
-    const yy = cy + r*1.42 + i*size*0.07;
-    const hw = size*(0.11 - i*0.022);
+  for(let i = 0; i < 2; i++){
+    const yy = s * 0.82 + i * s * 0.07;
+    const hw = s * (0.10 - i * 0.02);
     x.beginPath();
-    x.moveTo(cx-hw, yy);
-    x.lineTo(cx, yy-size*0.055);
-    x.lineTo(cx+hw, yy);
+    x.moveTo(h - hw, yy);
+    x.lineTo(h,      yy - s * 0.05);
+    x.lineTo(h + hw, yy);
     x.stroke();
   }
+
   return c;
 }
 
-function downloadIcon(size){
-  const c = drawIcon(size);
-  const preview = document.getElementById("preview");
-  const small = document.createElement("canvas");
-  small.width = small.height = 192;
-  small.getContext("2d").drawImage(c, 0, 0, 192, 192);
-  preview.getContext("2d").clearRect(0,0,192,192);
-  preview.getContext("2d").drawImage(c, 0, 0, 192, 192);
+function glow(x, cx, cy, r, col){
+  const g = x.createRadialGradient(cx, cy, r * 0.1, cx, cy, r * 2);
+  g.addColorStop(0, col + "55");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  x.fillStyle = g;
+  x.fillRect(cx - r*2, cy - r*2, r*4, r*4);
+}
 
+function drawDiamond(x, s, col){
+  const cx = s*0.5, cy = s*0.44, r = s*0.24;
+  glow(x, cx, cy, r, col);
+  x.fillStyle = col;
+  x.strokeStyle = "#fff";
+  x.lineWidth = Math.max(2, s*0.018);
+  x.beginPath();
+  x.moveTo(cx, cy-r); x.lineTo(cx+r, cy);
+  x.lineTo(cx, cy+r); x.lineTo(cx-r, cy);
+  x.closePath(); x.fill(); x.stroke();
+  x.fillStyle = "rgba(255,255,255,0.85)";
+  const cs = s*0.05;
+  x.fillRect(cx-cs/2, cy-cs/2, cs, cs);
+}
+
+function drawSword(x, s, col){
+  const cx = s*0.5, cy = s*0.44;
+  glow(x, cx, cy, s*0.22, col);
+  const lw = Math.max(3, s*0.06);
+  // blade
+  x.strokeStyle = col;
+  x.lineWidth = lw;
+  x.lineCap = "round";
+  x.beginPath();
+  x.moveTo(cx, cy - s*0.28);
+  x.lineTo(cx, cy + s*0.14);
+  x.stroke();
+  // tip shine
+  x.strokeStyle = "#fff";
+  x.lineWidth = lw * 0.3;
+  x.beginPath();
+  x.moveTo(cx - lw*0.3, cy - s*0.26);
+  x.lineTo(cx - lw*0.3, cy - s*0.12);
+  x.stroke();
+  // crossguard
+  x.strokeStyle = col;
+  x.lineWidth = lw * 0.7;
+  x.beginPath();
+  x.moveTo(cx - s*0.14, cy + s*0.05);
+  x.lineTo(cx + s*0.14, cy + s*0.05);
+  x.stroke();
+  // pommel
+  x.fillStyle = col;
+  x.beginPath();
+  x.arc(cx, cy + s*0.18, lw*0.7, 0, Math.PI*2);
+  x.fill();
+}
+
+function drawSkull(x, s, col){
+  const cx = s*0.5, cy = s*0.41;
+  glow(x, cx, cy, s*0.22, col);
+  // cranium
+  x.fillStyle = col + "dd";
+  x.strokeStyle = col;
+  x.lineWidth = Math.max(2, s*0.018);
+  x.beginPath();
+  x.arc(cx, cy, s*0.2, Math.PI, 0);
+  x.lineTo(cx + s*0.2, cy + s*0.06);
+  x.lineTo(cx - s*0.2, cy + s*0.06);
+  x.closePath();
+  x.fill(); x.stroke();
+  // jaw line
+  x.fillStyle = "#0b0f14";
+  x.fillRect(cx - s*0.13, cy + s*0.03, s*0.26, s*0.06);
+  // teeth
+  x.fillStyle = col;
+  for(let i=0;i<3;i++){
+    x.fillRect(cx - s*0.11 + i*s*0.08, cy + s*0.045, s*0.04, s*0.04);
+  }
+  // eyes
+  x.fillStyle = "#0b0f14";
+  x.beginPath(); x.arc(cx - s*0.09, cy - s*0.02, s*0.04, 0, Math.PI*2); x.fill();
+  x.beginPath(); x.arc(cx + s*0.09, cy - s*0.02, s*0.04, 0, Math.PI*2); x.fill();
+}
+
+function drawDungeon(x, s, col){
+  const cx = s*0.5, cy = s*0.42;
+  glow(x, cx, cy, s*0.24, col);
+  // arch outline
+  x.strokeStyle = col;
+  x.lineWidth = Math.max(2.5, s*0.025);
+  x.fillStyle = col + "22";
+  const aw = s*0.22, ah = s*0.26;
+  x.beginPath();
+  x.moveTo(cx - aw, cy + ah);
+  x.lineTo(cx - aw, cy);
+  x.arc(cx, cy, aw, Math.PI, 0);
+  x.lineTo(cx + aw, cy + ah);
+  x.fill(); x.stroke();
+  // inner dark
+  x.fillStyle = "#04070a";
+  const iw = aw*0.7, ih = ah*0.85;
+  x.beginPath();
+  x.moveTo(cx - iw, cy + ah - 2);
+  x.lineTo(cx - iw, cy + iw*0.08);
+  x.arc(cx, cy + iw*0.08, iw, Math.PI, 0);
+  x.lineTo(cx + iw, cy + ah - 2);
+  x.closePath(); x.fill();
+  // keystone
+  x.fillStyle = col;
+  x.fillRect(cx - s*0.025, cy - s*0.01, s*0.05, s*0.07);
+}
+
+function drawRune(x, s, col){
+  const cx = s*0.5, cy = s*0.43;
+  glow(x, cx, cy, s*0.22, col);
+  const r = s*0.21;
+  // outer circle
+  x.strokeStyle = col;
+  x.lineWidth = Math.max(2, s*0.02);
+  x.beginPath(); x.arc(cx, cy, r, 0, Math.PI*2); x.stroke();
+  // inner triangle (rune)
+  x.fillStyle = col + "33";
+  x.strokeStyle = col;
+  x.lineWidth = Math.max(1.5, s*0.016);
+  x.beginPath();
+  for(let i=0;i<3;i++){
+    const a = -Math.PI/2 + i*Math.PI*2/3;
+    const px = cx + Math.cos(a)*r*0.72, py = cy + Math.sin(a)*r*0.72;
+    i===0 ? x.moveTo(px,py) : x.lineTo(px,py);
+  }
+  x.closePath(); x.fill(); x.stroke();
+  // centre dot
+  x.fillStyle = col;
+  x.beginPath(); x.arc(cx, cy, s*0.04, 0, Math.PI*2); x.fill();
+  // tick marks on ring
+  for(let i=0;i<8;i++){
+    const a = i*Math.PI/4;
+    x.beginPath();
+    x.moveTo(cx + Math.cos(a)*r*0.88, cy + Math.sin(a)*r*0.88);
+    x.lineTo(cx + Math.cos(a)*r*1.02, cy + Math.sin(a)*r*1.02);
+    x.stroke();
+  }
+}
+
+function drawWard(x, s, col){
+  const cx = s*0.5, cy = s*0.43;
+  glow(x, cx, cy, s*0.24, col);
+  // trident / ward symbol
+  x.strokeStyle = col;
+  x.lineWidth = Math.max(2.5, s*0.026);
+  x.lineCap = "round";
+  // stem
+  x.beginPath();
+  x.moveTo(cx, cy - s*0.27);
+  x.lineTo(cx, cy + s*0.15);
+  x.stroke();
+  // arms
+  const aw = s*0.14, ah = s*0.12;
+  for(const dx of [-1, 1]){
+    x.beginPath();
+    x.moveTo(cx, cy - s*0.10);
+    x.lineTo(cx + dx*aw, cy - s*0.10);
+    x.lineTo(cx + dx*aw, cy - s*0.27);
+    x.stroke();
+  }
+  // base cross-bar
+  x.beginPath();
+  x.moveTo(cx - s*0.10, cy + s*0.10);
+  x.lineTo(cx + s*0.10, cy + s*0.10);
+  x.stroke();
+}
+
+// ── Render previews ─────────────────────────────────────────
+function renderPreviews(){
+  const c192 = document.getElementById("prev192");
+  const c64  = document.getElementById("prev64");
+  const icon = drawIcon(192, currentStyle, currentCol);
+  c192.getContext("2d").drawImage(icon, 0, 0, 192, 192);
+  const small = drawIcon(64, currentStyle, currentCol);
+  c64.getContext("2d").drawImage(small, 0, 0, 64, 64);
+}
+renderPreviews();
+
+// ── Style buttons ────────────────────────────────────────────
+document.getElementById("styleGrid").addEventListener("click", function(e){
+  const btn = e.target.closest(".style-btn");
+  if(!btn) return;
+  document.querySelectorAll(".style-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  currentStyle = btn.dataset.style;
+  renderPreviews();
+});
+
+// ── Colour swatches ──────────────────────────────────────────
+document.getElementById("colorRow").addEventListener("click", function(e){
+  const sw = e.target.closest(".color-swatch");
+  if(!sw) return;
+  document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("active"));
+  sw.classList.add("active");
+  currentCol = sw.dataset.col;
+  document.getElementById("customCol").value = currentCol;
+  renderPreviews();
+});
+document.getElementById("customCol").addEventListener("input", function(){
+  document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("active"));
+  currentCol = this.value;
+  renderPreviews();
+});
+
+// ── Download ─────────────────────────────────────────────────
+function downloadIcon(size){
+  const c = drawIcon(size, currentStyle, currentCol);
   c.toBlob(function(blob){
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -104,13 +454,92 @@ function downloadIcon(size){
     document.body.appendChild(a);
     a.click();
     a.remove();
-  });
+  }, "image/png");
+}
+window.downloadIcon = downloadIcon;
+
+// ── GitHub push ──────────────────────────────────────────────
+function canvasToBase64(canvas){
+  return canvas.toDataURL("image/png").split(",")[1];
 }
 
-// show the preview on load
-(function(){ drawIcon(192).then ? null : null; })();
-const preview = document.getElementById("preview");
-preview.getContext("2d").drawImage(drawIcon(192), 0, 0);
+async function pushToGitHub(){
+  const token  = document.getElementById("ghToken").value.trim();
+  const repo   = document.getElementById("ghRepo").value.trim();
+  const branch = document.getElementById("ghBranch").value.trim() || "main";
+  const status = document.getElementById("status");
+
+  if(!token){ status.className="err"; status.textContent="⚠ Please enter a GitHub token."; return; }
+  if(!repo)  { status.className="err"; status.textContent="⚠ Please enter the repository."; return; }
+
+  const btn = document.getElementById("pushBtn");
+  btn.disabled = true;
+  status.className = "info";
+  status.textContent = "Connecting to GitHub…";
+
+  const headers = {
+    "Authorization": "token " + token,
+    "Accept": "application/vnd.github+json",
+    "Content-Type": "application/json"
+  };
+  const base = "https://api.github.com/repos/" + repo + "/contents/icons/";
+
+  async function getSHA(path){
+    try {
+      const r = await fetch(base + path + "?ref=" + branch, { headers });
+      if(r.ok){ const j = await r.json(); return j.sha; }
+    } catch(e){}
+    return null;
+  }
+
+  async function putFile(filename, b64, sha){
+    const body = {
+      message: "chore: add " + filename + " via icon-maker",
+      content: b64,
+      branch: branch
+    };
+    if(sha) body.sha = sha;
+    const r = await fetch(base + filename, {
+      method: "PUT", headers,
+      body: JSON.stringify(body)
+    });
+    if(!r.ok){
+      const j = await r.json();
+      throw new Error(j.message || ("HTTP " + r.status));
+    }
+    return r.json();
+  }
+
+  try {
+    status.textContent = "Generating icon-192.png…";
+    const icon192 = drawIcon(192, currentStyle, currentCol);
+    const b64_192 = canvasToBase64(icon192);
+
+    status.textContent = "Generating icon-512.png…";
+    const icon512 = drawIcon(512, currentStyle, currentCol);
+    const b64_512 = canvasToBase64(icon512);
+
+    status.textContent = "Checking existing files…";
+    const sha192 = await getSHA("icon-192.png");
+    const sha512 = await getSHA("icon-512.png");
+
+    status.textContent = "Uploading icon-192.png…";
+    await putFile("icon-192.png", b64_192, sha192);
+
+    status.textContent = "Uploading icon-512.png…";
+    await putFile("icon-512.png", b64_512, sha512);
+
+    status.className = "ok";
+    status.textContent = "✓ Both icons pushed to " + repo + " successfully!";
+  } catch(err){
+    status.className = "err";
+    status.textContent = "✗ " + err.message;
+  }
+
+  btn.disabled = false;
+}
+
+document.getElementById("pushBtn").addEventListener("click", pushToGitHub);
 </script>
 </body>
 </html>
