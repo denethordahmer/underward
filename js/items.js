@@ -125,6 +125,7 @@ window.Delve = window.Delve || {};
   Delve.pickupItem = function(item){
     Delve.G.inventory.push(item);
     Delve.flash("Picked up " + item.name);
+    Delve.logPickup(item.name, item.tier);
     Delve.updateHUD();
   };
 
@@ -206,6 +207,7 @@ window.Delve = window.Delve || {};
       const heal = Math.round(Delve.maxHp() * item.healPct);
       G.hp = Math.min(Delve.maxHp(), G.hp + heal);
       Delve.flash(item.name + "! +" + heal + " HP");
+      Delve.logConsumable(item.name, "+" + heal + " HP"); Delve.logHeal(heal, item.name);
       Delve.enemiesTurn();
     } else if(item.dmg){
       const targets = [];
@@ -223,6 +225,7 @@ window.Delve = window.Delve || {};
       removeFromInv(item);
       t.hp -= item.dmg;
       Delve.flash(item.name + "! -" + item.dmg);
+      Delve.logConsumable(item.name, "-" + item.dmg + " to target");
       if(t.hp <= 0) Delve.killMonster(t);
       Delve.enemiesTurn();
     } else if(item.control){
