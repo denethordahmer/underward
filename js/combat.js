@@ -3,13 +3,14 @@ window.Delve = window.Delve || {};
   const T = () => Delve.T;
   const C = () => Delve.CONFIG;
 
-  function applyHurt(hit){
+  function applyHurt(hit, mName){
     const G = Delve.G, sec = C().secondaries;
     if(G.hp <= 0 || G.dead) return;
     G.hp -= hit;
     G.playerHit = Date.now();
     Delve.addFloater("-" + hit, G.px, G.py, "#ff5c5c");
     Delve.addShake(1);
+    if(mName) Delve.logEnemyAtk(mName, hit);
     if(G.hp <= 0){ Delve.die(); return; }
 
     if(Delve.hasSecondWind() && !G.secondWindUsed &&
@@ -19,6 +20,7 @@ window.Delve = window.Delve || {};
       G.secondWindUsed = true;
       Delve.addFloater("+" + heal, G.px, G.py, "#7ee08a");
       Delve.flash("Second Wind! +" + heal);
+      Delve.logSecondWind(heal);
     }
   }
 
@@ -26,7 +28,6 @@ window.Delve = window.Delve || {};
     const G = Delve.G, g = G.grid;
     if(!G || G.dead) return;
 
-    // if targeting an ability, resolve it instead of move/attack
     if(G.targetingAbility){
       const okCast = Delve.castAbility(G.targetingAbility, tx, ty);
       G.targetingAbility = null;
@@ -88,13 +89,16 @@ window.Delve = window.Delve || {};
     const fs = Delve.firstStrikeBonus();
     if(fs && !m.hasActed) dmg += fs;
 
+    let isCrit = false;
     if(Math.random() < Delve.crit()){
       dmg = Math.round(dmg * sec.critMult);
+      isCrit = true;
       Delve.addFloater("CRIT " + dmg, m.x, m.y, "#ff9d3d");
     } else {
       Delve.addFloater("-" + dmg, m.x, m.y, "#ffd75e");
     }
 
+    Delve.logPlayerAtk(m.name || m.kind || "enemy", dmg, isCrit);
     m.hp -= dmg;
 
     if(m.hp <= 0){
@@ -104,6 +108,7 @@ window.Delve = window.Delve || {};
         if(heal > 0){
           G.hp = Math.min(Delve.maxHp(), G.hp + heal);
           Delve.addFloater("+" + heal, G.px, G.py, "#7ee08a");
+          Delve.logHeal(heal, "Overkill");
         }
       }
       Delve.killMonster(m);
@@ -138,10 +143,16 @@ window.Delve = window.Delve || {};
     Delve.addFloater("+" + rewards.shards + " \u25C7", m.x, m.y, "#7ee0ff");
     Delve.addFloater("+" + rewards.gold + " g", m.x, m.y, "#ffd75e");
 
-    // Item drop roll
-    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y);
+    Delve.logKill(m.name || m.kind || "enemy", rewards.gold, rewards.shards, m.isBoss);
 
-    // XP on kill + energy regen
+    // heal-on-kill buff
+    if(buffs.healOnKill && buffs.healOnKill > 0){
+      G.hp = Math.min(Delve.maxHp(), G.hp + buffs.healOnKill);
+      Delve.addFloater("+" + buffs.healOnKill, G.px, G.py, "#7ee08a");
+      Delve.logHeal(buffs.healOnKill, "Bloodthirst");
+    }
+
+    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y);
     if(Delve.addXP) Delve.addXP(rewards.xp);
     G.energy = Math.min(Delve.maxEnergy ? Delve.maxEnergy() : 100, (G.energy||0) + C().energyPerKill);
   };
@@ -154,7 +165,6 @@ window.Delve = window.Delve || {};
       if(G.hp <= 0 || G.dead) break;
       actMob(m);
     }
-    // tick stone skin
     if(G.stoneSkin > 0) G.stoneSkin--;
   };
 
@@ -169,13 +179,14 @@ window.Delve = window.Delve || {};
 
     if(Math.random() < Delve.dodge()){
       Delve.addFloater("dodged", G.px, G.py, "#c2ff4d");
+      Delve.logDodge(m.name || m.kind || "enemy");
       return;
     }
 
     let hit = Math.max(1, Math.round(m.atk * (1 - Delve.dmgRed())) - Delve.flatRed());
     if(G.stoneSkin > 0) hit = Math.round(hit * 0.4);
     if(Delve.hasBulwark()) hit = Math.min(hit, Delve.hitCap());
-    applyHurt(hit);
+    applyHurt(hit, m.name || m.kind || "enemy");
   }
 
   Delve.descend = function(){
@@ -185,6 +196,7 @@ window.Delve = window.Delve || {};
     if(G.floor > Delve.save.bestFloor){ Delve.save.bestFloor = G.floor; Delve.persist(); }
     G.secondWindUsed = false;
     Delve.flash("Floor " + G.floor);
+    Delve.logFloor(G.floor);
     Delve.genFloor();
     Delve.updateHUD();
   };
@@ -193,6 +205,7 @@ window.Delve = window.Delve || {};
     const G = Delve.G;
     if(G.dead) return;
     G.dead = true;
+    Delve.logDeath();
     document.getElementById("deathInfo").textContent =
       "You reached floor " + G.floor + " — best " + Delve.save.bestFloor;
     document.getElementById("deathShards").textContent =
@@ -201,7 +214,7 @@ window.Delve = window.Delve || {};
   };
 })();
 
-// Step version used by pathfinder — same as tryAct but always adjacent
+// Step version used by pathfinder
 Delve.tryActOnStep = function(tx, ty){
   const G = Delve.G, g = G.grid;
   if(!G || G.dead) return;
@@ -217,7 +230,7 @@ Delve.tryActOnStep = function(tx, ty){
 
   if(cell === T.MONSTER){
     const m = G.monsters.find(function(m){ return m.x === tx && m.y === ty; });
-    if(m){ Delve.attackMonster(m); G._path = null; } // stop pathing when attacking
+    if(m){ Delve.attackMonster(m); G._path = null; }
   } else if(cell === T.BOSS){
     if(G.boss && G.boss.x === tx && G.boss.y === ty){ Delve.attackMonster(G.boss); G._path = null; }
   } else if(cell === T.WALL){
