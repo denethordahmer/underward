@@ -2,7 +2,8 @@ window.Delve = window.Delve || {};
 (function(){
 
   let shakeT = 0, shakeMag = 0;
-  let floaters = [];
+  let floaters = [];   // {txt, x, y, col, born} — born = Date.now()
+  const FLOAT_LIFE = 1200; // ms
 
   function hash2(x,y){
     let n = x*374761393 + y*668265263;
@@ -10,8 +11,12 @@ window.Delve = window.Delve || {};
     return ((n ^ (n>>16)) >>> 0) / 4294967295;
   }
 
-  function biome(floor){
-    const b = (Delve.CONFIG.BIOMES && Delve.CONFIG.BIOMES[0]) || {};
+  function biome(){
+    // Use floor to pick biome index
+    const G = Delve.G;
+    const ward = G ? Delve.getWard(G.floor) : null;
+    const idx = (ward && ward.biome !== undefined) ? ward.biome : 0;
+    const b = (Delve.CONFIG.BIOMES && Delve.CONFIG.BIOMES[idx]) || Delve.CONFIG.BIOMES[0] || {};
     return {
       wall: b.wall || "#192129", wallEdge: b.wallEdge || "#4d5b67",
       wallBrick: b.wallBrick || "#10161d",
@@ -26,63 +31,119 @@ window.Delve = window.Delve || {};
     return (g[gy] && g[gy][gx] !== undefined) ? g[gy][gx] : null;
   }
 
+  // ── FLOOR TILE (no grid lines) ──────────────────────────────
   function drawFloorTile(ctx,sx,sy,ts,gx,gy,b){
+    // Base checker
     ctx.fillStyle = ((gx+gy)%2===0) ? b.floor : b.floor2;
     ctx.fillRect(sx,sy,ts,ts);
+
     const n = hash2(gx,gy);
-    ctx.fillStyle = "rgba(0,0,0,0.15)";
-    for(let i=0;i<4;i++){
-      const rx = sx + ((n*(i+3)*7919) % 1)*(ts-4);
-      const ry = sy + ((n*(i+7)*104729) % 1)*(ts-4);
-      ctx.fillRect(rx, ry, 2, 2);
-    }
-    if(n > 0.68){
-      ctx.strokeStyle = "rgba(0,0,0,0.22)";
+
+    // Subtle stone crack
+    if(n > 0.72){
+      ctx.save();
+      ctx.strokeStyle = "rgba(0,0,0,0.28)";
       ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.55;
       ctx.beginPath();
-      ctx.moveTo(sx+ts*0.2, sy+ts*0.15);
-      ctx.lineTo(sx+ts*0.4, sy+ts*0.55);
-      ctx.lineTo(sx+ts*0.3, sy+ts*0.85);
+      const cx1 = sx + n*ts*0.4 + ts*0.1;
+      const cy1 = sy + ((n*7)%1)*ts*0.3 + ts*0.1;
+      ctx.moveTo(cx1, cy1);
+      ctx.lineTo(cx1 + ts*0.22, cy1 + ts*0.30);
+      ctx.lineTo(cx1 + ts*0.18, cy1 + ts*0.55);
       ctx.stroke();
+      ctx.restore();
     }
-    if(n < 0.12){
-      ctx.fillStyle = b.moss; ctx.globalAlpha = 0.5;
-      ctx.fillRect(sx + ((n*97) % 1)*ts*0.5, sy + ts*0.6, ts*0.35, ts*0.2);
+
+    // Mossy patch
+    if(n < 0.10){
+      ctx.fillStyle = b.moss;
+      ctx.globalAlpha = 0.38;
+      ctx.beginPath();
+      ctx.ellipse(sx + ((n*173)%1)*ts*0.5 + ts*0.15, sy + ts*0.65, ts*0.22, ts*0.10, 0, 0, Math.PI*2);
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
-    ctx.strokeStyle = "rgba(0,0,0,0.28)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(sx+0.5, sy+0.5, ts, ts);
-  }
 
-  function drawWallTile(ctx,sx,sy,ts,gx,gy,b){
-    ctx.fillStyle = b.wall; ctx.fillRect(sx,sy,ts,ts);
-    ctx.fillStyle = b.wallEdge;
-    ctx.fillRect(sx,sy,ts,Math.max(2, ts*0.12));
-    ctx.fillRect(sx,sy,Math.max(2, ts*0.12),ts);
-    ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
-    if(ts >= 24){
-      ctx.beginPath();
-      ctx.moveTo(sx, sy+ts*0.5); ctx.lineTo(sx+ts, sy+ts*0.5);
-      ctx.moveTo(sx+ts*0.5, sy+ts*0.5); ctx.lineTo(sx+ts*0.5, sy+ts);
-      if(hash2(gx,gy)>0.5){ ctx.moveTo(sx, sy+ts*0.75); ctx.lineTo(sx+ts*0.5, sy+ts*0.75); }
-      ctx.stroke();
+    // Subtle rubble dots
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    for(let i=0;i<3;i++){
+      const rx = sx + ((n*(i+3)*7919) % 1)*(ts-3);
+      const ry = sy + ((n*(i+5)*104729) % 1)*(ts-3);
+      ctx.fillRect(rx, ry, 1.5, 1.5);
     }
-    ctx.fillStyle = "rgba(255,255,255,0.05)"; ctx.fillRect(sx, sy, ts, 2);
   }
 
+  // ── WALL TILE ───────────────────────────────────────────────
+  function drawWallTile(ctx,sx,sy,ts,gx,gy,b){
+    // Main wall fill
+    ctx.fillStyle = b.wall;
+    ctx.fillRect(sx,sy,ts,ts);
+
+    // Top-left bevel (lighter edge — light from above)
+    ctx.fillStyle = b.wallEdge;
+    ctx.fillRect(sx, sy, ts, Math.max(2, ts*0.10));
+    ctx.fillRect(sx, sy, Math.max(2, ts*0.07), ts);
+
+    const n = hash2(gx,gy);
+
+    if(ts >= 22){
+      // Horizontal mortar line (top half / bottom half)
+      ctx.strokeStyle = b.wallBrick;
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.moveTo(sx+1, sy+ts*0.50);
+      ctx.lineTo(sx+ts-1, sy+ts*0.50);
+      // Vertical break — offset every other row for brick pattern
+      const vOff = (gy % 2 === 0) ? 0.25 : 0.75;
+      ctx.moveTo(sx+ts*vOff, sy+ts*0.50);
+      ctx.lineTo(sx+ts*vOff, sy+ts-1);
+      if(n > 0.50){
+        const vOff2 = (gy % 2 === 0) ? 0.75 : 0.25;
+        ctx.moveTo(sx+ts*vOff2, sy+1);
+        ctx.lineTo(sx+ts*vOff2, sy+ts*0.50);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // Highlight sheen top edge
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(sx, sy, ts, 2);
+    // Shadow bottom edge
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(sx, sy+ts-2, ts, 2);
+  }
+
+  // ── STAIRS ─────────────────────────────────────────────────
   function drawStairs(ctx,sx,sy,ts){
-    ctx.fillStyle = "rgba(42,208,176,0.20)"; ctx.fillRect(sx,sy,ts,ts);
-    ctx.fillStyle = "#2ad0b0"; ctx.fillRect(sx+ts*0.15, sy+ts*0.15, ts*0.70, ts*0.70);
-    ctx.fillStyle = "#0b201b";
-    ctx.fillRect(sx+ts*0.4, sy+ts*0.35, ts*0.2, ts*0.14);
-    ctx.fillRect(sx+ts*0.4, sy+ts*0.55, ts*0.2, ts*0.14);
+    ctx.fillStyle = "rgba(42,208,176,0.18)";
+    ctx.fillRect(sx,sy,ts,ts);
+    // Step outlines
+    ctx.strokeStyle = "#2ad0b0";
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.9;
+    const steps = 3;
+    for(let i=0;i<steps;i++){
+      const inset = ts*(0.12 + i*0.10);
+      ctx.strokeRect(sx+inset, sy+inset, ts-inset*2, ts-inset*2);
+    }
+    ctx.globalAlpha = 1;
+    // Arrow glyph
+    ctx.fillStyle = "#2ad0b0";
+    ctx.font = "bold " + Math.round(ts*0.38) + "px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("▼", sx+ts/2, sy+ts/2);
+    ctx.textBaseline = "alphabetic";
   }
 
+  // ── SHADOWS / SPRITES ──────────────────────────────────────
   function drawShadow(ctx,cx,cy,ts){
     const s = Delve.SPR && Delve.SPR.shadow;
     if(s){
-      const w = ts*0.8, h = w * (s.height/s.width) * 0.5;
+      const w = ts*0.8, h = w*(s.height/s.width)*0.5;
       ctx.drawImage(s, cx-w/2, cy+ts*0.30, w, h);
     } else {
       ctx.fillStyle = "rgba(0,0,0,0.35)";
@@ -100,7 +161,7 @@ window.Delve = window.Delve || {};
       return;
     }
     const img = hurt ? (S.hurt || S.idle) : S.idle;
-    const size = ts * 0.9;
+    const size = ts*0.9;
     ctx.drawImage(img, cx-size/2, cy-size/2, size, size);
   }
 
@@ -139,22 +200,28 @@ window.Delve = window.Delve || {};
   }
 
   function drawTreasure(ctx,thing,cx,cy,ts){
-    if(thing === "gold") drawWorldSprite(ctx,"goldPile",cx,cy,ts);
+    if(thing === "gold")       drawWorldSprite(ctx,"goldPile",cx,cy,ts);
     else if(thing === "potion") drawWorldSprite(ctx,"potionPile",cx,cy,ts);
-    else if(thing === "chest") drawWorldSprite(ctx,"chestClosed",cx,cy,ts);
+    else if(thing === "chest")  drawWorldSprite(ctx,"chestClosed",cx,cy,ts);
     else if(thing === "chestOpen") drawWorldSprite(ctx,"chestOpen",cx,cy,ts);
-    else drawWorldSprite(ctx,"itemPile",cx,cy,ts);
+    else                        drawWorldSprite(ctx,"itemPile",cx,cy,ts);
   }
 
+  // ── FLOATERS — time-based alpha, no move dependency ────────
   function drawFloaters(ctx,camX,camY,ts){
     const now = Date.now();
     const alive = [];
     for(const f of floaters){
-      if(f.t > 28) continue;
-      f.t++;
+      const age = now - f.born;
+      if(age >= FLOAT_LIFE) continue;
+      const t = age / FLOAT_LIFE; // 0→1
+      const alpha = t < 0.15 ? t/0.15 : 1 - ((t-0.15)/0.85); // fade in, then out
+      const rise = t * ts * 2.2; // float upward
+
       const sx = (f.x - camX)*ts + ts*0.5;
-      const sy = (f.y - camY)*ts - f.t*2;
-      const alpha = Math.max(0, 1 - f.t/28);
+      const sy = (f.y - camY)*ts - rise;
+
+      ctx.save();
       ctx.globalAlpha = alpha;
       ctx.font = "700 " + Math.max(11, ts*0.32) + "px system-ui, sans-serif";
       ctx.textAlign = "center";
@@ -162,12 +229,13 @@ window.Delve = window.Delve || {};
       ctx.fillText(f.txt, sx+1, sy+1);
       ctx.fillStyle = f.col;
       ctx.fillText(f.txt, sx, sy);
-      ctx.globalAlpha = 1;
+      ctx.restore();
       alive.push(f);
     }
     floaters = alive;
   }
 
+  // ── MAIN DRAW ───────────────────────────────────────────────
   Delve.draw = function(){
     const G = Delve.G;
     if(!G) return;
@@ -175,7 +243,7 @@ window.Delve = window.Delve || {};
     const ctx = Delve.ctx, W = Delve.W, H = Delve.H, ts = Delve.ts;
     Delve.computeView();
     const vw = Delve.viewW, vh = Delve.viewH;
-    const b = biome(G.floor);
+    const b = biome();
 
     let camX = Math.floor(G.px - vw/2);
     let camY = Math.floor(G.py - vh/2);
@@ -196,7 +264,7 @@ window.Delve = window.Delve || {};
     ctx.fillStyle = "#06090d";
     ctx.fillRect(-10, -10, W+20, H+20);
 
-    // tiles
+    // ── tiles
     for(let y=0; y<vh+1; y++){
       for(let x=0; x<vw+1; x++){
         const gx = camX+x, gy = camY+y;
@@ -212,7 +280,20 @@ window.Delve = window.Delve || {};
       }
     }
 
-    // adjacency highlights
+    // ── tap-target highlight (path destination)
+    if(G._path && G._path.length > 0){
+      const dest = G._path[G._path.length - 1];
+      if(dest.x >= camX && dest.y >= camY && dest.x < camX+vw && dest.y < camY+vh){
+        const sx = (dest.x-camX)*ts, sy = (dest.y-camY)*ts;
+        ctx.fillStyle = "rgba(255,230,100,0.18)";
+        ctx.strokeStyle = "rgba(255,220,80,0.7)";
+        ctx.fillRect(sx,sy,ts,ts);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx+1,sy+1,ts-2,ts-2);
+      }
+    }
+
+    // ── adjacency highlights (lit squares the player can step to)
     const adj = [[0,1],[0,-1],[1,0],[-1,0]];
     for(const d of adj){
       const gx = G.px+d[0], gy = G.py+d[1];
@@ -224,47 +305,47 @@ window.Delve = window.Delve || {};
         ctx.fillStyle = "rgba(255,140,90,0.30)";
         ctx.strokeStyle = "rgba(255,170,120,0.9)";
       } else {
-        ctx.fillStyle = "rgba(110,200,255,0.22)";
-        ctx.strokeStyle = "rgba(140,220,255,0.85)";
+        ctx.fillStyle = "rgba(110,200,255,0.20)";
+        ctx.strokeStyle = "rgba(140,220,255,0.80)";
       }
       ctx.fillRect(sx,sy,ts,ts);
       ctx.lineWidth = 2;
-      ctx.strokeRect(sx+1, sy+1, ts-2, ts-2);
+      ctx.strokeRect(sx+1,sy+1,ts-2,ts-2);
     }
 
-    // items
+    // ── items
     for(const it of (G.items || [])){
       if(it.x < camX || it.y < camY || it.x >= camX+vw || it.y >= camY+vh) continue;
       drawItem(ctx, it, (it.x-camX)*ts + ts/2, (it.y-camY)*ts + ts/2, ts);
     }
 
-    // gold piles / potions / chests from room decor
+    // ── decor (gold piles etc)
     const decor = G.floorData && G.floorData.decor || [];
     for(const d of decor){
       if(d.x < camX || d.y < camY || d.x >= camX+vw || d.y >= camY+vh) continue;
       drawTreasure(ctx, d.thing, (d.x-camX)*ts + ts/2, (d.y-camY)*ts + ts/2, ts);
     }
 
-    // monsters
+    // ── monsters
     for(const m of G.monsters){
       if(m.x < camX || m.y < camY || m.x >= camX+vw || m.y >= camY+vh) continue;
       drawMob(ctx, m, (m.x-camX)*ts + ts/2, (m.y-camY)*ts + ts/2, ts);
     }
 
-    // boss
+    // ── boss
     if(G.boss && G.boss.x >= camX && G.boss.y >= camY && G.boss.x < camX+vw && G.boss.y < camY+vh){
       drawMob(ctx, G.boss, (G.boss.x-camX)*ts + ts/2, (G.boss.y-camY)*ts + ts/2, ts);
     }
 
-    // player
+    // ── player
     const pSX = (G.px-camX)*ts, pSY = (G.py-camY)*ts;
     const pHurt = G.playerHit && Date.now() - G.playerHit < 150;
     drawPlayer(ctx, pSX+ts/2, pSY+ts/2, ts, pHurt);
 
-    // floaters
+    // ── floaters
     drawFloaters(ctx, camX, camY, ts);
 
-    // vignette
+    // ── vignette
     const vig = ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.3,W/2,H/2,Math.max(W,H)*0.8);
     vig.addColorStop(0,"rgba(0,0,0,0)");
     vig.addColorStop(1,"rgba(0,0,0,0.45)");
@@ -273,7 +354,7 @@ window.Delve = window.Delve || {};
 
     ctx.restore();
 
-    // message
+    // ── flash message (non-floater)
     if(G.msg && Date.now() < G.msgUntil){
       ctx.font = "700 16px system-ui, sans-serif";
       ctx.textAlign = "center";
@@ -285,10 +366,21 @@ window.Delve = window.Delve || {};
   };
 
   Delve.addFloater = function(txt,x,y,col){
-    floaters.push({ txt:txt, x:x, y:y, col:col, t:0 });
+    // Offset multiple floaters at the same tile so they don't perfectly overlap
+    const sameSpot = floaters.filter(f => f.x === x && f.y === y).length;
+    floaters.push({ txt:txt, x:x, y:y + sameSpot*0.5, col:col, born:Date.now() });
   };
   Delve.addShake = function(mag){
     shakeMag = Math.max(shakeMag, mag);
     shakeT = 6;
   };
+
+  // ── Continuous render loop so floaters fade without player moving ──
+  (function loop(){
+    if(Delve.G && floaters.length > 0) Delve.draw();
+    requestAnimationFrame(loop);
+  })();
+
 })();
+/body>
+</html>
