@@ -109,6 +109,36 @@
   .btn.big { width:100%; max-width:460px; padding:20px; font-size:22px; }
   #levelupScreen { display:none; }
   #levelupChoices { display:flex; flex-direction:column; gap:12px; width:100%; max-width:460px; }
+
+  /* ── Combat log ───────────────────────────────────────── */
+  #logPanel {
+    position:absolute; bottom:0; left:0; right:0; z-index:4;
+    height:clamp(80px, 22vh, 140px);
+    pointer-events:none;
+    display:none;
+  }
+  #logPanel.active { display:block; }
+  #logFade {
+    position:absolute; top:0; left:0; right:0; height:40px;
+    background:linear-gradient(to bottom, transparent, rgba(8,12,16,0.7));
+    pointer-events:none;
+  }
+  #combatLog {
+    position:absolute; bottom:0; left:0; right:0;
+    height:100%;
+    overflow-y:auto; overflow-x:hidden;
+    padding:6px 10px 8px;
+    scrollbar-width:none;
+    background:rgba(8,12,16,0.72);
+    backdrop-filter:blur(4px);
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  #combatLog::-webkit-scrollbar { display:none; }
+  .log-row {
+    font-size:12px; line-height:1.6;
+    color:#c0cdd8;
+    transition:opacity 0.3s;
+  }
 </style>
 </head>
 <body>
@@ -170,6 +200,12 @@
     <h2 id="deathInfo"></h2>
     <div class="walletbar"><span class="sico">💎</span><span id="deathShards">0</span></div>
     <button class="btn big" id="deathBtn">BACK TO HUB</button>
+  </div>
+
+  <!-- ── Combat log ── -->
+  <div id="logPanel">
+    <div id="logFade"></div>
+    <div id="combatLog"></div>
   </div>
 </div>
 
