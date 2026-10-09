@@ -147,12 +147,12 @@ Delve.CONFIG = {
 
   // ---------- LOOT (luck engine) ----------
   loot: {
-    baseDrop: 0.08, luckDrop: 0.015, dropCap: 0.25,
-    cacheBase: 0.015, cacheLuck: 0.005,
+    baseDrop: 0.22, luckDrop: 0.025, dropCap: 0.45,
+    cacheBase: 0.08, cacheLuck: 0.015,
     weights: {
       common: () => 100,
       uncommon: luck => 40 + luck*6,
-      rare: (luck, ward) => ward >= 2 ? 10 + luck*3 : 0,
+      rare: (luck, ward) => ward >= 1 ? 5 + luck*3 : 0,
       legendary: (luck, ward) => ward >= 3 ? 1 + luck*0.8 : 0
     }
   }
