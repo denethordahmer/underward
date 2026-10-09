@@ -1,13 +1,15 @@
 {
   "name": "underward",
   "short_name": "underward",
-  "description": "Rogue dungeon-crawler. Go deeper, earn shards, upgrade.",
+  "description": "Rogue dungeon-crawler. Tap to move, fight monsters, earn shards, go deeper.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#0b0f14",
   "background_color": "#0b0f14",
+  "lang": "en",
+  "categories": ["games"],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -19,7 +21,15 @@
       "src": "icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }
