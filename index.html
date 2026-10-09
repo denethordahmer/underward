@@ -20,50 +20,90 @@
   #app { position:fixed; inset:0; }
   #canvas { display:block; width:100%; height:100%; }
 
-  #hud { position:absolute; top:0; left:0; right:0; z-index:5;
-    display:flex; flex-wrap:wrap; align-items:center; gap:6px;
-    padding:8px 10px; background:rgba(10,14,18,.86); backdrop-filter:blur(4px); }
-  .stat { display:flex; align-items:center; gap:6px; background:#141b23;
-    border:1px solid #2a3440; border-radius:10px; padding:6px 9px;
-    font-size:14px; font-weight:700; white-space:nowrap; }
-  .ico { width:10px; height:10px; border-radius:50%; display:inline-block; }
-  .ico.hp{background:#ff5c5c;box-shadow:0 0 6px #ff5c5c}
-  .ico.atk{background:#ffcf4a;box-shadow:0 0 6px #ffcf4a}
-  .ico.tou{background:#ff8a3d;box-shadow:0 0 6px #ff8a3d}
-  .ico.agi{background:#c2ff4d;box-shadow:0 0 6px #c2ff4d}
-  .ico.luc{background:#9dffcf;box-shadow:0 0 6px #9dffcf}
-  .ico.shard{background:#7ee0ff;box-shadow:0 0 8px #7ee0ff}
-  .ico.gold{background:#ffd75e;box-shadow:0 0 6px #ffd75e}
-  .ico.floor{background:#9b8cff;box-shadow:0 0 5px #9b8cff}
-  .spacer{flex:1}
+  /* ── HUD ─────────────────────────────────────── */
+  #hud {
+    position:absolute; top:0; left:0; right:0; z-index:5;
+    display:flex; flex-wrap:wrap; align-items:center; gap:5px;
+    padding:6px 8px env(safe-area-inset-top, 0px);
+    background:rgba(8,12,16,.88); backdrop-filter:blur(6px);
+  }
+  .stat {
+    display:flex; align-items:center; gap:5px; background:#141b23;
+    border:1px solid #2a3440; border-radius:9px; padding:5px 8px;
+    font-size:13px; font-weight:700; white-space:nowrap; flex-shrink:0;
+  }
+  /* Stat icons — emoji, no colored dots */
+  .sico { font-size:14px; line-height:1; flex-shrink:0; }
+  .spacer { flex:1; min-width:4px; }
 
-  #invBar { display:flex; flex-wrap:wrap; gap:5px; width:100%; }
+  /* Inventory button */
+  #invBtn {
+    background:#141b23; border:1px solid #7ee0ff44; border-radius:9px;
+    padding:5px 10px; font-size:13px; font-weight:700; color:#7ee0ff;
+    font-family:inherit; cursor:pointer; white-space:nowrap; flex-shrink:0;
+    touch-action:manipulation;
+  }
+  #invBtn:active { background:#1a2a3a; }
 
-  #hint { position:absolute; bottom:14px; left:0; right:0; text-align:center;
-    font-size:15px; font-weight:700; color:#c6d6e6; z-index:5;
-    pointer-events:none; text-shadow:0 1px 3px #000; }
+  /* ── Inventory drawer ───────────────────────── */
+  #invDrawer {
+    position:absolute; bottom:0; left:0; right:0; z-index:20;
+    background:rgba(8,12,16,.97); border-top:1px solid #2a3440;
+    backdrop-filter:blur(8px);
+    padding:12px 10px calc(12px + env(safe-area-inset-bottom, 0px));
+    display:none; flex-direction:column; gap:8px;
+    max-height:60vh; overflow-y:auto;
+  }
+  #invDrawer.open { display:flex; }
+  #invDrawerTitle {
+    font-size:16px; font-weight:800; color:#eafff5;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  #invCloseBtn {
+    background:none; border:none; color:#7f94a8; font-size:22px;
+    cursor:pointer; padding:0 4px; line-height:1; font-family:inherit;
+  }
+  #invGrid { display:flex; flex-wrap:wrap; gap:7px; }
+  .invChip {
+    background:#141b23; border:1px solid #2a3440; border-radius:8px;
+    padding:6px 10px; font-size:12px; font-weight:700;
+    cursor:pointer; touch-action:manipulation; white-space:nowrap;
+    transition:background 0.1s;
+  }
+  .invChip:active { background:#1f2d3c; }
+  .equippedSection { display:flex; flex-direction:column; gap:5px; }
+  .equippedLabel { font-size:11px; color:#7f94a8; font-weight:700; letter-spacing:.04em; }
 
-  .overlay { position:absolute; inset:0; z-index:10; overflow-y:auto;
+  /* ── Overlays ───────────────────────────────── */
+  .overlay {
+    position:absolute; inset:0; z-index:10; overflow-y:auto;
     display:flex; flex-direction:column; align-items:center;
     gap:18px; padding:22px 18px calc(22px + env(safe-area-inset-bottom));
-    text-align:center; background:rgba(8,11,15,.96); }
-  .overlay h1 { font-size:clamp(40px, 11vw, 64px); letter-spacing:2px; margin:6px 0 0; line-height:1; }
-  .overlay h2 { font-size:clamp(24px, 7vw, 34px); color:#ff9a9a; margin:0; }
+    text-align:center; background:rgba(8,11,15,.96);
+  }
+  .overlay h1 { font-size:clamp(40px,11vw,64px); letter-spacing:2px; margin:6px 0 0; line-height:1; }
+  .overlay h2 { font-size:clamp(24px,7vw,34px); color:#ff9a9a; margin:0; }
   .sub { color:#a9bccd; font-size:17px; line-height:1.45; max-width:420px; }
-  .walletbar { display:flex; align-items:center; gap:10px;
+  .walletbar {
+    display:flex; align-items:center; gap:10px;
     font-size:22px; font-weight:800; background:#141b23;
-    border:1px solid #2a3440; border-radius:14px; padding:12px 20px; }
-  .walletbar .ico { width:14px; height:14px; }
+    border:1px solid #2a3440; border-radius:14px; padding:12px 20px;
+  }
   .shop { display:flex; flex-direction:column; gap:12px; width:100%; max-width:460px; }
-  .upgrade { display:flex; justify-content:space-between; align-items:center;
+  .upgrade {
+    display:flex; justify-content:space-between; align-items:center;
     gap:14px; background:#141b23; border:1px solid #2a3440;
-    border-radius:16px; padding:16px 18px; width:100%; }
+    border-radius:16px; padding:16px 18px; width:100%;
+  }
   .upgrade .name { font-weight:800; font-size:20px; text-align:left; }
   .upgrade .desc { font-size:14.5px; line-height:1.4; color:#9fb3c5; text-align:left; margin-top:4px; }
   .lvl { color:#7f94a8; font-size:14px; font-weight:700; margin-left:4px; }
-  .btn { background:#1f7a5c; color:#eafff5; border:none; border-radius:14px;
+  .btn {
+    background:#1f7a5c; color:#eafff5; border:none; border-radius:14px;
     padding:16px 18px; font-size:19px; font-weight:800; cursor:pointer;
-    min-width:104px; box-shadow:0 4px 0 #0e3d2e; flex-shrink:0; }
+    min-width:104px; box-shadow:0 4px 0 #0e3d2e; flex-shrink:0;
+    touch-action:manipulation;
+  }
   .btn:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
   .btn:disabled { background:#2f3d48; color:#83939f; box-shadow:none; cursor:default; }
   .btn.big { width:100%; max-width:460px; padding:20px; font-size:22px; }
@@ -75,20 +115,41 @@
 <div id="app">
   <canvas id="canvas"></canvas>
 
+  <!-- ── HUD ── -->
   <div id="hud" style="display:none">
-    <span class="stat"><span class="ico hp"></span><span id="hudHp">30/30</span></span>
-    <span class="stat"><span class="ico atk"></span><span id="hudAtk">6</span></span>
-    <span class="stat"><span class="ico tou"></span><span id="hudTou">20%</span></span>
-    <span class="stat"><span class="ico agi"></span><span id="hudAgi">4%</span></span>
-    <span class="stat"><span class="ico luc"></span><span id="hudLuc">1</span></span>
-    <span class="stat"><span class="ico floor"></span><span id="hudFloor">1</span></span>
+    <span class="stat"><span class="sico">❤️</span><span id="hudHp">30/30</span></span>
+    <span class="stat"><span class="sico">⚔️</span><span id="hudAtk">6</span></span>
+    <span class="stat"><span class="sico">🛡️</span><span id="hudTou">20%</span></span>
+    <span class="stat"><span class="sico">👟</span><span id="hudAgi">4%</span></span>
+    <span class="stat"><span class="sico">🍀</span><span id="hudLuc">1</span></span>
+    <span class="stat"><span class="sico">🗺️</span><span id="hudFloor">1</span></span>
     <span class="spacer"></span>
-    <span class="stat"><span class="ico gold"></span><span id="hudGold">0</span></span>
-    <span class="stat"><span class="ico shard"></span><span id="hudShards">0</span></span>
-    <div id="invBar"></div>
+    <span class="stat"><span class="sico">💰</span><span id="hudGold">0</span></span>
+    <span class="stat"><span class="sico">💎</span><span id="hudShards">0</span></span>
+    <button id="invBtn">🎒 Bag</button>
   </div>
 
-  <div id="hint" style="display:none">Tap a lit square to move, or tap a monster to attack</div>
+  <!-- ── Inventory drawer ── -->
+  <div id="invDrawer">
+    <div id="invDrawerTitle">
+      <span>🎒 Inventory</span>
+      <button id="invCloseBtn">✕</button>
+    </div>
+    <div class="equippedSection">
+      <div class="equippedLabel">EQUIPPED</div>
+      <div id="equippedBar" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div class="equippedSection">
+      <div class="equippedLabel">ABILITIES</div>
+      <div id="abilityBar" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div class="equippedSection">
+      <div class="equippedLabel">CARRIED</div>
+      <div id="invGrid"></div>
+    </div>
+  </div>
+
+  <!-- hint removed -->
 
   <div id="levelupScreen" class="overlay">
     <h1>LEVEL UP</h1>
@@ -99,7 +160,7 @@
   <div id="hubScreen" class="overlay">
     <h1>underward</h1>
     <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
-    <div class="walletbar"><span class="ico shard"></span><span id="hubShards">0</span></div>
+    <div class="walletbar"><span class="sico">💎</span><span id="hubShards">0</span></div>
     <div class="shop" id="shop"></div>
     <button class="btn big" id="startBtn">START RUN</button>
   </div>
@@ -107,7 +168,7 @@
   <div id="deathScreen" class="overlay" style="display:none">
     <h1>YOU DIED</h1>
     <h2 id="deathInfo"></h2>
-    <div class="walletbar"><span class="ico shard"></span><span id="deathShards">0</span></div>
+    <div class="walletbar"><span class="sico">💎</span><span id="deathShards">0</span></div>
     <button class="btn big" id="deathBtn">BACK TO HUB</button>
   </div>
 </div>
@@ -123,6 +184,7 @@
 <script src="js/traits.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/render.js"></script>
+<script src="js/pathfind.js"></script>
 <script src="js/input.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
