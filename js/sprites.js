@@ -37,27 +37,20 @@ window.Delve = window.Delve || {};
 
  function buildSoldier(){
   const c = mk(24,24), x = gx(c);
-  // legs + boots
   R(x,8,17,3,4,"#4d3622"); R(x,13,17,3,4,"#4d3622");
   R(x,7,20,6,2,"#2b2118"); R(x,12,20,6,2,"#2b2118");
-  // tunic
   R(x,6,10,12,9,"#33507a");
   R(x,6,10,2,9,"#233a5c"); R(x,16,10,2,9,"#233a5c");
-  // belt
   R(x,6,15,12,2,"#8a5a33"); R(x,10,15,4,2,"#ffd75e");
-  // shoulders
   R(x,3,9,5,3,"#56636f"); R(x,16,9,5,3,"#56636f");
-  // arms + hands
   R(x,4,12,3,6,"#33507a"); R(x,17,12,3,6,"#33507a");
   R(x,4,18,3,2,"#e8c39a"); R(x,17,18,3,2,"#e8c39a");
-  // helmet
   R(x,8,1,8,1,"#c3ccd6");
   R(x,7,2,10,7,"#8d9aa8");
   R(x,8,2,8,1,"#c3ccd6");
   R(x,8,6,8,2,"#1d232b");
   R(x,10,6,1,2,"#9fd8ff"); R(x,13,6,1,2,"#9fd8ff");
   R(x,9,9,6,1,"#56636f");
-  // shield
   R(x,3,11,4,2,"#8d9aa8");
   R(x,2,13,6,2,"#8d9aa8");
   R(x,3,15,4,2,"#8d9aa8");
@@ -117,79 +110,57 @@ window.Delve = window.Delve || {};
 
  function buildBoss(){
   const c = mk(28,28), x = gx(c);
-
-  // ── massive shoulder pauldrons (broad silhouette) ───────────
   R(x,2,7,6,"#343a43");   R(x,19,7,6,"#343a43");
   R(x,3,7,4,2,"#4a525e"); R(x,21,7,4,2,"#4a525e");
   R(x,2,12,2,1,"#4a525e"); R(x,24,12,2,1,"#4a525e");
-
-  // ── cracked iron mask ────────────────────────────────────────
-  R(x,10,2,8,3,"#2c313a");        // crown
-  R(x,9,5,10,5,"#23262d");        // face plate
-  R(x,12,5,1,5,"#14161b");        // vertical crack
-  R(x,15,5,1,3,"#14161b");        // short crack
-  R(x,11,8,3,1,"#14161b");        // horizontal crack
-
-  // eye slits + faint red glow
+  R(x,10,2,8,3,"#2c313a");
+  R(x,9,5,10,5,"#23262d");
+  R(x,12,5,1,5,"#14161b");
+  R(x,15,5,1,3,"#14161b");
+  R(x,11,8,3,1,"#14161b");
   R(x,11,7,2,1,"#ff4a3d"); R(x,15,7,2,1,"#ff4a3d");
   x.globalAlpha = 0.6; R(x,11,7,2,1,"#ff6a5a"); R(x,15,7,2,1,"#ff6a5a");
   x.globalAlpha = 0.25; R(x,10,6,4,3,"#ff4a3d"); R(x,14,6,4,3,"#ff4a3d");
   x.globalAlpha = 1;
-
-  // ── armoured chest ───────────────────────────────────────────
   R(x,8,11,12,10,"#1f2329");
   R(x,8,11,12,2,"#2c313a");
   R(x,8,11,2,10,"#2c313a");
   R(x,18,11,2,10,"#2c313a");
   R(x,13,14,2,4,"#14161b");
   R(x,12,15,4,1,"#343a43");
-
-  // ── arms ─────────────────────────────────────────────────────
   R(x,5,13,3,7,"#23262d"); R(x,20,13,3,7,"#23262d");
-
-  // ── chains hanging from wrists ───────────────────────────────
   R(x,6,20,1,1,"#5a616c"); R(x,6,21,1,1,"#575d68");
   R(x,7,22,1,1,"#4d525c"); R(x,7,23,1,1,"#575d68"); R(x,6,24,1,1,"#4d525c");
   R(x,21,20,1,1,"#5a616c"); R(x,21,21,1,1,"#575d68");
   R(x,20,22,1,1,"#4d525c"); R(x,20,23,1,1,"#575d68"); R(x,21,24,1,1,"#4d525c");
-
-  // ── legs / greaves ───────────────────────────────────────────
   R(x,10,21,3,6,"#171a20"); R(x,16,21,3,6,"#171a20");
   R(x,10,26,3,1,"#2c313a"); R(x,16,26,3,1,"#2c313a");
-
   return c;
  }
 
  function buildRat(){
   const c = mk(24,24), x = gx(c);
-  // tail
   R(x,2,12,4,1,"#7a5b45"); R(x,1,13,3,1,"#7a5b45");
-  // body
   R(x,8,15,8,6,"#9b7b61");
   R(x,8,15,8,2,"#7a5b45");
-  // head + ears
   R(x,12,7,8,8,"#9b7b61");
   R(x,12,7,8,2,"#7a5b45");
   R(x,11,3,3,3,"#7a5b45"); R(x,17,3,3,3,"#7a5b45");
   R(x,12,4,2,2,"#c99"); R(x,18,4,2,2,"#c99");
-  // eyes + snout + teeth
   R(x,16,10,2,2,"#ff5c5c"); R(x,20,10,2,2,"#ff5c5c");
   R(x,18,13,3,2,"#5b4437");
   R(x,18,15,1,2,"#f5f0e8"); R(x,20,15,1,2,"#f5f0e8");
-  // legs
   R(x,9,21,2,2,"#7a5b45"); R(x,13,21,2,2,"#7a5b45");
   return c;
  }
 
  function buildSlime(){
   const c = mk(24,24), x = gx(c);
-  // body blob
   R(x,7,6,10,1,"#67d65f");
   R(x,5,7,14,1,"#67d65f");
   R(x,4,8,16,12,"#67d65f");
   R(x,5,20,14,3,"#67d65f");
   R(x,8,23,8,1,"#67d65f");
-  // highlight + core
   R(x,8,10,3,6,"#b8f5a8");
   R(x,14,16,3,3,"#b8f5a8");
   R(x,11,14,2,2,"#2c4a20");
@@ -198,16 +169,15 @@ window.Delve = window.Delve || {};
  }
 
  // ==================================================
- // FLOOR ART / TREASURE
+ // FLOOR ART / TREASURE / OBJECTS
  // ==================================================
  function buildGoldPile(){
   const c = mk(24,24), x = gx(c);
-  R(x,8,11,6,3,"#d9a11f");
+  R(x,8,11,8,3,"#d9a11f");
   R(x,7,12,10,3,"#f0c14d");
   R(x,6,15,12,3,"#d9a11f");
-  R(x,9,18,6,2,"#b8860b");
-  // highlights
-  R(x,9,12,2,1,"#fff2a8");
+  R(x,7,18,10,2,"#b8860b");
+  R(x,8,12,2,1,"#fff2a8");
   R(x,14,14,1,2,"#fff2a8");
   R(x,12,16,2,1,"#fff2a8");
   return c;
@@ -215,24 +185,20 @@ window.Delve = window.Delve || {};
 
  function buildItemPile(){
   const c = mk(24,24), x = gx(c);
-  // cloth wrapped bundle
   R(x,7,14,10,6,"#6d5b45");
   R(x,7,14,10,1,"#88725c");
   R(x,9,15,1,4,"#4f3f30");
   R(x,15,15,1,4,"#4f3f30");
-  // glint
   R(x,12,17,2,2,"#9ad9ff");
   return c;
  }
 
  function buildPotionPile(){
   const c = mk(24,24), x = gx(c);
-  // bottle
   R(x,10,13,4,7,"#b8e2f5");
   R(x,9,12,6,1,"#b8e2f5");
   R(x,10,8,1,4,"#8a5a33");
   R(x,13,8,1,4,"#8a5a33");
-  // liquid
   R(x,11,15,2,4,"#ff5c5c");
   R(x,13,15,2,4,"#7ee0a0");
   return c;
@@ -241,31 +207,44 @@ window.Delve = window.Delve || {};
  function buildChest(open){
   const c = mk(24,24), x = gx(c);
   if(!open){
-   // ── closed lid (red + gold trim) ─────────────────────────
-   R(x,5,9,14,4,"#a52b2b");                     // lid
-   R(x,5,9,14,1,"#e0b140");                     // gold top trim
-   R(x,5,9,2,4,"#c9971f"); R(x,17,9,2,4,"#c9971f"); // gold side bands
-   // ── body (red) ──────────────────────────────────────────
-   R(x,4,14,16,5,"#8c2323");                    // body
-   R(x,4,14,2,5,"#c9971f"); R(x,18,14,2,5,"#c9971f"); // gold side bands
-   R(x,4,19,16,1,"#e0b140");                    // gold bottom trim
-   R(x,4,13,16,1,"#3f0c0c");                    // lid/body shadow seam
-   // ── latch (gold) ────────────────────────────────────────
+   R(x,5,9,14,4,"#a52b2b");
+   R(x,5,9,14,1,"#e0b140");
+   R(x,5,9,2,4,"#c9971f"); R(x,17,9,2,4,"#c9971f");
+   R(x,4,14,16,5,"#8c2323");
+   R(x,4,14,2,5,"#c9971f"); R(x,18,14,2,5,"#c9971f");
+   R(x,4,19,16,1,"#e0b140");
+   R(x,4,13,16,1,"#3f0c0c");
    R(x,11,12,2,3,"#e0b140");
-   R(x,12,13,1,1,"#2a1505");                    // keyhole
+   R(x,12,13,1,1,"#2a1505");
   } else {
-   // ── open lid (raised, red + gold) ───────────────────────
-   R(x,5,6,14,3,"#a52b2b");                     // lid flipped up
-   R(x,5,6,14,1,"#e0b140");                     // gold trim
+   R(x,5,6,14,3,"#a52b2b");
+   R(x,5,6,14,1,"#e0b140");
    R(x,5,6,2,3,"#c9971f"); R(x,17,6,2,3,"#c9971f");
-   // ── body (red) ──────────────────────────────────────────
    R(x,4,11,16,8,"#8c2323");
    R(x,4,11,2,8,"#c9971f"); R(x,18,11,2,8,"#c9971f");
-   R(x,4,19,16,1,"#e0b140");                    // gold bottom trim
-   // ── open interior (dark, empty) ─────────────────────────
-   R(x,6,9,12,3,"#1d0e08");                     // dark mouth
-   R(x,6,10,12,1,"#c9971f");                    // gold rim
+   R(x,4,19,16,1,"#e0b140");
+   R(x,6,9,12,3,"#1d0e08");
+   R(x,6,10,12,1,"#c9971f");
   }
+  return c;
+ }
+
+ function buildBarrel(){
+  const c = mk(24,24), x = gx(c);
+  // wooden barrel: staves + metal hoops
+  R(x,6,7,12,12,"#6d4a2f");
+  R(x,6,7,2,12,"#5a3c24");
+  R(x,16,7,2,12,"#5a3c24");
+  R(x,8,8,1,10,"#8a5f3d");
+  R(x,12,8,1,10,"#8a5f3d");
+  R(x,15,8,1,10,"#8a5f3d");
+  // top + bottom metal hoops
+  R(x,5,6,14,2,"#3f3f45");
+  R(x,5,18,14,2,"#3f3f45");
+  // mid hoop
+  R(x,5,12,14,2,"#3f3f45");
+  // highlight
+  R(x,8,7,1,11,"#9a7048");
   return c;
  }
 
@@ -294,7 +273,8 @@ window.Delve = window.Delve || {};
     itemPile: buildItemPile(),
     potionPile: buildPotionPile(),
     chestClosed: buildChest(false),
-    chestOpen: buildChest(true)
+    chestOpen: buildChest(true),
+    barrel: buildBarrel()
    }
   };
  }
