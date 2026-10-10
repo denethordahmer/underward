@@ -9,6 +9,7 @@ window.Delve = window.Delve || {};
  grid:[], monsters:[], boss:null, stairs:{x:-1,y:-1},
  items:[], goldPiles:[], barrels:[],
  inventory:[], equip:{weapon:null,armour:null,trinkets:[]},
+ atkBuff:0, speedBuff:0,
  xp:0, level:1, abilities:[], energy:10,
  msg:"", msgUntil:0,
  secondWindUsed:false, dead:false,
@@ -80,15 +81,15 @@ window.Delve = window.Delve || {};
  if(!placed) return null;
  }
  // Split any room whose area exceeds the threshold
- const splits=[];
+ const out=[];
  for(const r of rooms){
- if(r.w*r.h > splitArea){
- const a={id:r.id+"a",x:r.x,y:r.y,w:Math.floor(r.w/2),h:r.h,type:"normal"};
- const b={id:r.id+"b",x:r.x+Math.floor(r.w/2),y:r.y,w:Math.ceil(r.w/2),h:r.h,type:"normal"};
- splits.push(a,b);
- } else splits.push(r);
+ if(r.w*r.h > splitArea && r.w >= 6){
+ const half=Math.floor(r.w/2);
+ out.push({id:r.id+"a",x:r.x,y:r.y,w:half,h:r.h,type:"normal"});
+ out.push({id:r.id+"b",x:r.x+half,y:r.y,w:r.w-half,h:r.h,type:"normal"});
+ } else out.push(r);
  }
- return splits;
+ return out;
  }
  function overlaps(x,y,w,h,rooms,margin){
  margin=margin||0;
@@ -191,7 +192,6 @@ window.Delve = window.Delve || {};
 
  function populateSecretRoom(g, secret){
  if(!secret) return;
- const G=Delve.G;
  const cx=secret.roomX+Math.floor(secret.roomW/2);
  const cy=secret.roomY+Math.floor(secret.roomH/2);
 
@@ -244,6 +244,7 @@ window.Delve = window.Delve || {};
  const monsters=[];
  const used=new Set();
  const spawnable=rooms.filter(r=>r.type==="normal"&&r.id!==startRoom.id);
+ if(!spawnable.length) return monsters;
 
  // Base count scales up slightly with total monster room area
  let area=0;
@@ -251,30 +252,30 @@ window.Delve = window.Delve || {};
  const areaBonus = Math.round(area/180);
  const count = Math.min(18, Delve.rng(band.countMin,band.countMax) + areaBonus);
 
- // Guarantee 1 monster per spawnable room first
+ // Guarantee 1 monster per spawnable room first (largest rooms first)
  let placed=0;
  const roomOrder=spawnable.slice().sort((a,b)=>(b.w*b.h)-(a.w*a.h));
  for(const room of roomOrder){
  if(placed>=count) break;
- if(placeMonsterInRoom(g,room,monsters,used,G,C())) placed++;
+ for(let t=0;t<40;t++){
+ if(placeMonsterInRoom(g,room,monsters,used)){ placed++; break; }
+ }
  }
 
  // Fill remaining monsters, weighting larger rooms
  for(let i=placed;i<count;i++){
- let placedNow=false;
- for(let attempt=0;attempt<200&&!placedNow;attempt++){
+ for(let attempt=0;attempt<200;attempt++){
  const room=pickWeightedRoom(spawnable,startRoom);
- if(!room) break;
- if(placeMonsterInRoom(g,room,monsters,used,G,C())) placedNow=true;
+ if(room && placeMonsterInRoom(g,room,monsters,used)) break;
  }
  }
  return monsters;
  }
 
- function placeMonsterInRoom(g,room,monsters,used,G,C){
- // Try to find an empty floor tile away from the player
- const x=Delve.rng(room.x+1,room.x+room.w-2);
- const y=Delve.rng(room.y+1,room.y+room.h-2);
+ function placeMonsterInRoom(g,room,monsters,used){
+ const G=Delve.G;
+ const x=Delve.rng(room.x,room.x+room.w-1);
+ const y=Delve.rng(room.y,room.y+room.h-1);
  const key=x+","+y;
  if(!g[y]||g[y][x]!==T().FLOOR) return false;
  if(used.has(key)) return false;
@@ -289,7 +290,12 @@ window.Delve = window.Delve || {};
  function pickWeightedRoom(rooms,startRoom){
  const sc=centerOf(startRoom);
  let total=0;
- const weights=rooms.map(r=>{ const d=Delve.mdist(centerOf(r).x,centerOf(r).y,sc.x,sc.y)+1; const area=r.w*r.h; const w=area/(Math.max(1,d)); total+=w; return w; });
+ const weights=rooms.map(r=>{
+ const d=Delve.mdist(centerOf(r).x,centerOf(r).y,sc.x,sc.y)+1;
+ const w=(r.w*r.h)/d;
+ total+=w;
+ return w;
+ });
  let roll=Math.random()*total;
  for(let i=0;i<rooms.length;i++){ roll-=weights[i]; if(roll<=0) return rooms[i]; }
  return rooms[rooms.length-1];
@@ -314,24 +320,22 @@ window.Delve = window.Delve || {};
  const barrels=[];
  const used=new Set();
  const candidates=rooms.filter(r=>r.type==="normal"&&r.id!==startRoom.id);
+ if(!candidates.length) return barrels;
 
- // Place a handful of barrels, weighted toward larger rooms
  const count = Delve.rng(6,10);
  for(let i=0;i<count;i++){
- let placed=false;
- for(let attempt=0;attempt<80&&!placed;attempt++){
+ for(let attempt=0;attempt<80;attempt++){
  const room=pickWeightedRoom(candidates,startRoom);
- const x=Delve.rng(room.x+1,room.x+room.w-2);
- const y=Delve.rng(room.y+1,room.y+room.h-2);
+ const x=Delve.rng(room.x,room.x+room.w-1);
+ const y=Delve.rng(room.y,room.y+room.h-1);
  const key=x+","+y;
  if(!g[y]||g[y][x]!==T().FLOOR) continue;
  if(used.has(key)) continue;
  if(Delve.mdist(x,y,G.px,G.py)<2) continue;
-
  barrels.push({x,y});
  g[y][x]=T().BARREL;
  used.add(key);
- placed=true;
+ break;
  }
  }
  return barrels;
@@ -339,7 +343,6 @@ window.Delve = window.Delve || {};
 
  // ── Treasure room contents ───────────────────────────────────
  function populateTreasureRoom(g,room){
- const G=Delve.G;
  const positions=[
  {x:room.x+Math.floor(room.w*0.3), y:room.y+Math.floor(room.h/2)},
  {x:room.x+Math.floor(room.w*0.7), y:room.y+Math.floor(room.h/2)}
@@ -353,9 +356,9 @@ window.Delve = window.Delve || {};
  function buildNormalFloor(){
  const G=Delve.G, ward=Delve.getWard(G.floor);
  const size=ward.dungeonSize;
- const corridors=[];
 
  for(let attempt=0;attempt<80;attempt++){
+ const corridors=[];
  const g=blankGrid(size);
  const rooms=placeRooms(size);
  if(!rooms) continue;
