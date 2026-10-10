@@ -370,10 +370,11 @@ window.Delve = window.Delve || {};
   }
   return Math.max(1, Math.round(base * (1 - disc)));
  };
-
+ 
  // ── Inventory capacity (start 16, KIT tree raises toward 24) ──
  Delve.inventoryCap = function(){
-  return Math.min(Delve.CONFIG.inventoryMax || 24, Delve.CONFIG.inventorySlots || 16);
+  const base = (Delve.save && Delve.save.inventoryCap) || Delve.CONFIG.inventorySlots || 16;
+  return Math.min(Delve.CONFIG.inventoryMax || 24, base);
  };
 
  // ── Pickup with capacity enforcement ───────────────────────────
