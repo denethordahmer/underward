@@ -191,8 +191,10 @@ window.Delve = window.Delve || {};
    dmg = Math.round(dmg * sec.critMult);
    isCrit = true;
    Delve.addFloater("CRIT " + dmg, m.x, m.y, "#ff9d3d");
+   if(Delve.sfx) Delve.sfx("crit");
   } else {
    Delve.addFloater("-" + dmg, m.x, m.y, "#ffd75e");
+   if(Delve.sfx) Delve.sfx("hit");
   }
 
   if(weakened) dmg = Math.max(1, Math.round(dmg * 0.7));
@@ -274,6 +276,7 @@ window.Delve = window.Delve || {};
   G.playerHit = Date.now();
   Delve.addFloater("-" + hit, G.px, G.py, "#ff5c5c");
   Delve.addShake(1);
+  if(Delve.sfx) Delve.sfx("hurt");
   if(Delve.logEnemyAtk) Delve.logEnemyAtk(m.name || m.kind || "enemy", hit);
 
   // Wraiths apply Weaken on a successful hit
@@ -451,6 +454,7 @@ window.Delve = window.Delve || {};
    G.hp -= hit; G.playerHit = Date.now();
    Delve.addFloater("-" + hit, G.px, G.py, "#ff5c5c");
    Delve.addShake(1);
+   if(Delve.sfx) Delve.sfx("hurt");
    if(Delve.logEnemyAtk) Delve.logEnemyAtk(m.name || "enemy", hit);
    if(m.kind === "wraith" && Delve.applyPlayerEffect) Delve.applyPlayerEffect("weaken");
    if(G.hp <= 0) Delve.die();
@@ -475,6 +479,7 @@ window.Delve = window.Delve || {};
    g[m.y][m.x] = T().STAIR;
    Delve.flash("THE WARDEN FALLS!");
    Delve.addShake(6);
+   if(Delve.sfx) Delve.sfx("kill");
    if(Delve.logSystem) Delve.logSystem("The Warden has fallen.");
    // drop a guaranteed boss item (legendary-leaning)
    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { guaranteed:true, minTier:3, name:m.name, elite:false, boss:true });
@@ -486,6 +491,7 @@ window.Delve = window.Delve || {};
    G.goldPiles.push({ x: m.x, y: m.y, amount: Math.round(rewards.gold * mult) });
    g[m.y][m.x] = T().GOLD;
    Delve.addShake(2);
+   if(Delve.sfx) Delve.sfx("kill");
    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { name:m.name, elite:!!m.elite });
    if(m.elite && C().elite.guaranteedPotion && Delve.dropPotion){
     Delve.dropPotion(m.x, m.y, 2, { kind:"monster", name:m.name, elite:true });
@@ -532,6 +538,7 @@ window.Delve = window.Delve || {};
   if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
   const gained = Delve.convertGold();
   Delve.recordStat("victories", 1);
+  if(Delve.sfx) Delve.sfx("victory");
   if(Delve.showVictory) Delve.showVictory(gained);
   else Delve.flash("WARD CLEARED! +" + gained + " shards");
   Delve.updateHUD();
@@ -574,6 +581,7 @@ window.Delve = window.Delve || {};
   G.dead = true;
   G.inCombat = false;
   if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
+  if(Delve.sfx) Delve.sfx("death");
   if(Delve.logDeath) Delve.logDeath();
   Delve.endRun("death", {});
  };
