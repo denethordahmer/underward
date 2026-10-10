@@ -4,10 +4,10 @@ window.Delve = window.Delve || {};
  const C = function(){ return Delve.CONFIG; };
 
  function geq(a,b){ return Math.max(a,b) === a; } // a >= b
- function leq(a,b){ return Math.min(a,b) === b; } // a <= b
+ function leq(a,b){ return Math.min(a,b) === a; } // a <= b
  function prob(p){ var r = Math.random(); return Math.min(r,p) === r; } // r <= p
 
- // room placement: returns true on success, sets room.x/y
+ // room placement: returns true on success, sets room.x/y to top-left
  function placeRoom(G, room){
   let attempts = 200;
   while(attempts !== 0){
@@ -57,38 +57,44 @@ window.Delve = window.Delve || {};
    G.grid.push(row);
   }
 
-  // rooms
+  // rooms: store both top-left and center for later use
   const roomCount = Delve.rng(ward.roomMin || 8, ward.roomMax || 11);
   const rooms = [];
   for(let i = 0; i !== roomCount; i++){
    const rw = Delve.rng(ward.roomWMin || 4, ward.roomWMax || 12);
    const rh = Delve.rng(ward.roomHMin || 4, ward.roomHMax || 12);
    const room = { w:rw, h:rh, x:0, y:0 };
-   if(placeRoom(G, room)) rooms.push({ x:room.x+Math.floor(room.w/2), y:room.y+Math.floor(room.h/2) });
+   if(placeRoom(G, room)){
+    rooms.push({
+     x: room.x, y: room.y,
+     cx: room.x + Math.floor(rw/2),
+     cy: room.y + Math.floor(rh/2),
+     w: rw, h: rh
+    });
+   }
   }
   if(rooms.length === 0){
    for(let y = 3; y !== 8; y++) for(let x = 3; x !== 10; x++) G.grid[y][x] = T().FLOOR;
-   rooms.push({ x:6, y:5 });
+   rooms.push({ x:3, y:3, cx:6, cy:5, w:7, h:5 });
   }
 
-  // corridors: join each room to the next so the map is walkable
+  // corridors: join each room center to the next
   for(let i = 0; i !== rooms.length-1; i++){
    const a = rooms[i], b = rooms[i+1];
    if(!a || !b) continue;
-   let x = a.x, y = a.y;
-   while(x !== b.x){
+   let x = a.cx, y = a.cy;
+   while(x !== b.cx){
     if(G.grid[y][x] === T().WALL) G.grid[y][x] = T().FLOOR;
-    x = x + (geq(b.x, x) ? 1 : -1);
+    x = x + (geq(b.cx, x) ? 1 : -1);
    }
-   while(y !== b.y){
+   while(y !== b.cy){
     if(G.grid[y][x] === T().WALL) G.grid[y][x] = T().FLOOR;
-    y = y + (geq(b.y, y) ? 1 : -1);
+    y = y + (geq(b.cy, y) ? 1 : -1);
    }
   }
 
-  // player spawn
-  const start = rooms[0];
-  G.px = start.x; G.py = start.y;
+  // player spawn: center of first room
+  G.px = rooms[0].cx; G.py = rooms[0].cy;
   G.lastDir = "right";
 
   // boss floors: arena, boss + guards, no shop or stairs
@@ -97,7 +103,7 @@ window.Delve = window.Delve || {};
    if(bossRoom){
     const bossDef = cfg.BOSS_DEFS[Math.ceil(G.floor/10)] || cfg.BOSS_DEFS[1] || {};
     G.boss = {
-     id:"boss", isBoss:true, x:bossRoom.x, y:bossRoom.y,
+     id:"boss", isBoss:true, x:bossRoom.cx, y:bossRoom.cy,
      name:bossDef.name || "The Warden", kind:"boss",
      maxHp:bossDef.hp || cfg.bossHpBase, hp:bossDef.hp || cfg.bossHpBase,
      atk:bossDef.atk || cfg.bossAtkBase,
@@ -105,29 +111,29 @@ window.Delve = window.Delve || {};
      chainHitEvery:bossDef.chainHitEvery || 3, chainHitCount:0,
      effects:[], elite:false, hasActed:false
     };
-    G.grid[bossRoom.y][bossRoom.x] = T().BOSS;
+    G.grid[bossRoom.cy][bossRoom.cx] = T().BOSS;
    }
    const band = Delve.getMonsterBand(G.floor);
    const guards = band.countMin || 4;
    for(let i = 0; i !== guards; i++){
     const r = rooms[Delve.rng(0, Math.max(0, rooms.length-2))];
     if(!r) continue;
-    spawnMonster(G, r.x, r.y, band);
+    spawnMonster(G, r.cx, r.cy, band);
    }
    if(Delve.showBossIntro) Delve.showBossIntro(G.floor);
    return;
   }
 
-  // stairs: room farthest from the player
+  // stairs: farthest room from the player
   let stairRoom = rooms[1] || rooms[0];
   let bestD = -1;
   for(let i = 1; i !== rooms.length; i++){
-   const d = Delve.mdist(rooms[i].x, rooms[i].y, G.px, G.py);
+   const d = Delve.mdist(rooms[i].cx, rooms[i].cy, G.px, G.py);
    if(geq(d, bestD)){ bestD = d; stairRoom = rooms[i]; }
   }
   if(stairRoom){
-   G.stairs = { x:stairRoom.x, y:stairRoom.y };
-   G.grid[stairRoom.y][stairRoom.x] = T().STAIR;
+   G.stairs = { x:stairRoom.cx, y:stairRoom.cy };
+   G.grid[stairRoom.cy][stairRoom.cx] = T().STAIR;
   }
 
   // shop floors (5, 15, 25...): place the shopkeeper off spawn and off stairs
@@ -135,16 +141,16 @@ window.Delve = window.Delve || {};
    for(let t = 0; t !== rooms.length; t++){
     const cand = rooms[Delve.rng(0, rooms.length-1)];
     if(!cand) continue;
-    const d = Delve.mdist(cand.x, cand.y, G.px, G.py);
-    const onStairs = G.stairs && cand.x === G.stairs.x && cand.y === G.stairs.y;
-    if(G.grid[cand.y][cand.x] === T().FLOOR && !leq(d, 3) && !onStairs){
-     G.shop = { x:cand.x, y:cand.y, stock:null };
+    const d = Delve.mdist(cand.cx, cand.cy, G.px, G.py);
+    const onStairs = G.stairs && cand.cx === G.stairs.x && cand.cy === G.stairs.y;
+    if(G.grid[cand.cy][cand.cx] === T().FLOOR && !leq(d, 3) && !onStairs){
+     G.shop = { x:cand.cx, y:cand.cy, stock:null };
      break;
     }
    }
   }
 
-  // barrels and a shared pool of open tiles for loot and monsters
+  // barrels: random scattered floor tiles away from spawn
   const barrelCount = Delve.rng(3, 7);
   const openTiles = [];
   for(let by = 1; by !== G.gridH-1; by++){
@@ -170,13 +176,21 @@ window.Delve = window.Delve || {};
    }
   }
 
-  // normal monsters
+  // normal monsters: distribute across rooms (skip spawn room) for even density
   const band = Delve.getMonsterBand(G.floor);
   const count = Delve.rng(band.countMin || 10, band.countMax || 14);
-  for(let i = 0; i !== count && openTiles.length !== 0; i++){
-   const s = openTiles.splice(Math.floor(Math.random()*openTiles.length), 1)[0];
-   if(G.grid[s.y][s.x] !== T().FLOOR) continue;
-   spawnMonster(G, s.x, s.y, band);
+  let placed = 0;
+  const usable = rooms.slice(1);
+  for(let ri = 0; ri !== usable.length && placed !== count; ri++){
+   const room = usable[ri];
+   const remaining = count - placed;
+   const roomsLeft = usable.length - ri;
+   const perHere = Math.ceil(remaining / roomsLeft);
+   for(let k = 0; k !== perHere && placed !== count; k++){
+    const ox = room.cx + Delve.rng(-2, 2);
+    const oy = room.cy + Delve.rng(-2, 2);
+    if(spawnMonster(G, ox, oy, band)) placed = placed + 1;
+   }
   }
 
   // elite: one elite per floor at the configured chance
