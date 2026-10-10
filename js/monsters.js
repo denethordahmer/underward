@@ -2,8 +2,6 @@ window.Delve = window.Delve || {};
 (function(){
 
  // ── Roster accessors ─────────────────────────────────────────
- // Spawning lives in levels.js; combat/rewards read stats from
- // here so all scaling stays single-source.
  Delve.monsterStats = function(type, floor){
   const cfg = Delve.CONFIG;
   const row = cfg.MONSTER_ROSTER[type] || cfg.MONSTER_ROSTER.goblin;
@@ -13,7 +11,7 @@ window.Delve = window.Delve || {};
    hp: Math.round(row.hp + row.hpPerFloor * (floor - 1)),
    atk: Math.max(1, Math.round(row.atk + row.atkPerFloor * floor)),
    xp: row.xp,
-   shards: row.shards + Math.floor(floor * 0.5),
+   shards: row.shards,       // small-integer band (1-3), no per-kill floor scaling
    gold: row.gold
   };
  };
@@ -21,9 +19,7 @@ window.Delve = window.Delve || {};
  function rowFor(kind){
   const cfg = Delve.CONFIG;
   for(const key in cfg.MONSTER_ROSTER){
-   if(cfg.MONSTER_ROSTER[key].kind === kind){
-    return cfg.MONSTER_ROSTER[key];
-   }
+   if(cfg.MONSTER_ROSTER[key].kind === kind) return cfg.MONSTER_ROSTER[key];
   }
   return cfg.MONSTER_ROSTER.goblin;
  }
@@ -38,13 +34,12 @@ window.Delve = window.Delve || {};
 
   if(m.isBoss){
    gold = cfg.goldBossBase || 80;
-   shards = cfg.bossShardBase + cfg.bossShardPerFloor * floor;
+   shards = eco.bossShards || 40;
    xp = (cfg.xpKill && cfg.xpKill.boss) || 30;
   } else {
    const row = rowFor(m.kind);
-   // Sim-calibrated log-curve gold: base + K × ln(floor+1)
-   gold = row.gold + eco.goldCurveK * Math.log(floor + 1);
-   shards = row.shards + Math.floor(floor * 0.5);
+   gold = row.gold + (eco.goldCurveK || 3.0) * Math.log(floor + 1);
+   shards = row.shards;      // R3: 1-3 per kill, flat
    xp = row.xp;
   }
 
@@ -58,6 +53,13 @@ window.Delve = window.Delve || {};
    shards: Math.round(shards),
    xp: Math.round(xp)
   };
+ };
+
+ // ── Floor-clear bonus: granted when the last monster dies ────
+ // Called by combat.js; lives here because it's reward logic.
+ Delve.floorClearBonus = function(){
+  const G = Delve.G, eco = Delve.CONFIG.economy;
+  return (eco.floorClearBonus || 0) + (eco.floorClearBonusPerFloor || 0) * G.floor;
  };
 
  // ── Elite monster builder (used by levels.js) ────────────────
