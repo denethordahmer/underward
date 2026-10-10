@@ -58,9 +58,10 @@ window.Delve = window.Delve || {};
  const idx = (ward && ward.biome !== undefined) ? ward.biome : 0;
  const b = (Delve.CONFIG.BIOMES && Delve.CONFIG.BIOMES[idx]) || Delve.CONFIG.BIOMES[0] || {};
  return {
- wall: b.wall || "#192129",
- wallEdge: b.wallEdge || "#4d5b67",
- wallBrick: b.wallBrick || "#10161d",
+ wall: b.wall || "#64707c",
+ wallEdge: b.wallEdge || "#8d99a6",
+ wallBrick: b.wallBrick || "#3a4248",
+ mortar: b.mortar || "#0b0f14",
  floor: b.floor || "#2e3842",
  floor2: b.floor2 || "#283039",
  moss: b.moss || "#3f6d55",
@@ -126,7 +127,7 @@ window.Delve = window.Delve || {};
  if(n3 < 0.05) slabCol = blendHex(slabCol, "#0a0e12", 0.35);
 
  const mortar = 2;
- ctx.fillStyle = b.wallBrick;
+ ctx.fillStyle = b.mortar;
  ctx.fillRect(sx, sy, ts, ts);
  ctx.fillStyle = slabCol;
  ctx.fillRect(sx + mortar, sy + mortar, ts - mortar*2, ts - mortar*2);
@@ -141,7 +142,7 @@ window.Delve = window.Delve || {};
  if(n2 < 0.08){
  const corner = Math.floor(n2 / 0.02) % 4;
  const cs = Math.max(3, Math.floor(ts * 0.18));
- ctx.fillStyle = b.wallBrick;
+ ctx.fillStyle = b.mortar;
  if(corner === 0) ctx.fillRect(sx + mortar, sy + mortar, cs, cs);
  if(corner === 1) ctx.fillRect(sx + ts - mortar - cs, sy + mortar, cs, cs);
  if(corner === 2) ctx.fillRect(sx + mortar, sy + ts - mortar - cs, cs, cs);
@@ -280,6 +281,34 @@ window.Delve = window.Delve || {};
  ctx.restore();
  }
 
+ // ── Ambient clutter (bones / rubble) on empty floor tiles ───
+ function drawClutter(ctx, sx, sy, ts, gx, gy){
+ const roll = hash3(gx, gy, 71);
+ if(roll < 0.03){
+ ctx.save();
+ ctx.globalAlpha = 0.5;
+ ctx.fillStyle = "#c9c2b0";
+ if(roll < 0.01){
+ // small bone
+ ctx.fillRect(sx+ts*0.35, sy+ts*0.55, ts*0.3, ts*0.08);
+ ctx.beginPath(); ctx.arc(sx+ts*0.35, sy+ts*0.59, ts*0.05, 0, Math.PI*2); ctx.fill();
+ ctx.beginPath(); ctx.arc(sx+ts*0.65, sy+ts*0.59, ts*0.05, 0, Math.PI*2); ctx.fill();
+ } else if(roll < 0.02){
+ // rubble chunk
+ ctx.fillStyle = "#7a7a80";
+ ctx.beginPath();
+ ctx.moveTo(sx+ts*0.3, sy+ts*0.6);
+ ctx.lineTo(sx+ts*0.5, sy+ts*0.5);
+ ctx.lineTo(sx+ts*0.7, sy+ts*0.62);
+ ctx.closePath(); ctx.fill();
+ } else {
+ // small pebble
+ ctx.beginPath(); ctx.arc(sx+ts*0.5, sy+ts*0.55, ts*0.07, 0, Math.PI*2); ctx.fill();
+ }
+ ctx.restore();
+ }
+ }
+
  // ── WALL TILE — three brick moods ────────────────────────────
  function drawWallTile(ctx, sx, sy, ts, gx, gy, b){
  const n = hash2(gx, gy);
@@ -292,14 +321,14 @@ window.Delve = window.Delve || {};
  ctx.fillRect(sx, sy, ts, ts);
 
  if(mood === 2){
- ctx.fillStyle = "rgba(40,70,35,0.30)";
+ ctx.fillStyle = "rgba(60,90,60,0.28)";
  ctx.fillRect(sx, sy, ts, ts);
  }
 
  if(mood === 3){
  const grad = ctx.createLinearGradient(sx + ts*0.5, sy, sx + ts*0.5, sy + ts);
- grad.addColorStop(0, "rgba(60,25,10,0.55)");
- grad.addColorStop(0.6, "rgba(40,15,5,0.20)");
+ grad.addColorStop(0, "rgba(70,40,20,0.45)");
+ grad.addColorStop(0.6, "rgba(50,30,15,0.15)");
  grad.addColorStop(1, "rgba(0,0,0,0)");
  ctx.fillStyle = grad;
  ctx.fillRect(sx + ts*0.25, sy, ts*0.5, ts);
@@ -312,7 +341,7 @@ window.Delve = window.Delve || {};
  if(ts >= 20){
  ctx.strokeStyle = b.wallBrick;
  ctx.lineWidth = 1;
- ctx.globalAlpha = mood === 1 ? 0.75 : 0.55;
+ ctx.globalAlpha = mood === 1 ? 0.75 : 0.5;
  ctx.beginPath();
  ctx.moveTo(sx+1, sy + ts*0.50);
  ctx.lineTo(sx+ts-1, sy + ts*0.50);
@@ -347,9 +376,9 @@ window.Delve = window.Delve || {};
  }
  }
 
- ctx.fillStyle = "rgba(255,255,255,0.05)";
+ ctx.fillStyle = "rgba(255,255,255,0.06)";
  ctx.fillRect(sx, sy, ts, 2);
- ctx.fillStyle = "rgba(0,0,0,0.38)";
+ ctx.fillStyle = "rgba(0,0,0,0.35)";
  ctx.fillRect(sx, sy + ts - 2, ts, 2);
  }
 
@@ -415,7 +444,7 @@ window.Delve = window.Delve || {};
 
  // ── STAIRS (carved stone steps, descending) ──────────────────
  function drawStairs(ctx, sx, sy, ts, b){
- ctx.fillStyle = b.wallBrick;
+ ctx.fillStyle = b.mortar;
  ctx.fillRect(sx, sy, ts, ts);
  ctx.fillStyle = b.floor2;
  ctx.fillRect(sx+2, sy+2, ts-4, ts-4);
@@ -491,7 +520,7 @@ window.Delve = window.Delve || {};
 
  const mhp = m.isBoss
  ? Delve.bossHp()
- : (Delve.CONFIG.monsterHpBase + Delve.CONFIG.monsterHpPerFloor*(Delve.G.floor-1));
+ : (m.maxHp);
  const frac = Math.max(0, Math.min(1, m.hp/mhp));
  ctx.fillStyle = "rgba(0,0,0,0.6)";
  ctx.fillRect(cx + rx - ts*0.34, cy + ry - ts*0.55, ts*0.68, 4);
@@ -506,6 +535,13 @@ window.Delve = window.Delve || {};
  ctx.globalAlpha = 0.5;
  ctx.beginPath(); ctx.arc(cx, cy, ts*0.22, 0, Math.PI*2); ctx.fill();
  ctx.globalAlpha = 1;
+ }
+
+ function drawBarrel(ctx, cx, cy, ts){
+ const S = Delve.SPR && Delve.SPR.world && Delve.SPR.world.barrel;
+ if(!S) return;
+ const size = ts*0.72;
+ ctx.drawImage(S, cx-size/2, cy-size/2, size, size);
  }
 
  function drawTreasure(ctx, thing, cx, cy, ts){
@@ -592,6 +628,7 @@ window.Delve = window.Delve || {};
  if(t === null || t === T.WALL) continue;
  const sx = x*ts, sy = y*ts;
  blitTile(ctx, gx, gy, sx, sy, ts, b, t);
+ if(t === T.FLOOR) drawClutter(ctx, sx, sy, ts, gx, gy);
  }
  }
 
@@ -663,6 +700,12 @@ window.Delve = window.Delve || {};
  for(const p of (G.goldPiles || [])){
  if(p.x < camX || p.y < camY || p.x >= camX+vw || p.y >= camY+vh) continue;
  drawTreasure(ctx, "gold", (p.x-camX)*ts + ts/2, (p.y-camY)*ts + ts/2, ts);
+ }
+
+ // Barrels
+ for(const b of (G.barrels || [])){
+ if(b.x < camX || b.y < camY || b.x >= camX+vw || b.y >= camY+vh) continue;
+ drawBarrel(ctx, (b.x-camX)*ts + ts/2, (b.y-camY)*ts + ts/2, ts);
  }
 
  const decor = (G.floorData && G.floorData.decor) || [];
