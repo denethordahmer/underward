@@ -41,15 +41,15 @@ Delve.CONFIG = {
  restPerFloor: 3,
 
  // ---------- WARDS ----------
- WARDS: [
+  WARDS: [
  {
  id:1, name:"Upper Ruins", floors:[1,10],
  biome:0,
- roomMin:8, roomMax:11,
- roomWMin:4, roomWMax:12, roomHMin:4, roomHMax:12,
+ roomMin:6, roomMax:9,
+ roomWMin:4, roomWMax:9, roomHMin:4, roomHMax:9,
  roomMaxDuplicateSize:2,
  roomSplitArea:80,
- dungeonSize:34,
+ dungeonSize:26,
  bossArenaPadding:2,
  treasureChanceBase:0.14,
  treasureChanceLuck:0.018,
