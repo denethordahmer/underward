@@ -1,104 +1,435 @@
-window.Delve = window.Delve || {};
-(function(){
-  const canvas = document.getElementById("canvas");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>underward</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0f14">
+<style>
+:root { color-scheme:dark; }
+*{ margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{
+  background:#0b0f14;color:#d7e3ee;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;font-size:16px;
+}
+#app{ position:fixed;inset:0; }
+#canvas{ display:block;width:100%;height:100%; }
 
-  function handleTap(e){
-    e.preventDefault();
-    const G = Delve.G;
-    if(!G || G.dead) return;
-    if(document.getElementById("deathScreen").style.display==="flex") return;
-    if(document.getElementById("levelupScreen").style.display==="flex") return;
-    if(document.getElementById("inventoryScreen").style.display==="flex") return;
-    if(document.getElementById("itemCardOverlay").style.display==="flex") return;
-    if(document.getElementById("stairsPrompt").style.display==="flex") return;
+/* ── HUD ── */
+#hud{
+  position:absolute;top:0;left:0;right:0;z-index:5;
+  display:flex;flex-wrap:wrap;align-items:center;gap:5px;
+  padding:6px 8px env(safe-area-inset-top,0px);
+  background:rgba(8,12,16,.88);backdrop-filter:blur(6px);
+}
+.stat{
+  display:flex;align-items:center;gap:4px;background:#141b23;
+  border:1px solid #2a3440;border-radius:9px;padding:4px 8px;
+  font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;
+}
+.sico{ font-size:13px;line-height:1;flex-shrink:0; }
+.spacer{ flex:1;min-width:4px; }
+#invBtn{
+  background:#141b23;border:1px solid #7ee0ff44;border-radius:9px;
+  padding:5px 10px;font-size:12px;font-weight:700;color:#7ee0ff;
+  font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0;touch-action:manipulation;
+}
+#invBtn:active{ background:#1a2a3a; }
+/* Rest dots */
+#restDots{ display:flex;gap:3px;align-items:center;flex-shrink:0; }
+.rest-dot{
+  width:7px;height:7px;border-radius:50%;background:#2ad0b0;
+  border:1px solid #1a8870;transition:background .2s;
+}
+.rest-dot.used{ background:#1a2a34;border-color:#2a3440; }
 
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const tx = Math.floor(x / Delve.ts) + (Delve.camX || 0);
-    const ty = Math.floor(y / Delve.ts) + (Delve.camY || 0);
+/* ── Combat log strip ── */
+#logPanel{
+  position:absolute;bottom:0;left:0;right:0;z-index:4;
+  height:clamp(72px,18vh,120px);pointer-events:none;display:none;
+}
+#logPanel.active{ display:block; }
+#logFade{
+  position:absolute;top:0;left:0;right:0;height:36px;
+  background:linear-gradient(to bottom,transparent,rgba(8,12,16,.65));
+  pointer-events:none;
+}
+#combatLog{
+  position:absolute;bottom:0;left:0;right:0;height:100%;
+  overflow-y:auto;overflow-x:hidden;padding:6px 8px 6px;
+  scrollbar-width:none;background:rgba(8,12,16,.70);
+  backdrop-filter:blur(4px);border-top:1px solid rgba(255,255,255,.05);
+  pointer-events:auto;
+}
+#combatLog::-webkit-scrollbar{ display:none; }
+.log-row{ font-size:11px;line-height:1.7;color:#c0cdd8;transition:opacity .3s; }
+#logExpandBtn{
+  position:absolute;right:8px;top:4px;
+  background:#141b23;border:1px solid #2a3440;border-radius:7px;
+  color:#7ee0ff;font-size:11px;font-weight:700;padding:2px 8px;
+  cursor:pointer;z-index:5;pointer-events:auto;font-family:inherit;
+}
 
-    if(tx < 0 || ty < 0 || !G.grid ||
-       tx >= G.grid[0].length || ty >= G.grid.length) return;
+/* ── Combat vignette (red border when in fight) ── */
+#combatVignette{
+  position:absolute;inset:0;z-index:3;pointer-events:none;
+  box-shadow:inset 0 0 60px rgba(220,60,60,0);
+  transition:box-shadow .2s;
+}
+#combatVignette.active{
+  box-shadow:inset 0 0 80px rgba(220,60,60,0.45);
+  animation:combatPulse 1.2s ease-in-out infinite;
+}
+@keyframes combatPulse{
+  0%,100%{ box-shadow:inset 0 0 60px rgba(220,60,60,0.30); }
+  50%    { box-shadow:inset 0 0 90px rgba(220,60,60,0.60); }
+}
 
-    const T = Delve.T, g = G.grid;
+/* ── Shared overlay base ── */
+.overlay{
+  position:absolute;inset:0;z-index:10;overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;
+  gap:16px;padding:22px 18px calc(22px + env(safe-area-inset-bottom));
+  text-align:center;background:rgba(8,11,15,.96);
+}
+.overlay h1{ font-size:clamp(36px,10vw,58px);letter-spacing:2px;margin:4px 0 0;line-height:1; }
+.overlay h2{ font-size:clamp(22px,6vw,30px);color:#ff9a9a;margin:0; }
+.sub{ color:#a9bccd;font-size:16px;line-height:1.45;max-width:420px; }
+.walletbar{
+  display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;
+  background:#141b23;border:1px solid #2a3440;border-radius:14px;padding:12px 20px;
+}
+.shop{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
+.upgrade{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:#141b23;border:1px solid #2a3440;border-radius:16px;padding:14px 16px;
+}
+.upgrade .name{ font-weight:800;font-size:18px;text-align:left; }
+.upgrade .desc{ font-size:13px;line-height:1.4;color:#9fb3c5;text-align:left;margin-top:3px; }
+.lvl{ color:#7f94a8;font-size:12px;font-weight:700;margin-left:4px; }
+.btn{
+  background:#1f7a5c;color:#eafff5;border:none;border-radius:14px;
+  padding:14px 16px;font-size:17px;font-weight:800;cursor:pointer;
+  min-width:90px;box-shadow:0 4px 0 #0e3d2e;flex-shrink:0;touch-action:manipulation;
+}
+.btn:active{ transform:translateY(2px);box-shadow:0 2px 0 #0e3d2e; }
+.btn:disabled{ background:#2f3d48;color:#83939f;box-shadow:none;cursor:default; }
+.btn.big{ width:100%;max-width:460px;padding:18px;font-size:20px; }
+.btn-ghost{
+  background:#141b23;color:#7ee0ff;border:1px solid #7ee0ff44;border-radius:14px;
+  padding:14px 16px;font-size:17px;font-weight:800;cursor:pointer;
+  width:100%;max-width:460px;touch-action:manipulation;font-family:inherit;
+}
+.close-btn{
+  background:none;border:none;color:#7f94a8;font-size:22px;
+  cursor:pointer;padding:0 4px;line-height:1;font-family:inherit;
+}
 
-    // Targeting ability
-    if(G.targetingAbility){
-      const ok = Delve.castAbility(G.targetingAbility, tx, ty);
-      G.targetingAbility = null;
-      if(ok !== false){ Delve.enemiesTurn(); Delve.updateHUD(); }
-      Delve.draw();
-      return;
-    }
+/* ── Level-up ── */
+#levelupScreen{ display:none; }
+#levelupChoices{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
 
-    // Tap own tile = rest
-    if(tx === G.px && ty === G.py){
-      Delve.tryRest();
-      return;
-    }
+/* ── Inventory screen ── */
+#inventoryScreen{ display:none; }
+.inv-header{
+  display:flex;justify-content:space-between;align-items:center;width:100%;max-width:480px;
+}
+.inv-header h2{ font-size:20px;color:#eafff5;margin:0; }
+/* Character silhouette + slots */
+#charFigure{
+  position:relative;width:180px;height:220px;flex-shrink:0;
+}
+#charFigure svg{ width:100%;height:100%; }
+.eq-slot{
+  position:absolute;background:#141b23;border:1px dashed #2a3440;border-radius:10px;
+  padding:5px 7px;font-size:11px;min-width:80px;text-align:center;cursor:pointer;
+  transition:background .15s;touch-action:manipulation;
+}
+.eq-slot.filled{ border-style:solid;border-color:#2a3440; }
+.eq-slot:active{ background:#1a2a3a; }
+/* Slot positions on the figure */
+#slot-weapon { top:100px;left:-88px; }
+#slot-armour { top:90px; right:-88px; }
+#slot-trinket1{ bottom:50px;left:-88px; }
+#slot-trinket2{ bottom:50px;right:-88px; }
+/* Carried grid */
+#invCarriedGrid{ display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:480px; }
+.inv-item-btn{
+  display:flex;flex-direction:column;align-items:flex-start;
+  background:#141b23;border:1px solid #2a3440;border-radius:10px;
+  padding:7px 11px;font-size:12px;cursor:pointer;touch-action:manipulation;
+  font-family:inherit;min-width:120px;gap:2px;
+}
+.inv-item-btn:active{ background:#1a2a3a; }
+.inv-section-label{
+  font-size:11px;font-weight:800;color:#7f94a8;letter-spacing:.06em;
+  width:100%;text-align:left;max-width:480px;
+}
 
-    // In combat — tapping anything other than combat target tile = flee
-    if(G.inCombat && G.combatTarget){
-      if(tx !== G.combatTarget.x || ty !== G.combatTarget.y){
-        Delve.endCombat(true);
-        // Update vignette
-        const vig = document.getElementById("combatVignette");
-        if(vig) vig.classList.remove("active");
-        Delve.draw();
-        return;
-      }
-      return; // tapping the monster during combat does nothing extra
-    }
+/* ── Item stat card overlay ── */
+#itemCardOverlay{
+  position:absolute;inset:0;z-index:25;
+  background:rgba(0,0,0,.75);display:none;
+  align-items:flex-end;justify-content:center;
+}
+#itemCard{
+  background:#0e1620;border:1px solid #2a3440;border-radius:20px 20px 0 0;
+  width:100%;max-width:480px;padding:20px 20px calc(20px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:12px;
+}
+#icHeader{ display:flex;justify-content:space-between;align-items:flex-start; }
+#icName{ font-size:20px;font-weight:900; }
+#icTier{ font-size:12px;font-weight:800;letter-spacing:.06em;padding-top:4px; }
+#icFlavour{ font-size:12px;color:#7f94a8;font-style:italic;line-height:1.5; }
+#icStats{ display:flex;flex-direction:column;gap:5px; }
+.ic-stat-row{
+  display:flex;justify-content:space-between;
+  border-bottom:1px solid #1a2530;padding:4px 0;font-size:13px;
+}
+.ic-stat-label{ color:#9fb3c5; }
+.ic-stat-value{ font-weight:700; }
+#icButtons{ display:flex;gap:10px; }
+#icPrimaryBtn{
+  flex:1;background:#1f7a5c;color:#eafff5;border:none;border-radius:12px;
+  padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;
+  font-family:inherit;
+}
+#icPrimaryBtn:disabled{ background:#2f3d48;color:#83939f;cursor:default; }
+#icSecondaryBtn{
+  flex:1;background:#141b23;color:#ff9a9a;border:1px solid #ff9a9a44;border-radius:12px;
+  padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;
+  font-family:inherit;
+}
 
-    const cell = g[ty] && g[ty][tx];
-    if(cell === T.WALL){
-      // Check false wall
-      const fd = G.floorData;
-      if(fd && fd.secretRoom &&
-         fd.secretRoom.falseWallX === tx && fd.secretRoom.falseWallY === ty){
-        g[ty][tx] = T.FLOOR;
-        Delve.flash("A secret passage!");
-        if(Delve.logSystem) Delve.logSystem("You found a secret room!");
-        Delve.draw();
-      }
-      return;
-    }
+/* ── Log window ── */
+#logWindow{
+  position:absolute;inset:0;z-index:20;display:none;
+  flex-direction:column;background:rgba(8,11,15,.97);
+  padding:16px 12px calc(16px + env(safe-area-inset-bottom));
+}
+#logWindowHeader{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:10px;
+}
+#logWindowHeader h3{ font-size:17px;font-weight:800;color:#eafff5; }
+#logWindowContent{
+  flex:1;overflow-y:auto;font-size:12px;line-height:1.8;
+  color:#c0cdd8;padding-right:4px;
+}
 
-    const manh = Math.abs(tx - G.px) + Math.abs(ty - G.py);
+/* ── Stairs prompt ── */
+#stairsPrompt{
+  position:absolute;inset:0;z-index:22;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.6);
+}
+#stairsCard{
+  background:#0e1620;border:1px solid #2ad0b066;border-radius:20px;
+  padding:28px 24px;max-width:320px;width:90%;text-align:center;
+  display:flex;flex-direction:column;gap:16px;
+}
+#stairsCard h3{ font-size:20px;font-weight:900;color:#2ad0b0; }
+#stairsCard p { font-size:14px;color:#a9bccd;line-height:1.5; }
+#stairsButtons{ display:flex;gap:10px; }
+#stairsYes{ flex:1;background:#1f7a5c;color:#eafff5;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit; }
+#stairsNo { flex:1;background:#141b23;color:#ff9a9a;border:1px solid #ff9a9a44;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit; }
 
-    if(manh === 1){
-      G._path = null;
-      Delve.tryAct(tx, ty);
-      // Update combat vignette
-      const vig = document.getElementById("combatVignette");
-      if(vig) vig.classList.toggle("active", !!(G.inCombat));
-      Delve.draw();
-      return;
-    }
+/* ── Floor title card ── */
+#floorCard{
+  position:absolute;inset:0;z-index:18;
+  display:none;align-items:center;justify-content:center;
+  pointer-events:none;background:rgba(0,0,0,.55);
+}
+#floorCardInner{
+  border:2px solid #2ad0b066;border-radius:18px;
+  padding:22px 36px;text-align:center;
+  background:rgba(8,14,20,.88);backdrop-filter:blur(8px);
+}
+#floorCardNum{ font-size:clamp(28px,8vw,44px);font-weight:900;color:#2ad0b0;letter-spacing:2px; }
+#floorCardName{ font-size:clamp(14px,4vw,20px);color:#a9bccd;margin-top:4px;font-weight:700; }
 
-    // Pathfind
-    const path = Delve.findPath(tx, ty);
-    if(!path || !path.length) return;
-    G._path = path;
-    Delve.stepPath();
-    Delve.draw();
+/* ── Boss intro overlay ── */
+#bossIntroOverlay{
+  position:absolute;inset:0;z-index:19;
+  display:none;align-items:center;justify-content:center;
+  pointer-events:none;background:rgba(0,0,0,.82);
+}
+#bossIntroCard{
+  text-align:center;padding:28px 24px;max-width:340px;
+  border:2px solid #c98aff66;border-radius:18px;
+  background:rgba(12,8,20,.92);backdrop-filter:blur(8px);
+}
+#bossIntroWarning{ font-size:14px;color:#c98aff;font-weight:800;letter-spacing:.1em;margin-bottom:10px; }
+#bossIntroName  { font-size:clamp(28px,8vw,42px);font-weight:900;color:#eafff5;line-height:1; }
+#bossIntroTitle { font-size:14px;color:#c98aff;font-weight:700;margin-top:4px; }
+#bossIntroFlavour{ font-size:13px;color:#9fb3c5;font-style:italic;margin-top:14px;line-height:1.6; }
 
-    clearInterval(G._pathTimer);
-    if(G._path && G._path.length > 0){
-      G._pathTimer = setInterval(function(){
-        if(!Delve.G||Delve.G.dead||!Delve.G._path||!Delve.G._path.length||Delve.G.inCombat){
-          clearInterval(Delve.G && Delve.G._pathTimer);
-          return;
-        }
-        Delve.stepPath();
-        const vig = document.getElementById("combatVignette");
-        if(vig) vig.classList.toggle("active", !!(Delve.G.inCombat));
-        Delve.draw();
-        if(!Delve.G._path||!Delve.G._path.length) clearInterval(Delve.G._pathTimer);
-      }, 110);
-    }
-  }
+/* ── Hub + death ── */
+#hubScreen{ display:flex; }
+#deathScreen{ display:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="canvas"></canvas>
 
-  canvas.addEventListener("pointerdown", handleTap, {passive:false});
-})();
+  <!-- Combat vignette -->
+  <div id="combatVignette"></div>
+
+  <!-- HUD -->
+  <div id="hud" style="display:none">
+    <span class="stat"><span class="sico">❤️</span><span id="hudHp">30/30</span></span>
+    <span class="stat"><span class="sico">⚔️</span><span id="hudAtk">6</span></span>
+    <span class="stat"><span class="sico">🛡️</span><span id="hudTou">20%</span></span>
+    <span class="stat"><span class="sico">👟</span><span id="hudAgi">4%</span></span>
+    <span class="stat"><span class="sico">🍀</span><span id="hudLuc">1</span></span>
+    <span class="stat"><span class="sico">🗺️</span><span id="hudFloor">1</span></span>
+    <span class="spacer"></span>
+    <div id="restDots"></div>
+    <span class="stat"><span class="sico">💰</span><span id="hudGold">0</span></span>
+    <span class="stat"><span class="sico">💎</span><span id="hudShards">0</span></span>
+    <button id="invBtn">🎒 Bag</button>
+  </div>
+
+  <!-- Combat log strip -->
+  <div id="logPanel">
+    <button id="logExpandBtn">▲ Log</button>
+    <div id="logFade"></div>
+    <div id="combatLog"></div>
+  </div>
+
+  <!-- Floor title card -->
+  <div id="floorCard">
+    <div id="floorCardInner">
+      <div id="floorCardNum">Floor 1</div>
+      <div id="floorCardName">Upper Ruins</div>
+    </div>
+  </div>
+
+  <!-- Boss intro overlay -->
+  <div id="bossIntroOverlay">
+    <div id="bossIntroCard">
+      <div id="bossIntroWarning">⚠ WARD BOSS</div>
+      <div id="bossIntroName">The Warden</div>
+      <div id="bossIntroTitle"></div>
+      <div id="bossIntroFlavour"></div>
+    </div>
+  </div>
+
+  <!-- Stairs confirm -->
+  <div id="stairsPrompt">
+    <div id="stairsCard">
+      <h3>▼ Descend?</h3>
+      <p>Go deeper into the Undercroft.<br>You will heal 50% HP on the way down.</p>
+      <div id="stairsButtons">
+        <button id="stairsYes">Descend</button>
+        <button id="stairsNo">Not yet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Item stat card -->
+  <div id="itemCardOverlay">
+    <div id="itemCard">
+      <div id="icHeader">
+        <div>
+          <div id="icName">Item Name</div>
+          <div id="icTier">Common</div>
+        </div>
+        <button class="close-btn" id="icCloseBtn">✕</button>
+      </div>
+      <div id="icFlavour"></div>
+      <div id="icStats"></div>
+      <div id="icButtons">
+        <button id="icPrimaryBtn">Pick Up</button>
+        <button id="icSecondaryBtn">Leave</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log window -->
+  <div id="logWindow">
+    <div id="logWindowHeader">
+      <h3>📜 Combat Log</h3>
+      <button class="close-btn" id="logWindowClose">✕</button>
+    </div>
+    <div id="logWindowContent"></div>
+  </div>
+
+  <!-- Inventory screen -->
+  <div id="inventoryScreen" class="overlay">
+    <div class="inv-header">
+      <h2>🎒 Inventory</h2>
+      <button class="close-btn" id="invCloseBtn2">✕</button>
+    </div>
+    <!-- Character figure with equipment slots -->
+    <div id="charFigure">
+      <!-- Simple SVG silhouette -->
+      <svg viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
+        <!-- head -->
+        <circle cx="90" cy="36" r="22" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
+        <!-- body -->
+        <rect x="62" y="60" width="56" height="68" rx="10" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
+        <!-- left arm -->
+        <rect x="38" y="62" width="22" height="48" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
+        <!-- right arm -->
+        <rect x="120" y="62" width="22" height="48" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
+        <!-- legs -->
+        <rect x="65" y="130" width="22" height="56" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
+        <rect x="93" y="130" width="22" height="56" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
+      </svg>
+      <div class="eq-slot" id="slot-weapon"><span style="color:#3a4d5c;">empty</span></div>
+      <div class="eq-slot" id="slot-armour"><span style="color:#3a4d5c;">empty</span></div>
+      <div class="eq-slot" id="slot-trinket1"><span style="color:#3a4d5c;">empty</span></div>
+      <div class="eq-slot" id="slot-trinket2"><span style="color:#3a4d5c;">empty</span></div>
+    </div>
+    <div class="inv-section-label">CARRIED</div>
+    <div id="invCarriedGrid"></div>
+  </div>
+
+  <!-- Level-up screen -->
+  <div id="levelupScreen" class="overlay">
+    <h1>LEVEL UP</h1>
+    <p class="sub">Choose a trait.</p>
+    <div id="levelupChoices"></div>
+  </div>
+
+  <!-- Hub screen -->
+  <div id="hubScreen" class="overlay">
+    <h1>underward</h1>
+    <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
+    <div class="walletbar"><span class="sico">💎</span><span id="hubShards">0</span></div>
+    <div class="shop" id="shop"></div>
+    <button class="btn big" id="startBtn">START RUN</button>
+  </div>
+
+  <!-- Death screen -->
+  <div id="deathScreen" class="overlay">
+    <h1>YOU DIED</h1>
+    <h2 id="deathInfo"></h2>
+    <div class="walletbar"><span class="sico">💎</span><span id="deathShards">0</span></div>
+    <button class="btn big" id="deathBtn">BACK TO HUB</button>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/save.js"></script>
+<script src="js/attrs.js"></script>
+<script src="js/items.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/monsters.js"></script>
+<script src="js/state.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/traits.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/log.js"></script>
+<script src="js/render.js"></script>
+<script src="js/pathfind.js"></script>
+<script src="js/input.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
