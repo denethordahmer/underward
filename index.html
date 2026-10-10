@@ -87,8 +87,7 @@ body{
 /* ── Combat vignette ── */
 #combatVignette{
   position:absolute;inset:0;z-index:3;pointer-events:none;
-  box-shadow:inset 0 0 60px rgba(220,60,60,0);
-  transition:box-shadow .2s;
+  box-shadow:inset 0 0 60px rgba(220,60,60,0);transition:box-shadow .2s;
 }
 #combatVignette.active{
   box-shadow:inset 0 0 80px rgba(220,60,60,0.45);
@@ -101,16 +100,15 @@ body{
 
 /* ── Shared overlay base ── */
 .overlay{
-  position:absolute;inset:0;z-index:10;overflow-y:auto;
+  position:absolute;inset:0;z-index:10;
   display:flex;flex-direction:column;align-items:center;
-  gap:16px;padding:22px 18px calc(22px + env(safe-area-inset-bottom));
   text-align:center;background:rgba(8,11,15,.97);
 }
 .overlay h1{ font-size:clamp(36px,10vw,58px);letter-spacing:2px;margin:4px 0 0;line-height:1; }
 .overlay h2{ font-size:clamp(22px,6vw,30px);color:#ff9a9a;margin:0; }
 .sub{ color:#a9bccd;font-size:16px;line-height:1.45;max-width:420px; }
 .walletbar{
-  display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;gap:10px;font-size:20px;font-weight:800;
   background:#141b23;border:1px solid #2a3440;border-radius:14px;padding:12px 20px;
 }
 .shop{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
@@ -139,28 +137,47 @@ body{
   cursor:pointer;padding:0 4px;line-height:1;font-family:inherit;
 }
 
-/* ── Hub tabs + trees ── */
+/* ── HUB upgrade screen ── */
+#hubScreen{
+  padding:16px 14px calc(12px + env(safe-area-inset-bottom));
+  overflow:hidden;
+  gap:0;
+}
+
+#hubHeader{
+  width:100%;max-width:480px;flex:0 0 auto;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+}
+
 #hubTabs{
-  display:flex;gap:6px;overflow-x:auto;width:100%;max-width:480px;
-  padding-bottom:4px;scrollbar-width:none;
+  width:100%;max-width:480px;flex:0 0 auto;
+  display:flex;gap:6px;overflow-x:auto;
+  padding:4px 0 10px;scrollbar-width:none;
+  position:relative;z-index:2;
+  background:rgba(8,11,15,.97);
 }
 #hubTabs::-webkit-scrollbar{ display:none; }
 .hub-tab{
-  background:#141b23;border:1px solid #2a3440;border-radius:10px;
-  color:#9fb3c5;font-size:12px;font-weight:800;padding:8px 12px;
-  white-space:nowrap;cursor:pointer;font-family:inherit;
-  touch-action:manipulation;flex-shrink:0;
+  flex:0 0 auto;background:#141b23;border:1px solid #2a3440;border-radius:10px;
+  color:#9fb3c5;font-size:13px;font-weight:800;padding:10px 13px;
+  white-space:nowrap;cursor:pointer;font-family:inherit;touch-action:manipulation;
 }
 .hub-tab:active{ background:#1a2a3a; }
 .hub-tab.active{ background:#1f7a5c;color:#eafff5;border-color:#2ad0b066; }
+
+#hubScroll{
+  width:100%;max-width:480px;flex:1 1 auto;min-height:0;
+  overflow-y:auto;display:flex;flex-direction:column;gap:12px;
+  padding:2px 2px 12px;scrollbar-width:none;
+}
+#hubScroll::-webkit-scrollbar{ display:none; }
+
 #treePanel{
-  display:none;flex-direction:column;gap:14px;
-  width:100%;max-width:480px;
+  display:none;flex-direction:column;gap:14px;width:100%;
 }
 .tree-tier{ display:flex;flex-direction:column;gap:8px; }
 .tree-tier-label{
-  font-size:11px;font-weight:800;color:#7f94a8;letter-spacing:.08em;
-  text-align:left;
+  font-size:11px;font-weight:800;color:#7f94a8;letter-spacing:.08em;text-align:left;
 }
 .node-card{
   background:#141b23;border:1px solid #2a3440;border-radius:14px;
@@ -173,12 +190,19 @@ body{
 .node-cost{ font-size:14px;font-weight:800;flex-shrink:0;color:#ffd75e; }
 .node-cost.cant{ color:#7f94a8; }
 
+#hubFooter{
+  width:100%;max-width:480px;flex:0 0 auto;
+  display:flex;flex-direction:column;gap:8px;padding-top:8px;
+  border-top:1px solid #202b36;background:rgba(8,11,15,.98);
+}
+#hubFooter #startBtn{ width:100%;max-width:none;margin:0; }
+
 /* ── Level-up ── */
-#levelupScreen{ display:none; }
+#levelupScreen{ display:none;padding:22px 18px calc(22px + env(safe-area-inset-bottom)); }
 #levelupChoices{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
 
 /* ── Inventory screen ── */
-#inventoryScreen{ display:none; }
+#inventoryScreen{ display:none;padding:22px 18px calc(22px + env(safe-area-inset-bottom)); }
 .inv-header{ display:flex;justify-content:space-between;align-items:center;width:100%;max-width:480px; }
 .inv-header h2{ font-size:20px;color:#eafff5;margin:0; }
 #charFigure{ display:flex;flex-direction:column;align-items:center;gap:6px; }
@@ -284,11 +308,8 @@ body{
 #bossIntroTitle{ font-size:14px;color:#c98aff;font-weight:700;margin-top:4px; }
 #bossIntroFlavour{ font-size:13px;color:#9fb3c5;font-style:italic;margin-top:14px;line-height:1.6; }
 
-/* ── Hub ── */
-#hubScreen{ display:flex; }
-
 /* ── Shop screen ── */
-#shopScreen{ display:none; }
+#shopScreen{ display:none;padding:22px 18px calc(22px + env(safe-area-inset-bottom)); }
 #shopStock{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
 .shop-item{
   display:flex;justify-content:space-between;align-items:center;gap:12px;
@@ -300,7 +321,7 @@ body{
 #shopHealBtn{ width:100%;max-width:460px; }
 
 /* ── Victory screen ── */
-#victoryScreen{ display:none; }
+#victoryScreen{ display:none;padding:22px 18px calc(22px + env(safe-area-inset-bottom)); }
 #victoryScreen .overlay-title{ color:#ffd75e; }
 #victorySummary{
   width:100%;max-width:460px;display:flex;flex-direction:column;gap:6px;
@@ -312,7 +333,7 @@ body{
 #victoryButtons{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
 
 /* ── Death screen ── */
-#deathScreen{ display:none; }
+#deathScreen{ display:none;padding:22px 18px calc(22px + env(safe-area-inset-bottom)); }
 #deathScreen{ background:radial-gradient(ellipse at center, rgba(60,6,10,.98), rgba(10,4,8,.99)); }
 #deathScreen h1{
   color:#e77a7a;font-family:Georgia,"Times New Roman",serif;letter-spacing:3px;
@@ -361,7 +382,6 @@ body{
 <body>
 <div id="app">
   <canvas id="canvas"></canvas>
-
   <div id="combatVignette"></div>
 
   <!-- HUD -->
@@ -490,13 +510,19 @@ body{
 
   <!-- Hub -->
   <div id="hubScreen" class="overlay">
-    <h1>underward</h1>
-    <p class="sub">Earn shards. Spend them. Go deeper.</p>
-    <div class="walletbar"><span class="sico">💎</span><span id="hubShards">0</span></div>
+    <div id="hubHeader">
+      <h1>underward</h1>
+      <p class="sub">Earn shards. Spend them. Go deeper.</p>
+      <div class="walletbar"><span class="sico">💎</span><span id="hubShards">0</span></div>
+    </div>
     <div id="hubTabs"></div>
-    <div class="shop" id="shop"></div>
-    <div id="treePanel"></div>
-    <button class="btn big" id="startBtn">START RUN</button>
+    <div id="hubScroll">
+      <div class="shop" id="shop"></div>
+      <div id="treePanel"></div>
+    </div>
+    <div id="hubFooter">
+      <button class="btn big" id="startBtn">START RUN</button>
+    </div>
   </div>
 
   <!-- Death -->
