@@ -353,16 +353,41 @@ body{
 .death-row .dr-label{ color:#b07a7a; }
 .death-row .dr-value{ font-weight:800;color:#e8c0c0; }
 
-/* ── Retreat menu ── */
-#retreatMenu{
-  position:absolute;inset:0;z-index:26;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.65);
+/* ── Pause / settings menu ── */
+#pauseMenu{
+  position:absolute;inset:0;z-index:26;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);
 }
-#retreatCard{
-  background:#0e1620;border:1px solid #2a3440;border-radius:18px;padding:24px;
-  max-width:320px;width:90%;text-align:center;display:flex;flex-direction:column;gap:14px;
+#pauseCard{
+  background:#0e1620;border:1px solid #2a3440;border-radius:18px;padding:24px 22px;
+  max-width:320px;width:90%;display:flex;flex-direction:column;gap:16px;
 }
-#retreatCard h3{ font-size:18px;font-weight:900;color:#ff9a9a; }
-#retreatCard p{ font-size:13px;color:#a9bccd;line-height:1.5; }
+#pauseCard h3{ font-size:18px;font-weight:900;color:#eafff5;text-align:center;margin:0; }
+.pause-section{ display:flex;flex-direction:column;gap:8px; }
+.pause-label{ font-size:11px;font-weight:800;color:#7f94a8;letter-spacing:.06em; }
+.pause-row{ display:flex;align-items:center;gap:10px; }
+#muteBtn{
+  background:#141b23;border:1px solid #2a3440;border-radius:10px;
+  color:#7ee0ff;font-size:20px;padding:8px 14px;cursor:pointer;
+  touch-action:manipulation;font-family:inherit;flex-shrink:0;
+}
+#muteBtn:active{ background:#1a2a3a; }
+#volumeSlider{
+  flex:1;accent-color:#2ad0b0;height:4px;cursor:pointer;
+}
+.pause-divider{ border:none;border-top:1px solid #1e2c38;margin:0; }
+#pauseRetreatBtn{
+  background:#1a1020;border:1px solid #ff9a9a44;border-radius:12px;
+  color:#ff9a9a;font-size:15px;font-weight:800;padding:13px;
+  cursor:pointer;touch-action:manipulation;font-family:inherit;text-align:center;
+}
+#pauseRetreatBtn:active{ background:#28141a; }
+#pauseCloseBtn{
+  background:#141b23;border:1px solid #2a3440;border-radius:12px;
+  color:#a9bccd;font-size:15px;font-weight:800;padding:13px;
+  cursor:pointer;touch-action:manipulation;font-family:inherit;text-align:center;
+}
+#pauseCloseBtn:active{ background:#1a2530; }
+.pause-retreat-note{ font-size:11px;color:#7f94a8;text-align:center;line-height:1.4; }
 
 /* ── Debug panel ── */
 #debugPanel{
@@ -535,15 +560,21 @@ body{
     <button class="btn big" id="deathBtn">BACK TO HUB</button>
   </div>
 
-  <!-- Retreat menu -->
-  <div id="retreatMenu">
-    <div id="retreatCard">
-      <h3>Flee to the surface?</h3>
-      <p>Your run ends, and carried gold is converted to shards at 10:1.</p>
-      <div style="display:flex;gap:10px">
-        <button class="btn" id="retreatYes">Flee</button>
-        <button class="btn-ghost" id="retreatNo">Stay</button>
+  <!-- Pause / settings menu -->
+  <div id="pauseMenu">
+    <div id="pauseCard">
+      <h3>⚙ Paused</h3>
+      <div class="pause-section">
+        <div class="pause-label">SOUND</div>
+        <div class="pause-row">
+          <button id="muteBtn">🔊</button>
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.55">
+        </div>
       </div>
+      <hr class="pause-divider">
+      <button id="pauseRetreatBtn">🏃 Flee to surface</button>
+      <div class="pause-retreat-note">Gold converts to shards at 10:1. Run ends.</div>
+      <button id="pauseCloseBtn">↩ Resume</button>
     </div>
   </div>
 
@@ -596,6 +627,7 @@ body{
 <script src="js/traits.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/effects.js"></script>
+<script src="js/sfx.js"></script>
 <script src="js/log.js"></script>
 <script src="js/render.js"></script>
 <script src="js/pathfind.js"></script>
