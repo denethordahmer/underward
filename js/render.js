@@ -6,8 +6,7 @@ window.Delve = window.Delve || {};
  const FLOAT_LIFE = 1200;
 
  // ── Hit recoil (sprite nudge/bounce) ────────────────────────
- // keyed by entity (monster/boss objects, or "player")
- const recoils = new Map(); // key -> { flash, dx, dy }
+ const recoils = new Map();
  function dirAway(fx, fy, tx, ty){
   let dx = fx - tx, dy = fy - ty;
   const len = Math.hypot(dx, dy);
@@ -16,9 +15,7 @@ window.Delve = window.Delve || {};
  }
  function ensureRecoil(key, flashTime, dx, dy){
   const r = recoils.get(key);
-  if(!r || r.flash < flashTime){
-   recoils.set(key, { flash: flashTime, dx, dy });
-  }
+  if(!r || r.flash < flashTime) recoils.set(key, { flash: flashTime, dx, dy });
  }
  function recoilOffset(key, ts){
   const r = recoils.get(key);
@@ -77,6 +74,48 @@ window.Delve = window.Delve || {};
   return (g[gy] && g[gy][gx] !== undefined) ? g[gy][gx] : null;
  }
 
+ // ── OFFSCREEN TILE CACHE ─────────────────────────────────────
+ // Draws each static tile once, then blits it every frame.
+ // Invalidated when the floor changes or the tile size changes.
+ let tileCache = {};
+ let cacheFloor = -1;
+ let cacheTs = 0;
+ function ensureCache(G){
+  if(cacheFloor !== G.floor || cacheTs !== Delve.ts){
+   cacheFloor = G.floor;
+   cacheTs = Delve.ts;
+   tileCache = {};
+  }
+ }
+ function isTorchTile(gx, gy){
+  if(tileAt(gx, gy) !== Delve.T.WALL) return false;
+  const below = tileAt(gx, gy+1);
+  if(below === null || below === Delve.T.WALL) return false;
+  return hash3(gx, gy, 137) < 0.04;
+ }
+ function blitTile(ctx, gx, gy, sx, sy, ts, b, t){
+  const key = gx + "," + gy;
+  const entry = tileCache[key];
+  if(entry && entry.v === t){
+   ctx.drawImage(entry.c, sx, sy, ts, ts);
+   return;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  const c = document.createElement("canvas");
+  c.width = Math.round(ts * dpr);
+  c.height = Math.round(ts * dpr);
+  const cx = c.getContext("2d");
+  cx.scale(dpr, dpr);
+  if(t !== Delve.T.WALL){
+   drawFloorTile(cx, 0, 0, ts, gx, gy, b);
+   if(t === Delve.T.STAIR) drawStairs(cx, 0, 0, ts, b);
+  } else {
+   drawWallTile(cx, 0, 0, ts, gx, gy, b);
+  }
+  tileCache[key] = { v: t, c: c };
+  ctx.drawImage(c, sx, sy, ts, ts);
+ }
+
  // ── FLAGSTONE FLOOR TILE ─────────────────────────────────────
  function drawFloorTile(ctx, sx, sy, ts, gx, gy, b){
   const n = hash2(gx, gy);
@@ -85,9 +124,7 @@ window.Delve = window.Delve || {};
   const n4 = hash3(gx, gy, 53);
 
   let slabCol = ((gx + gy) % 2 === 0) ? b.floor : b.floor2;
-  if(n3 < 0.05){
-   slabCol = blendHex(slabCol, "#0a0e12", 0.35);
-  }
+  if(n3 < 0.05) slabCol = blendHex(slabCol, "#0a0e12", 0.35);
 
   const mortar = 2;
   ctx.fillStyle = b.wallBrick;
@@ -317,7 +354,7 @@ window.Delve = window.Delve || {};
   ctx.fillRect(sx, sy + ts - 2, ts, 2);
  }
 
- // ── WALL TORCH — flame flicker driven by slow interval ──────
+ // ── WALL TORCH (animated — drawn live, never cached) ────────
  let torchFrame = 0;
  function drawWallTorch(ctx, sx, sy, ts, b){
   const flicker = [
@@ -526,6 +563,7 @@ window.Delve = window.Delve || {};
   const vw = Delve.viewW, vh = Delve.viewH;
   const b = biome();
   const T = Delve.T;
+  ensureCache(G);
 
   let camX = Math.floor(G.px - vw/2);
   let camY = Math.floor(G.py - vh/2);
@@ -548,29 +586,36 @@ window.Delve = window.Delve || {};
   ctx.fillStyle = "#06090d";
   ctx.fillRect(-10, -10, W+20, H+20);
 
+  // ── Pass 1: floor / stair tiles (cached) ───────────────────
   for(let y = 0; y < vh+1; y++){
    for(let x = 0; x < vw+1; x++){
     const gx = camX+x, gy = camY+y;
     const t = tileAt(gx, gy);
-    if(t === null) continue;
+    if(t === null || t === T.WALL) continue;
     const sx = x*ts, sy = y*ts;
-    if(t !== T.WALL){
-     drawFloorTile(ctx, sx, sy, ts, gx, gy, b);
-     if(t === T.STAIR) drawStairs(ctx, sx, sy, ts, b);
-    }
+    blitTile(ctx, gx, gy, sx, sy, ts, b, t);
    }
   }
 
+  // ── Pass 2: wall tiles (cached, torches live) ──────────────
   for(let y = 0; y < vh+1; y++){
    for(let x = 0; x < vw+1; x++){
     const gx = camX+x, gy = camY+y;
     const t = tileAt(gx, gy);
     if(t !== T.WALL) continue;
     const sx = x*ts, sy = y*ts;
-    drawWallTile(ctx, sx, sy, ts, gx, gy, b);
 
+    if(isTorchTile(gx, gy)){
+     drawWallTile(ctx, sx, sy, ts, gx, gy, b);
+     drawWallTorch(ctx, sx, sy, ts, b);
+    } else {
+     blitTile(ctx, gx, gy, sx, sy, ts, b, t);
+    }
+
+    // Secret room false wall twinkle (live overlay)
     const fd = G.floorData;
-    if(fd && fd.secretRoom && fd.secretRoom.falseWallX === gx && fd.secretRoom.falseWallY === gy){
+    if(fd && fd.secretRoom &&
+       fd.secretRoom.falseWallX === gx && fd.secretRoom.falseWallY === gy){
      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003);
      ctx.save();
      ctx.globalAlpha = pulse * 0.55;
@@ -580,13 +625,10 @@ window.Delve = window.Delve || {};
      ctx.fill();
      ctx.restore();
     }
-    const tBelow = tileAt(gx, gy+1);
-    if(tBelow !== null && tBelow !== T.WALL){
-     if(hash3(gx, gy, 137) < 0.04) drawWallTorch(ctx, sx, sy, ts, b);
-    }
    }
   }
 
+  // ── Path destination highlight ──────────────────────────────
   if(G._path && G._path.length > 0){
    const dest = G._path[G._path.length - 1];
    if(dest.x >= camX && dest.y >= camY && dest.x < camX+vw && dest.y < camY+vh){
@@ -599,6 +641,7 @@ window.Delve = window.Delve || {};
    }
   }
 
+  // ── Adjacency highlights ────────────────────────────────────
   const adj = [[0,1],[0,-1],[1,0],[-1,0]];
   for(const d of adj){
    const gx = G.px+d[0], gy = G.py+d[1];
@@ -618,26 +661,31 @@ window.Delve = window.Delve || {};
    ctx.strokeRect(sx+1, sy+1, ts-2, ts-2);
   }
 
+  // ── Items ───────────────────────────────────────────────────
   for(const it of (G.items || [])){
    if(it.x < camX || it.y < camY || it.x >= camX+vw || it.y >= camY+vh) continue;
    drawItem(ctx, it, (it.x-camX)*ts + ts/2, (it.y-camY)*ts + ts/2, ts);
   }
 
+  // ── Decor (chests, gold, potions) ───────────────────────────
   const decor = (G.floorData && G.floorData.decor) || [];
   for(const d of decor){
    if(d.x < camX || d.y < camY || d.x >= camX+vw || d.y >= camY+vh) continue;
    drawTreasure(ctx, d.thing, (d.x-camX)*ts + ts/2, (d.y-camY)*ts + ts/2, ts);
   }
 
+  // ── Monsters ────────────────────────────────────────────────
   for(const m of G.monsters){
    if(m.x < camX || m.y < camY || m.x >= camX+vw || m.y >= camY+vh) continue;
    drawMob(ctx, m, (m.x-camX)*ts + ts/2, (m.y-camY)*ts + ts/2, ts);
   }
 
+  // ── Boss ────────────────────────────────────────────────────
   if(G.boss && G.boss.x >= camX && G.boss.y >= camY && G.boss.x < camX+vw && G.boss.y < camY+vh){
    drawMob(ctx, G.boss, (G.boss.x-camX)*ts + ts/2, (G.boss.y-camY)*ts + ts/2, ts);
   }
 
+  // ── Player ──────────────────────────────────────────────────
   const pSX = (G.px-camX)*ts, pSY = (G.py-camY)*ts;
   const pHurt = G.playerHit && Date.now() - G.playerHit < 150;
   let prx = 0, pry = 0;
@@ -652,8 +700,10 @@ window.Delve = window.Delve || {};
   }
   drawPlayer(ctx, pSX+ts/2, pSY+ts/2, ts, pHurt, prx, pry);
 
+  // ── Floaters ────────────────────────────────────────────────
   drawFloaters(ctx, camX, camY, ts);
 
+  // ── Vignette ────────────────────────────────────────────────
   const vig = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.8);
   vig.addColorStop(0, "rgba(0,0,0,0)");
   vig.addColorStop(1, "rgba(0,0,0,0.45)");
@@ -662,6 +712,7 @@ window.Delve = window.Delve || {};
 
   ctx.restore();
 
+  // ── Flash message ───────────────────────────────────────────
   if(G.msg && Date.now() < G.msgUntil){
    ctx.font = "700 16px system-ui, sans-serif";
    ctx.textAlign = "center";
@@ -672,22 +723,19 @@ window.Delve = window.Delve || {};
   }
  };
 
- Delve.addFloater = function(txt, x, y){
+ Delve.addFloater = function(txt, x, y, col){
   const sameSpot = floaters.filter(f => f.x === x && f.y === y).length;
-  floaters.push({ txt, x, y: y + sameSpot*0.5, born: Date.now() });
+  floaters.push({ txt, x, y: y + sameSpot*0.5, col, born: Date.now() });
  };
  Delve.addShake = function(mag){
   shakeMag = Math.max(shakeMag, mag);
   shakeT = 6;
  };
 
- // ── Torch flicker on a slow interval (NOT a full rAF loop) ──
+ // ── Torch flicker — slow interval, redraw only during a run ─
  setInterval(function(){
   torchFrame = (torchFrame + 1) % 3;
-  // Redraw only if we're actively in a run and no menu is open
-  if(Delve.G && !Delve.G.dead && !document.getElementById("inventoryScreen").style.display.match(/flex/)){
-   Delve.draw();
-  }
+  if(Delve.G && !Delve.G.dead) Delve.draw();
  }, 400);
 
 })();
