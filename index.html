@@ -87,7 +87,8 @@ body{
 /* ── Combat vignette ── */
 #combatVignette{
   position:absolute;inset:0;z-index:3;pointer-events:none;
-  box-shadow:inset 0 0 60px rgba(220,60,60,0);transition:box-shadow .2s;
+  box-shadow:inset 0 0 60px rgba(220,60,60,0);
+  transition:box-shadow .2s;
 }
 #combatVignette.active{
   box-shadow:inset 0 0 80px rgba(220,60,60,0.45);
@@ -138,6 +139,40 @@ body{
   cursor:pointer;padding:0 4px;line-height:1;font-family:inherit;
 }
 
+/* ── Hub tabs + trees ── */
+#hubTabs{
+  display:flex;gap:6px;overflow-x:auto;width:100%;max-width:480px;
+  padding-bottom:4px;scrollbar-width:none;
+}
+#hubTabs::-webkit-scrollbar{ display:none; }
+.hub-tab{
+  background:#141b23;border:1px solid #2a3440;border-radius:10px;
+  color:#9fb3c5;font-size:12px;font-weight:800;padding:8px 12px;
+  white-space:nowrap;cursor:pointer;font-family:inherit;
+  touch-action:manipulation;flex-shrink:0;
+}
+.hub-tab:active{ background:#1a2a3a; }
+.hub-tab.active{ background:#1f7a5c;color:#eafff5;border-color:#2ad0b066; }
+#treePanel{
+  display:none;flex-direction:column;gap:14px;
+  width:100%;max-width:480px;
+}
+.tree-tier{ display:flex;flex-direction:column;gap:8px; }
+.tree-tier-label{
+  font-size:11px;font-weight:800;color:#7f94a8;letter-spacing:.08em;
+  text-align:left;
+}
+.node-card{
+  background:#141b23;border:1px solid #2a3440;border-radius:14px;
+  padding:12px 14px;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;text-align:left;
+}
+.node-card.owned{ border-color:#2ad0b066;box-shadow:inset 3px 0 0 #2ad0b0; }
+.node-card.locked{ opacity:.45;border-style:dashed; }
+.node-card.available{ border-color:#ffd75e55; }
+.node-cost{ font-size:14px;font-weight:800;flex-shrink:0;color:#ffd75e; }
+.node-cost.cant{ color:#7f94a8; }
+
 /* ── Level-up ── */
 #levelupScreen{ display:none; }
 #levelupChoices{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
@@ -146,19 +181,18 @@ body{
 #inventoryScreen{ display:none; }
 .inv-header{ display:flex;justify-content:space-between;align-items:center;width:100%;max-width:480px; }
 .inv-header h2{ font-size:20px;color:#eafff5;margin:0; }
-#charFigure{ position:relative;width:180px;height:220px;flex-shrink:0; }
-#charFigure svg{ width:100%;height:100%; }
-.eq-slot{
-  position:absolute;background:#141b23;border:1px dashed #2a3440;border-radius:10px;
-  padding:5px 7px;font-size:11px;min-width:80px;text-align:center;cursor:pointer;
-  transition:background .15s;touch-action:manipulation;
+#charFigure{ display:flex;flex-direction:column;align-items:center;gap:6px; }
+#charCanvas{ display:block;width:200px;height:260px; }
+#equipRack{ display:flex;flex-wrap:wrap;gap:6px;width:100%;max-width:480px;justify-content:center; }
+.equip-cell{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  background:#141b23;border:1px solid #2a3440;border-radius:10px;
+  padding:6px 9px;min-width:122px;flex:1 1 30%;cursor:pointer;touch-action:manipulation;
 }
-.eq-slot.filled{ border-style:solid;border-color:#2a3440; }
-.eq-slot:active{ background:#1a2a3a; }
-#slot-weapon { top:100px;left:-88px; }
-#slot-armour { top:90px; right:-88px; }
-#slot-trinket1{ bottom:50px;left:-88px; }
-#slot-trinket2{ bottom:50px;right:-88px; }
+.equip-cell.locked{ opacity:.45;cursor:default;border-style:dashed; }
+.equip-cell:active:not(.locked){ background:#1a2a3a; }
+.equip-cell-label{ font-size:10px;font-weight:800;color:#7f94a8;letter-spacing:.04em; }
+.equip-cell-val{ font-size:12px;font-weight:700; }
 #invCarriedGrid{ display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:480px; }
 .inv-item-btn{
   display:flex;flex-direction:column;align-items:flex-start;
@@ -174,8 +208,8 @@ body{
 
 /* ── Item stat card overlay ── */
 #itemCardOverlay{
-  position:absolute;inset:0;z-index:25;
-  background:rgba(0,0,0,.75);display:none;align-items:flex-end;justify-content:center;
+  position:absolute;inset:0;z-index:25;background:rgba(0,0,0,.75);
+  display:none;align-items:flex-end;justify-content:center;
 }
 #itemCard{
   background:#0e1620;border:1px solid #2a3440;border-radius:20px 20px 0 0;
@@ -189,7 +223,7 @@ body{
 #icStats{ display:flex;flex-direction:column;gap:5px; }
 .ic-stat-row{ display:flex;justify-content:space-between;border-bottom:1px solid #1a2530;padding:4px 0;font-size:13px; }
 .ic-stat-label{ color:#9fb3c5; }
-.ic-stat-value{ font-weight:700; }
+.ic-stat-value{ font-weight:700;text-align:right; }
 #icButtons{ display:flex;gap:10px; }
 #icPrimaryBtn{
   flex:1;background:#1f7a5c;color:#eafff5;border:none;border-radius:12px;
@@ -277,7 +311,7 @@ body{
 .victory-row .vr-value{ font-weight:800; }
 #victoryButtons{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
 
-/* ── Death screen (crimson + cracked iron) ── */
+/* ── Death screen ── */
 #deathScreen{ display:none; }
 #deathScreen{ background:radial-gradient(ellipse at center, rgba(60,6,10,.98), rgba(10,4,8,.99)); }
 #deathScreen h1{
@@ -417,19 +451,9 @@ body{
   <div id="inventoryScreen" class="overlay">
     <div class="inv-header"><h2>🎒 Inventory</h2><button class="close-btn" id="invCloseBtn2">✕</button></div>
     <div id="charFigure">
-      <svg viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="90" cy="36" r="22" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
-        <rect x="62" y="60" width="56" height="68" rx="10" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
-        <rect x="38" y="62" width="22" height="48" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
-        <rect x="120" y="62" width="22" height="48" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
-        <rect x="65" y="130" width="22" height="56" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
-        <rect x="93" y="130" width="22" height="56" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
-      </svg>
-      <div class="eq-slot" id="slot-weapon"><span style="color:#3a4d5c;">empty</span></div>
-      <div class="eq-slot" id="slot-armour"><span style="color:#3a4d5c;">empty</span></div>
-      <div class="eq-slot" id="slot-trinket1"><span style="color:#3a4d5c;">empty</span></div>
-      <div class="eq-slot" id="slot-trinket2"><span style="color:#3a4d5c;">empty</span></div>
+      <canvas id="charCanvas" width="200" height="260"></canvas>
     </div>
+    <div id="equipRack"></div>
     <div class="inv-section-label">CARRIED</div>
     <div id="invCarriedGrid"></div>
   </div>
@@ -467,9 +491,11 @@ body{
   <!-- Hub -->
   <div id="hubScreen" class="overlay">
     <h1>underward</h1>
-    <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
+    <p class="sub">Earn shards. Spend them. Go deeper.</p>
     <div class="walletbar"><span class="sico">💎</span><span id="hubShards">0</span></div>
+    <div id="hubTabs"></div>
     <div class="shop" id="shop"></div>
+    <div id="treePanel"></div>
     <button class="btn big" id="startBtn">START RUN</button>
   </div>
 
@@ -546,6 +572,7 @@ body{
 <script src="js/pathfind.js"></script>
 <script src="js/input.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/progression.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
