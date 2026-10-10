@@ -432,8 +432,10 @@ window.Delve = window.Delve || {};
     Delve.persist(); Delve.refreshHub();
    });
    row.appendChild(info); row.appendChild(btn);
-   shop.appendChild(row);
+      shop.appendChild(row);
   });
+
+  (Delve._hooks && Delve._hooks.hubLoaded || []).forEach(function(fn){ fn(); });
  };
  Delve.buildHub = Delve.refreshHub;
 
