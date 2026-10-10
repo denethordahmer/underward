@@ -1,235 +1,104 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>underward</title>
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#0b0f14">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<style>
-  :root { color-scheme: dark; }
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { height:100%; }
-  body {
-    background:#0b0f14; color:#d7e3ee;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none;
-    font-size:16px;
-  }
-  #app { position:fixed; inset:0; }
-  #canvas { display:block; width:100%; height:100%; }
+window.Delve = window.Delve || {};
+(function(){
+  const canvas = document.getElementById("canvas");
 
-  /* ── HUD ─────────────────────────────────────── */
-  #hud {
-    position:absolute; top:0; left:0; right:0; z-index:5;
-    display:flex; flex-wrap:wrap; align-items:center; gap:5px;
-    padding:6px 8px env(safe-area-inset-top, 0px);
-    background:rgba(8,12,16,.88); backdrop-filter:blur(6px);
-  }
-  .stat {
-    display:flex; align-items:center; gap:5px; background:#141b23;
-    border:1px solid #2a3440; border-radius:9px; padding:5px 8px;
-    font-size:13px; font-weight:700; white-space:nowrap; flex-shrink:0;
-  }
-  /* Stat icons — emoji, no colored dots */
-  .sico { font-size:14px; line-height:1; flex-shrink:0; }
-  .spacer { flex:1; min-width:4px; }
+  function handleTap(e){
+    e.preventDefault();
+    const G = Delve.G;
+    if(!G || G.dead) return;
+    if(document.getElementById("deathScreen").style.display==="flex") return;
+    if(document.getElementById("levelupScreen").style.display==="flex") return;
+    if(document.getElementById("inventoryScreen").style.display==="flex") return;
+    if(document.getElementById("itemCardOverlay").style.display==="flex") return;
+    if(document.getElementById("stairsPrompt").style.display==="flex") return;
 
-  /* Inventory button */
-  #invBtn {
-    background:#141b23; border:1px solid #7ee0ff44; border-radius:9px;
-    padding:5px 10px; font-size:13px; font-weight:700; color:#7ee0ff;
-    font-family:inherit; cursor:pointer; white-space:nowrap; flex-shrink:0;
-    touch-action:manipulation;
-  }
-  #invBtn:active { background:#1a2a3a; }
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const tx = Math.floor(x / Delve.ts) + (Delve.camX || 0);
+    const ty = Math.floor(y / Delve.ts) + (Delve.camY || 0);
 
-  /* ── Inventory drawer ───────────────────────── */
-  #invDrawer {
-    position:absolute; bottom:0; left:0; right:0; z-index:20;
-    background:rgba(8,12,16,.97); border-top:1px solid #2a3440;
-    backdrop-filter:blur(8px);
-    padding:12px 10px calc(12px + env(safe-area-inset-bottom, 0px));
-    display:none; flex-direction:column; gap:8px;
-    max-height:60vh; overflow-y:auto;
-  }
-  #invDrawer.open { display:flex; }
-  #invDrawerTitle {
-    font-size:16px; font-weight:800; color:#eafff5;
-    display:flex; justify-content:space-between; align-items:center;
-  }
-  #invCloseBtn {
-    background:none; border:none; color:#7f94a8; font-size:22px;
-    cursor:pointer; padding:0 4px; line-height:1; font-family:inherit;
-  }
-  #invGrid { display:flex; flex-wrap:wrap; gap:7px; }
-  .invChip {
-    background:#141b23; border:1px solid #2a3440; border-radius:8px;
-    padding:6px 10px; font-size:12px; font-weight:700;
-    cursor:pointer; touch-action:manipulation; white-space:nowrap;
-    transition:background 0.1s;
-  }
-  .invChip:active { background:#1f2d3c; }
-  .equippedSection { display:flex; flex-direction:column; gap:5px; }
-  .equippedLabel { font-size:11px; color:#7f94a8; font-weight:700; letter-spacing:.04em; }
+    if(tx < 0 || ty < 0 || !G.grid ||
+       tx >= G.grid[0].length || ty >= G.grid.length) return;
 
-  /* ── Overlays ───────────────────────────────── */
-  .overlay {
-    position:absolute; inset:0; z-index:10; overflow-y:auto;
-    display:flex; flex-direction:column; align-items:center;
-    gap:18px; padding:22px 18px calc(22px + env(safe-area-inset-bottom));
-    text-align:center; background:rgba(8,11,15,.96);
+    const T = Delve.T, g = G.grid;
+
+    // Targeting ability
+    if(G.targetingAbility){
+      const ok = Delve.castAbility(G.targetingAbility, tx, ty);
+      G.targetingAbility = null;
+      if(ok !== false){ Delve.enemiesTurn(); Delve.updateHUD(); }
+      Delve.draw();
+      return;
+    }
+
+    // Tap own tile = rest
+    if(tx === G.px && ty === G.py){
+      Delve.tryRest();
+      return;
+    }
+
+    // In combat — tapping anything other than combat target tile = flee
+    if(G.inCombat && G.combatTarget){
+      if(tx !== G.combatTarget.x || ty !== G.combatTarget.y){
+        Delve.endCombat(true);
+        // Update vignette
+        const vig = document.getElementById("combatVignette");
+        if(vig) vig.classList.remove("active");
+        Delve.draw();
+        return;
+      }
+      return; // tapping the monster during combat does nothing extra
+    }
+
+    const cell = g[ty] && g[ty][tx];
+    if(cell === T.WALL){
+      // Check false wall
+      const fd = G.floorData;
+      if(fd && fd.secretRoom &&
+         fd.secretRoom.falseWallX === tx && fd.secretRoom.falseWallY === ty){
+        g[ty][tx] = T.FLOOR;
+        Delve.flash("A secret passage!");
+        if(Delve.logSystem) Delve.logSystem("You found a secret room!");
+        Delve.draw();
+      }
+      return;
+    }
+
+    const manh = Math.abs(tx - G.px) + Math.abs(ty - G.py);
+
+    if(manh === 1){
+      G._path = null;
+      Delve.tryAct(tx, ty);
+      // Update combat vignette
+      const vig = document.getElementById("combatVignette");
+      if(vig) vig.classList.toggle("active", !!(G.inCombat));
+      Delve.draw();
+      return;
+    }
+
+    // Pathfind
+    const path = Delve.findPath(tx, ty);
+    if(!path || !path.length) return;
+    G._path = path;
+    Delve.stepPath();
+    Delve.draw();
+
+    clearInterval(G._pathTimer);
+    if(G._path && G._path.length > 0){
+      G._pathTimer = setInterval(function(){
+        if(!Delve.G||Delve.G.dead||!Delve.G._path||!Delve.G._path.length||Delve.G.inCombat){
+          clearInterval(Delve.G && Delve.G._pathTimer);
+          return;
+        }
+        Delve.stepPath();
+        const vig = document.getElementById("combatVignette");
+        if(vig) vig.classList.toggle("active", !!(Delve.G.inCombat));
+        Delve.draw();
+        if(!Delve.G._path||!Delve.G._path.length) clearInterval(Delve.G._pathTimer);
+      }, 110);
+    }
   }
-  .overlay h1 { font-size:clamp(40px,11vw,64px); letter-spacing:2px; margin:6px 0 0; line-height:1; }
-  .overlay h2 { font-size:clamp(24px,7vw,34px); color:#ff9a9a; margin:0; }
-  .sub { color:#a9bccd; font-size:17px; line-height:1.45; max-width:420px; }
-  .walletbar {
-    display:flex; align-items:center; gap:10px;
-    font-size:22px; font-weight:800; background:#141b23;
-    border:1px solid #2a3440; border-radius:14px; padding:12px 20px;
-  }
-  .shop { display:flex; flex-direction:column; gap:12px; width:100%; max-width:460px; }
-  .upgrade {
-    display:flex; justify-content:space-between; align-items:center;
-    gap:14px; background:#141b23; border:1px solid #2a3440;
-    border-radius:16px; padding:16px 18px; width:100%;
-  }
-  .upgrade .name { font-weight:800; font-size:20px; text-align:left; }
-  .upgrade .desc { font-size:14.5px; line-height:1.4; color:#9fb3c5; text-align:left; margin-top:4px; }
-  .lvl { color:#7f94a8; font-size:14px; font-weight:700; margin-left:4px; }
-  .btn {
-    background:#1f7a5c; color:#eafff5; border:none; border-radius:14px;
-    padding:16px 18px; font-size:19px; font-weight:800; cursor:pointer;
-    min-width:104px; box-shadow:0 4px 0 #0e3d2e; flex-shrink:0;
-    touch-action:manipulation;
-  }
-  .btn:active { transform:translateY(2px); box-shadow:0 2px 0 #0e3d2e; }
-  .btn:disabled { background:#2f3d48; color:#83939f; box-shadow:none; cursor:default; }
-  .btn.big { width:100%; max-width:460px; padding:20px; font-size:22px; }
-  #levelupScreen { display:none; }
-  #levelupChoices { display:flex; flex-direction:column; gap:12px; width:100%; max-width:460px; }
 
-  /* ── Combat log ───────────────────────────────────────── */
-  #logPanel {
-    position:absolute; bottom:0; left:0; right:0; z-index:4;
-    height:clamp(80px, 22vh, 140px);
-    pointer-events:none;
-    display:none;
-  }
-  #logPanel.active { display:block; }
-  #logFade {
-    position:absolute; top:0; left:0; right:0; height:40px;
-    background:linear-gradient(to bottom, transparent, rgba(8,12,16,0.7));
-    pointer-events:none;
-  }
-  #combatLog {
-    position:absolute; bottom:0; left:0; right:0;
-    height:100%;
-    overflow-y:auto; overflow-x:hidden;
-    padding:6px 10px 8px;
-    scrollbar-width:none;
-    background:rgba(8,12,16,0.72);
-    backdrop-filter:blur(4px);
-    border-top:1px solid rgba(255,255,255,0.06);
-  }
-  #combatLog::-webkit-scrollbar { display:none; }
-  .log-row {
-    font-size:12px; line-height:1.6;
-    color:#c0cdd8;
-    transition:opacity 0.3s;
-  }
-</style>
-</head>
-<body>
-<div id="app">
-  <canvas id="canvas"></canvas>
-
-  <!-- ── HUD ── -->
-  <div id="hud" style="display:none">
-    <span class="stat"><span class="sico">❤️</span><span id="hudHp">30/30</span></span>
-    <span class="stat"><span class="sico">⚔️</span><span id="hudAtk">6</span></span>
-    <span class="stat"><span class="sico">🛡️</span><span id="hudTou">20%</span></span>
-    <span class="stat"><span class="sico">👟</span><span id="hudAgi">4%</span></span>
-    <span class="stat"><span class="sico">🍀</span><span id="hudLuc">1</span></span>
-    <span class="stat"><span class="sico">🗺️</span><span id="hudFloor">1</span></span>
-    <span class="spacer"></span>
-    <span class="stat"><span class="sico">💰</span><span id="hudGold">0</span></span>
-    <span class="stat"><span class="sico">💎</span><span id="hudShards">0</span></span>
-    <button id="invBtn">🎒 Bag</button>
-  </div>
-
-  <!-- ── Inventory drawer ── -->
-  <div id="invDrawer">
-    <div id="invDrawerTitle">
-      <span>🎒 Inventory</span>
-      <button id="invCloseBtn">✕</button>
-    </div>
-    <div class="equippedSection">
-      <div class="equippedLabel">EQUIPPED</div>
-      <div id="equippedBar" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-    </div>
-    <div class="equippedSection">
-      <div class="equippedLabel">ABILITIES</div>
-      <div id="abilityBar" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
-    </div>
-    <div class="equippedSection">
-      <div class="equippedLabel">CARRIED</div>
-      <div id="invGrid"></div>
-    </div>
-  </div>
-
-  <!-- hint removed -->
-
-  <div id="levelupScreen" class="overlay">
-    <h1>LEVEL UP</h1>
-    <p class="sub">Choose a trait. Traits last for this run only.</p>
-    <div id="levelupChoices"></div>
-  </div>
-
-  <div id="hubScreen" class="overlay">
-    <h1>underward</h1>
-    <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
-    <div class="walletbar"><span class="sico">💎</span><span id="hubShards">0</span></div>
-    <div class="shop" id="shop"></div>
-    <button class="btn big" id="startBtn">START RUN</button>
-  </div>
-
-  <div id="deathScreen" class="overlay" style="display:none">
-    <h1>YOU DIED</h1>
-    <h2 id="deathInfo"></h2>
-    <div class="walletbar"><span class="sico">💎</span><span id="deathShards">0</span></div>
-    <button class="btn big" id="deathBtn">BACK TO HUB</button>
-  </div>
-
-  <!-- ── Combat log ── -->
-  <div id="logPanel">
-    <div id="logFade"></div>
-    <div id="combatLog"></div>
-  </div>
-</div>
-
-<script src="js/config.js"></script>
-<script src="js/save.js"></script>
-<script src="js/attrs.js"></script>
-<script src="js/items.js"></script>
-<script src="js/sprites.js"></script>
-<script src="js/monsters.js"></script>
-<script src="js/state.js"></script>
-<script src="js/levels.js"></script>
-<script src="js/traits.js"></script>
-<script src="js/log.js"></script>
-<script src="js/combat.js"></script>
-<script src="js/render.js"></script>
-<script src="js/pathfind.js"></script>
-<script src="js/input.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/main.js"></script>
-
-<script>
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js");
-  }
-</script>
-</body>
-</html>
+  canvas.addEventListener("pointerdown", handleTap, {passive:false});
+})();
