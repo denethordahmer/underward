@@ -46,31 +46,22 @@ body{
 }
 .rest-dot.used{ background:#1a2a34;border-color:#2a3440; }
 
-/* ── Combat log strip ── */
+/* ── Log: hidden by default, thin tab only ── */
 #logPanel{
   position:absolute;bottom:0;left:0;right:0;z-index:4;
-  height:clamp(72px,18vh,120px);pointer-events:none;display:none;
+  height:34px;pointer-events:none;display:none;
+  align-items:flex-end;justify-content:flex-end;padding:0 8px 6px;
 }
-#logPanel.active{ display:block; }
-#logFade{
-  position:absolute;top:0;left:0;right:0;height:36px;
-  background:linear-gradient(to bottom,transparent,rgba(8,12,16,.65));
-  pointer-events:none;
-}
-#combatLog{
-  position:absolute;bottom:0;left:0;right:0;height:100%;
-  overflow-y:auto;overflow-x:hidden;padding:6px 8px 6px;
-  scrollbar-width:none;background:rgba(8,12,16,.70);
-  backdrop-filter:blur(4px);border-top:1px solid rgba(255,255,255,.05);
-  pointer-events:auto;
-}
-#combatLog::-webkit-scrollbar{ display:none; }
-.log-row{ font-size:11px;line-height:1.7;color:#c0cdd8;transition:opacity .3s; }
+#logPanel.active{ display:flex; }
+/* combatLog stays in the DOM (accrues entries) but is never shown inline */
+#logFade{ display:none; }
+#combatLog{ display:none; }
+.log-row{ font-size:11px;line-height:1.7;color:#c0cdd8; }
 #logExpandBtn{
-  position:absolute;right:8px;top:4px;
-  background:#141b23;border:1px solid #2a3440;border-radius:7px;
-  color:#7ee0ff;font-size:11px;font-weight:700;padding:2px 8px;
-  cursor:pointer;z-index:5;pointer-events:auto;font-family:inherit;
+  position:relative;
+  background:rgba(8,12,16,.72);border:1px solid #2a3440;border-radius:8px;
+  color:#7ee0ff;font-size:12px;font-weight:700;padding:4px 12px;
+  cursor:pointer;z-index:5;pointer-events:auto;font-family:inherit;backdrop-filter:blur(4px);
 }
 
 /* ── Combat vignette (red border when in fight) ── */
@@ -138,7 +129,6 @@ body{
   display:flex;justify-content:space-between;align-items:center;width:100%;max-width:480px;
 }
 .inv-header h2{ font-size:20px;color:#eafff5;margin:0; }
-/* Character silhouette + slots */
 #charFigure{
   position:relative;width:180px;height:220px;flex-shrink:0;
 }
@@ -150,12 +140,10 @@ body{
 }
 .eq-slot.filled{ border-style:solid;border-color:#2a3440; }
 .eq-slot:active{ background:#1a2a3a; }
-/* Slot positions on the figure */
 #slot-weapon { top:100px;left:-88px; }
 #slot-armour { top:90px; right:-88px; }
 #slot-trinket1{ bottom:50px;left:-88px; }
 #slot-trinket2{ bottom:50px;right:-88px; }
-/* Carried grid */
 #invCarriedGrid{ display:flex;flex-wrap:wrap;gap:7px;width:100%;max-width:480px; }
 .inv-item-btn{
   display:flex;flex-direction:column;align-items:flex-start;
@@ -276,10 +264,8 @@ body{
 <div id="app">
   <canvas id="canvas"></canvas>
 
-  <!-- Combat vignette -->
   <div id="combatVignette"></div>
 
-  <!-- HUD -->
   <div id="hud" style="display:none">
     <span class="stat"><span class="sico">❤️</span><span id="hudHp">30/30</span></span>
     <span class="stat"><span class="sico">⚔️</span><span id="hudAtk">6</span></span>
@@ -294,14 +280,12 @@ body{
     <button id="invBtn">🎒 Bag</button>
   </div>
 
-  <!-- Combat log strip -->
   <div id="logPanel">
-    <button id="logExpandBtn">▲ Log</button>
+    <button id="logExpandBtn">📜 Log</button>
     <div id="logFade"></div>
     <div id="combatLog"></div>
   </div>
 
-  <!-- Floor title card -->
   <div id="floorCard">
     <div id="floorCardInner">
       <div id="floorCardNum">Floor 1</div>
@@ -309,7 +293,6 @@ body{
     </div>
   </div>
 
-  <!-- Boss intro overlay -->
   <div id="bossIntroOverlay">
     <div id="bossIntroCard">
       <div id="bossIntroWarning">⚠ WARD BOSS</div>
@@ -319,7 +302,6 @@ body{
     </div>
   </div>
 
-  <!-- Stairs confirm -->
   <div id="stairsPrompt">
     <div id="stairsCard">
       <h3>▼ Descend?</h3>
@@ -331,7 +313,6 @@ body{
     </div>
   </div>
 
-  <!-- Item stat card -->
   <div id="itemCardOverlay">
     <div id="itemCard">
       <div id="icHeader">
@@ -350,7 +331,6 @@ body{
     </div>
   </div>
 
-  <!-- Log window -->
   <div id="logWindow">
     <div id="logWindowHeader">
       <h3>📜 Combat Log</h3>
@@ -359,25 +339,17 @@ body{
     <div id="logWindowContent"></div>
   </div>
 
-  <!-- Inventory screen -->
   <div id="inventoryScreen" class="overlay">
     <div class="inv-header">
       <h2>🎒 Inventory</h2>
       <button class="close-btn" id="invCloseBtn2">✕</button>
     </div>
-    <!-- Character figure with equipment slots -->
     <div id="charFigure">
-      <!-- Simple SVG silhouette -->
       <svg viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
-        <!-- head -->
         <circle cx="90" cy="36" r="22" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
-        <!-- body -->
         <rect x="62" y="60" width="56" height="68" rx="10" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
-        <!-- left arm -->
         <rect x="38" y="62" width="22" height="48" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
-        <!-- right arm -->
         <rect x="120" y="62" width="22" height="48" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
-        <!-- legs -->
         <rect x="65" y="130" width="22" height="56" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
         <rect x="93" y="130" width="22" height="56" rx="8" fill="#141d28" stroke="#2a3d52" stroke-width="2"/>
       </svg>
@@ -390,14 +362,12 @@ body{
     <div id="invCarriedGrid"></div>
   </div>
 
-  <!-- Level-up screen -->
   <div id="levelupScreen" class="overlay">
     <h1>LEVEL UP</h1>
     <p class="sub">Choose a trait.</p>
     <div id="levelupChoices"></div>
   </div>
 
-  <!-- Hub screen -->
   <div id="hubScreen" class="overlay">
     <h1>underward</h1>
     <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
@@ -406,7 +376,6 @@ body{
     <button class="btn big" id="startBtn">START RUN</button>
   </div>
 
-  <!-- Death screen -->
   <div id="deathScreen" class="overlay">
     <h1>YOU DIED</h1>
     <h2 id="deathInfo"></h2>
