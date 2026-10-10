@@ -193,7 +193,6 @@ window.Delve = window.Delve || {};
  } else if(cell===T().STAIR){
  Delve.promptStairs();
  } else {
- // Walking onto a barrel smashes it
  if(cell===T().BARREL){
  Delve.smashBarrel(tx, ty);
  }
@@ -252,6 +251,10 @@ window.Delve = window.Delve || {};
  else if(roll < 0.55) gold = Delve.rng(4,8);
 
  if(G.grid[ty] && G.grid[ty][tx]===T().BARREL) G.grid[ty][tx]=T().FLOOR;
+
+ // Remove the barrel from the floor's list so it stops being drawn
+ G.barrels = (G.barrels||[]).filter(b => !(b.x===tx && b.y===ty));
+
  Delve.addShake(1);
 
  if(gold>0){
