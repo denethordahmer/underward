@@ -37,12 +37,28 @@ Delve.pickWeighted = function(weights){
  return Object.keys(weights)[0];
 };
 
-// Kill-reward calculator (used by combat)
-Delve.killRewards = function(m){
- const G = Delve.G, cfg = Delve.CONFIG;
- const luckMult = 1 + Delve.luckPts() * cfg.goldLuckMult;
- const gold = Math.round((m.gold || cfg.goldKillBase + cfg.goldKillPerFloor * G.floor) * luckMult);
- const shards = Math.round( m.shards || cfg.monsterShardBase + cfg.monsterShardPerFloor * G.floor);
- const xp = m.xp || 1;
- return { gold, shards, xp };
+// ── Shop floor helper: floor%10===5 (5, 15, 25, ...) ──────────
+Delve.isShopFloor = function(floor){
+ const s = Delve.CONFIG.shop;
+ return floor > 0 && (floor % 10 === s.offset);
+};
+
+// ── Shop heal cost: 30 + 8×ln(floor+1), luck discount applied later ──
+Delve.healCost = function(floor){
+ const e = Delve.CONFIG.economy;
+ return Math.round(e.healCostA + e.healCostB * Math.log(floor + 1));
+};
+
+// ── Mercompan discount from Luck (2%/pt, cap 20%) ─────────────
+Delve.luckDiscount = function(){
+ const e = Delve.CONFIG.economy;
+ return Math.min(e.maxLuckDiscount, Delve.luckPts() * e.luckDiscountPerPoint);
+};
+
+// ── Run-stat recorder (feeds end-of-run summary screens) ──────
+Delve.recordStat = function(key, amount){
+ const G = Delve.G;
+ if(!G) return;
+ G.runStats = G.runStats || {};
+ G.runStats[key] = (G.runStats[key] || 0) + amount;
 };
