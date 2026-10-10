@@ -5,15 +5,15 @@ Delve.CONFIG = {
  costGrowth: 1.28,
 
  ATTRS: {
- con: { name:"Constitution", short:"CON", base:30, perLevel:5, costBase:50,
+ con: { name:"Constitution", short:"CON", base:30, perLevel:5, costBase:20,
  desc:"+5 max HP per level. 3+ levels unlocks Second Wind (auto-heal at low HP)" , kind:"hp" },
- str: { name:"Strength", short:"STR", base:6, perLevel:1, costBase:40,
+ str: { name:"Strength", short:"STR", base:6, perLevel:1, costBase:15,
  desc:"+1 attack per level. 3+ levels unlocks Overkill (excess damage heals you)", kind:"atk" },
- tou: { name:"Toughness", short:"TOU", base:4, perLevel:0.05, costBase:45, cap:0.50,
+ tou: { name:"Toughness", short:"TOU", base:4, perLevel:0.05, costBase:18, cap:0.50,
  desc:"+5% damage reduction per level (cap 50%). TOU 5 total unlocks Bulwark", kind:"pct" },
- luc: { name:"Luck", short:"LCK", base:1, perLevel:1, costBase:60,
- desc:"+1% crit, better loot tier and drop rates, gold bonuses — luck touches everything", kind:"luck" },
- agi: { name:"Agility", short:"AGI", base:1, perLevel:1, costBase:45,
+ luc: { name:"Luck", short:"LCK", base:1, perLevel:1, costBase:20,
+ desc:"+1% crit, better loot tier and drop rates, gold bonuses, shop discount — luck touches everything", kind:"luck" },
+ agi: { name:"Agility", short:"AGI", base:1, perLevel:1, costBase:18,
  desc:"+4% dodge and +0.05 attack speed per point. 3+ levels unlocks First Strike", kind:"agi" },
  eng: { name:"Energy", short:"ENG", base:10, perLevel:1, costBase:55,
  desc:"Resource pool for combat abilities", kind:"dormant" }
@@ -27,17 +27,17 @@ Delve.CONFIG = {
  critPerLuck: 0.01, critCap: 0.50, critMult: 1.5,
  dodgePerAgi: 0.04, dodgeCap: 0.40,
  firstStrikeUnlock: 3, firstStrikeDiv: 2,
- // attack speed
- baseInterval: 600, // ms between player hits at speed 1.0
- speedPerAgi: 0.05 // each AGI point adds this to player effective speed
+ baseInterval: 600,   // ms between player hits at speed 1.0
+ speedPerAgi: 0.05
  },
 
  // ---------- RUN STRUCTURE ----------
  bossEvery: 10,
  healOnDescendPct: 0.5,
 
- // ---------- REST MECHANIC ----------
- restHealAmt: 1,
+ // ---------- REST MECHANIC (scales with max HP) ----------
+ restHealPct: 0.06,
+ restMinHeal: 1,
  restPerFloor: 3,
 
  // ---------- WARDS ----------
@@ -54,7 +54,6 @@ Delve.CONFIG = {
  treasureChanceBase:0.14,
  treasureChanceLuck:0.018,
  treasureChanceCap:0.45,
- // secret room: luck-influenced chance per eligible floor
  secretRoomChanceBase: 0.20,
  secretRoomChanceLuck: 0.04,
  secretRoomChanceCap: 0.70
@@ -74,54 +73,101 @@ Delve.CONFIG = {
  water:"#1a344c", torch:"#5ad8c3", light:"rgba(64,190,150,0.07)" }
  ],
 
- // ---------- MONSTER ROSTER (rebalanced — multi-hit fights) ----------
+ // ---------- MONSTER ROSTER (sim-rebalanced) ----------
  MONSTER_ROSTER: {
  rat: { name:"Rotten Rat", hp:8, hpPerFloor:1.2, atk:2, atkPerFloor:0.4, xp:1, gold:1, shards:1, kind:"rat", speed:1.5 },
  slime: { name:"Slime", hp:18, hpPerFloor:2.0, atk:2, atkPerFloor:0.3, xp:2, gold:2, shards:2, kind:"slime", speed:0.7 },
  goblin: { name:"Goblin", hp:12, hpPerFloor:2.5, atk:4, atkPerFloor:0.6, xp:3, gold:3, shards:3, kind:"goblin", speed:1.0 },
- brute: { name:"Brute", hp:22, hpPerFloor:4.0, atk:7, atkPerFloor:0.8, xp:5, gold:5, shards:5, kind:"brute", speed:0.75 },
- wraith: { name:"Wraith", hp:16, hpPerFloor:3.0, atk:5, atkPerFloor:0.7, xp:6, gold:6, shards:6, kind:"wraith", speed:1.2 }
+ brute: { name:"Brute", hp:18, hpPerFloor:4.0, atk:7, atkPerFloor:0.8, xp:5, gold:5, shards:5, kind:"brute", speed:0.75 },
+ wraith: { name:"Wraith", hp:16, hpPerFloor:3.0, atk:4, atkPerFloor:0.7, xp:6, gold:6, shards:6, kind:"wraith", speed:1.2 }
  },
 
- // fixed count floors 1-9; type roster shifts difficulty, not count
  MONSTER_BANDS: [
  { floors:[1,2], boss:false, countMin:10, countMax:14, weights:{ rat:60, slime:40 } },
  { floors:[3,4], boss:false, countMin:10, countMax:14, weights:{ rat:35, slime:35, goblin:30 } },
  { floors:[5,6], boss:false, countMin:10, countMax:14, weights:{ rat:15, slime:25, goblin:40, brute:20 } },
  { floors:[7,9], boss:false, countMin:10, countMax:14, weights:{ rat:8, slime:15, goblin:30, brute:25, wraith:22 } },
- { floors:[10,999],boss:true, countMin:4, countMax:4, weights:{ goblin:100 } }
+ { floors:[10,10], boss:true, countMin:4, countMax:4, weights:{ goblin:100 } },
+ // Post-ward fallback (plugs into Ward 2 later)
+ { floors:[11,999], boss:false, countMin:10, countMax:14, weights:{ rat:5, slime:12, goblin:28, brute:28, wraith:27 } }
  ],
 
  spawnSafetyRadius: 4,
- monsterFloatPrecision: 0,
 
  // ---------- BOSS ----------
  monsterHpBase: 5, monsterHpPerFloor: 1.5,
  monsterAtkBase: 1, monsterAtkPerFloor: 0.5,
  monsterShardBase: 2, monsterShardPerFloor:0.5,
- bossHpBase: 120, bossHpPerFloor: 0, // The Warden: flat 120
- bossAtkBase: 14, bossAtkPerFloor: 0,
+ bossHpBase: 100, bossHpPerFloor: 0,   // The Warden: flat 100
+ bossAtkBase: 9, bossAtkPerFloor: 0,
  bossShardBase: 60, bossShardPerFloor: 0,
  bossSpeed: 0.65,
 
- // The Warden — Ward 1 boss
  BOSS_DEFS: {
  1: {
  name: "The Warden",
  title: "Guardian of the Undercroft",
  flavour:"He has watched these stones since before your grandfather was born.\nHe will not step aside.",
- hp: 120,
- atk: 14,
+ hp: 100,
+ atk: 9,
  speed: 0.65,
- chainHitEvery: 3 // every 3rd hit deals double damage
+ chainHitEvery: 3   // every 3rd hit deals double damage
  }
+ },
+
+ // ---------- ECONOMY (sim-calibrated) ----------
+ economy: {
+ goldCurveType: "log",     // gold added per kill = K × ln(floor+1)
+ goldCurveK: 3.0,
+ goldLuckMult: 0.05,       // +5% gold per Luck point
+ healCostA: 30,            // shop heal = 30 + 8×ln(floor+1)
+ healCostB: 8,
+ tierPrices: [12, 35, 90, 240],      // T1..T4 gear (rarity-locked)
+ consumablePrices: { 1:10, 2:20, 3:40 },
+ luckDiscountPerPoint: 0.02,         // shop discount per Luck
+ maxLuckDiscount: 0.20,
+ goldToShardRate: 10                // successful run converts gold→shards at 10:1
  },
 
  // ---------- GOLD ----------
  goldKillBase: 2,
- goldKillPerFloor:0.5,
+ goldKillPerFloor: 0.5,
  goldBossBase: 80,
- goldLuckMult: 0.05,
+
+ // ---------- BARRELS ----------
+ barrel: {
+ goldChance: 0.40,
+ goldMin: 1,
+ goldMax: 3
+ },
+
+ // ---------- SHOP ----------
+ shop: {
+ offset: 5,        // appears on floors where floor % 10 === offset (5, 15, 25...)
+ stockConsumables: 4,
+ stockGear: 1,
+ healPct: 0.5      // heal service restores 50% max HP
+ },
+
+ // ---------- ELITES ----------
+ elite: {
+ chance: 0.10,          // 10% one elite per normal floor
+ minFloor: 3,
+ maxFloor: 9,
+ hpMult: 1.6,
+ atkMult: 1.3,
+ rewardMult: 3,
+ guaranteedPotion: true,
+ glow: "#ffd75e"
+ },
+
+ // ---------- STATUS EFFECTS ----------
+ STATUS_EFFECTS: {
+ poison: { name:"Poison", perTurn:3, turns:3, stackable:false, appliedBy:"consumable", color:"#a855f7" },
+ bleed:  { name:"Bleed",  perTurn:3, turns:2, stackable:true,  appliedBy:"consumable", color:"#ef4444" },
+ burn:   { name:"Burn",   perTurn:4, turns:2, stackable:false, appliedBy:"ability",   color:"#f97316" },
+ weaken: { name:"Weaken", pct:0.30, turns:2, stackable:false, appliedBy:"wraith",    color:"#64748b" }
+ },
 
  // ---------- XP & LEVEL-UPS ----------
  XP_CURVE: [4, 9, 16, 25, 36, 50, 66],
@@ -131,8 +177,9 @@ Delve.CONFIG = {
  energyPerKill: 1,
  energyStart: 10,
 
- // ---------- WEAPON SPEEDS (used by combat engine) ----------
+ // ---------- WEAPON SPEEDS ----------
  WEAPON_SPEEDS: {
+ spear: 0.95,
  sword: 1.00,
  dagger: 1.40,
  axe: 0.85,
@@ -171,8 +218,8 @@ Delve.CONFIG = {
  { id:"cleave", name:"Cleave", cost:4, target:"adjacent", desc:"Hit target and every enemy adjacent to it" },
  { id:"lunge", name:"Lunge", cost:5, target:"line4", desc:"Dash in a straight line up to 4 tiles and strike" },
  { id:"stone_skin", name:"Stone Skin", cost:6, target:"self", desc:"Take 60% less damage for 2 turns" },
- { id:"cinderbolt", name:"Cinderbolt", cost:4, target:"range5", desc:"10 damage, ignores armour, no retaliation" },
- { id:"rally", name:"Rally", cost:7, target:"self", desc:"Heal 35% max HP and cure bleed/drain" },
+ { id:"cinderbolt", name:"Cinderbolt", cost:4, target:"range5", desc:"10 damage, ignores armour, no retaliation, applies Burn" },
+ { id:"rally", name:"Rally", cost:7, target:"self", desc:"Heal 35% max HP and clear bleed" },
  { id:"blink", name:"Blink", cost:5, target:"teleport4", desc:"Teleport to a visible empty tile within 4" },
  { id:"whirlwind", name:"Whirlwind", cost:8, target:"self", desc:"Strike every adjacent enemy at once" }
  ]
