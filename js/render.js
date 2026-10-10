@@ -382,5 +382,3 @@ window.Delve = window.Delve || {};
   })();
 
 })();
-/body>
-</html>
