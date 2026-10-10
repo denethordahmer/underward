@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>underward — test</title>
+<style>
+  body{background:#0b0f14;color:#d7e3ee;font-family:system-ui,sans-serif;padding:20px;font-size:15px;line-height:1.5;}
+  h1{font-size:22px;margin:0 0 4px;}
+  .sub{color:#7f94a8;font-size:13px;margin-bottom:18px;}
+  .section{margin:18px 0;padding:14px 16px;border:1px solid #2a3440;border-radius:12px;background:#121920;}
+  .section h2{margin:0 0 10px;font-size:16px;color:#7ee0ff;}
+  .pass{color:#7ee08a;font-weight:700;}
+  .fail{color:#ff7a7a;font-weight:700;}
+  .warn{color:#ffd75e;font-weight:700;}
+  code{background:#1a2530;padding:1px 6px;border-radius:5px;font-size:13px;}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px;}
+  td,th{border:1px solid #2a3440;padding:6px 9px;text-align:left;vertical-align:top;}
+  th{color:#9fb3c5;font-weight:700;}
+  .dup{color:#ff7a7a;}
+  .missing{color:#ff9a7a;}
+  #results{max-width:780px;margin:0 auto;}
+</style>
+</head>
+<body>
+<div id="results">
+  <h1>underward · test</h1>
+  <div class="sub">Loads every script, records ownership, then runs floor-generation checks.</div>
+  <div id="console"></div>
+</div>
+
+<script>
+var outBox = document.getElementById("console");
+function out(html){ outBox.insertAdjacentHTML("beforeend", html); }
+function secStart(title){
+  out('<div class="section"><h2>'+title+'</h2><div id="'+title.replace(/[^a-z]/gi,"")+'"></div></div>');
+  return document.getElementById(title.replace(/[^a-z]/gi,""));
+}
+
+var FILES = [
+  "js/config.js","js/save.js","js/attrs.js","js/items.js","js/sprites.js",
+  "js/monsters.js","js/state.js","js/levels.js","js/traits.js","js/combat.js",
+  "js/effects.js","js/log.js","js/render.js","js/pathfind.js","js/input.js",
+  "js/ui.js","js/progression.js","js/main.js"
+];
+
+var ownership = {};
+var dupes = {};
+var errors = [];
+
+// ── SECTION 1: load each file, track ownership ──
+var s1 = secStart("1. Script loading");
+
+FILES.forEach(function(file){
+  var before = {};
+  for(var k in window.Delve){ before[k] = 1; }
+
+  var loaded = false;
+  try {
+    var xhr = new XMLHttpRequest();
+    xhr.open("GET", file, false);
+    xhr.send();
+    if(xhr.status !== 0 && xhr.status !== 200){
+      errors.push(file + " returned status " + xhr.status);
+    } else {
+      (new Function(xhr.responseText))();
+      loaded = true;
+    }
+  } catch(err){
+    errors.push(file + ": " + err.message);
+    s1.insertAdjacentHTML("beforeend", '<div class="fail">✗ '+file+' — '+err+'</div>');
+  }
+
+  if(loaded){
+    var added = [];
+    for(var k in window.Delve){
+      if(!before[k]){
+        added.push(k);
+        if(ownership[k]){ (dupes[k]=dupes[k]||[]).push(file); }
+        else { ownership[k] = file; }
+      }
+    }
+    s1.insertAdjacentHTML("beforeend",
+      '<div class="pass">✓ '+file+' <span class="file-owner">('+added.length+' new)</span></div>');
+  }
+});
+
+// ── SECTION 2: duplicates ──
+var s2 = secStart("2. Duplicate definitions (a function owned twice)");
+var dupKeys = Object.keys(dupes);
+if(dupKeys.length === 0){
+  s2.innerHTML = '<div class="pass">✓ No duplicates.</div>';
+} else {
+  s2.innerHTML = '<div class="warn">These functions are defined in more than one file (high bug risk):</div><table><tr><th>Function</th><th>Defined in</th></tr>';
+  dupKeys.forEach(function(k){
+    s2.innerHTML += '<tr><td class="dup">'+k+'</td><td>'+[ownership[k]].concat(dupes[k]).join(", ")+'</td></tr>';
+  });
+  s2.innerHTML += '</table>';
+}
+
+// ── SECTION 3: required functions present ──
+var s3 = secStart("3. Required functions");
+var REQUIRED = [
+  "newRun","genFloor","maxHp","atk","dmgRed","dodge","crit","luckPts","agiPts","touchPts",
+  "equipItem","unequipItem","useConsumable","itemStatLines","itemBuffs","makeItem","rollTier",
+  "killRewards","floorClearBonus","makeElite","startCombat","triggerVictory","tryRest","descend",
+  "die","retreat","convertGold","recordStat","addFloater","draw","updateHUD","renderMinimap",
+  "refreshHub","openInventory","openShop","buildShop","applyEffect","applyPlayerEffect"
+];
+var missing = [];
+REQUIRED.forEach(function(k){
+  if(typeof window.Delve[k] !== "function") missing.push(k);
+});
+if(missing.length === 0){
+  s3.innerHTML = '<div class="pass">✓ All '+REQUIRED.length+' required functions present.</div>';
+} else {
+  s3.innerHTML = '<div class="fail">Missing functions:</div><div class="missing">' + missing.join(', ') + '</div>';
+}
+
+// ── SECTION 4: floor checks ──
+var s4 = secStart("4. Floor generation (50 trials)");
+try {
+  var save = window.Delve.save;
+  if(!save){ throw new Error("Delve.save missing; cannot run floor checks"); }
+  var G = Delve.G;
+  var trials = 50, fails = [];
+  for(var t=0;t<trials;t++){
+    G.floor = (t % 10) + 1;
+    Delve.genFloor();
+    var w = G.grid[0].length, h = G.grid.length;
+    // player inside map and not in wall
+    if(G.px < 0 || G.py < 0 || G.px >= w || G.py >= h) fails.push("trial "+t+": player outside map");
+    else if(G.grid[G.py][G.px] !== Delve.T.FLOOR) fails.push("trial "+t+": player not on floor tile");
+    // stairs exist on non-boss floors
+    if(G.floor % 10 !== 0 && !G.stairs) fails.push("trial "+t+": no stairs on floor "+G.floor);
+    // monsters not adjacent to spawn
+    G.monsters.forEach(function(m){
+      if(Delve.mdist(m.x,m.y,G.px,G.py) <= 1) fails.push("trial "+t+": monster adjacent to spawn");
+    });
+    if(fails.length > 20) break;
+  }
+  if(fails.length === 0){
+    s4.innerHTML = '<div class="pass">✓ '+trials+' floors generated cleanly (spawn valid, stairs present, monsters spread).</div>';
+  } else {
+    s4.innerHTML = '<div class="fail">Found '+fails.length+' problem(s):</div><ul style="margin-left:18px">';
+    fails.slice(0,25).forEach(function(f){ s4.innerHTML += '<li>'+f+'</li>'; });
+    s4.innerHTML += '</ul>';
+  }
+} catch(err){
+  s4.innerHTML = '<div class="fail">Floor checks aborted: '+err.message+'</div>';
+}
+
+// ── SECTION 5: summary ──
+var s5 = secStart("5. Summary");
+var totalFail = errors.length + missing.length;
+if(errors.length) s5.innerHTML += '<div class="fail">Script errors: '+errors.length+'</div>';
+if(missing.length) s5.innerHTML += '<div class="fail">Missing functions: '+missing.length+'</div>';
+if(dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: '+dupKeys.length+'</div>';
+if(!errors.length && !missing.length && !dupKeys.length){
+  s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
+}
+
+// ── SECTION 6: full ownership registry ──
+var s6 = secStart("6. Ownership registry");
+var keys = Object.keys(ownership).sort();
+var table = '<table><tr><th>Function</th><th>Owned by</th></tr>';
+keys.forEach(function(k){ table += '<tr><td><code>'+k+'</code></td><td>'+ownership[k]+'</td></tr>'; });
+table += '</table>';
+s6.innerHTML = table;
+</script>
+</body>
+</html>
