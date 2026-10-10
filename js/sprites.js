@@ -110,11 +110,9 @@ window.Delve = window.Delve || {};
 
  function buildBoss(){
   const c = mk(28,28), x = gx(c);
-  // ── massive shoulder pauldrons (broad silhouette) ───────────
   R(x,2,7,6,6,"#343a43");   R(x,19,7,6,6,"#343a43");
   R(x,3,7,4,2,"#4a525e"); R(x,21,7,4,2,"#4a525e");
   R(x,2,12,2,1,"#4a525e"); R(x,24,12,2,1,"#4a525e");
-  // ── cracked iron mask ────────────────────────────────────────
   R(x,10,2,8,3,"#2c313a");
   R(x,9,5,10,5,"#23262d");
   R(x,12,5,1,5,"#14161b");
@@ -124,21 +122,17 @@ window.Delve = window.Delve || {};
   x.globalAlpha = 0.6; R(x,11,7,2,1,"#ff6a5a"); R(x,15,7,2,1,"#ff6a5a");
   x.globalAlpha = 0.25; R(x,10,6,4,3,"#ff4a3d"); R(x,14,6,4,3,"#ff4a3d");
   x.globalAlpha = 1;
-  // ── armoured chest ───────────────────────────────────────────
   R(x,8,11,12,10,"#1f2329");
   R(x,8,11,12,2,"#2c313a");
   R(x,8,11,2,10,"#2c313a");
   R(x,18,11,2,10,"#2c313a");
   R(x,13,14,2,4,"#14161b");
   R(x,12,15,4,1,"#343a43");
-  // ── arms ─────────────────────────────────────────────────────
   R(x,5,13,3,7,"#23262d"); R(x,20,13,3,7,"#23262d");
-  // ── chains hanging from wrists ───────────────────────────────
   R(x,6,20,1,1,"#5a616c"); R(x,6,21,1,1,"#575d68");
   R(x,7,22,1,1,"#4d525c"); R(x,7,23,1,1,"#575d68"); R(x,6,24,1,1,"#4d525c");
   R(x,21,20,1,1,"#5a616c"); R(x,21,21,1,1,"#575d68");
   R(x,20,22,1,1,"#4d525c"); R(x,20,23,1,1,"#575d68"); R(x,21,24,1,1,"#4d525c");
-  // ── legs / greaves ───────────────────────────────────────────
   R(x,10,21,3,6,"#171a20"); R(x,16,21,3,6,"#171a20");
   R(x,10,26,3,1,"#2c313a"); R(x,16,26,3,1,"#2c313a");
   return c;
@@ -171,6 +165,23 @@ window.Delve = window.Delve || {};
   R(x,14,16,3,3,"#b8f5a8");
   R(x,11,14,2,2,"#2c4a20");
   R(x,15,14,2,2,"#2c4a20");
+  return c;
+ }
+
+ function buildMerchant(){
+  const c = mk(26,26), x = gx(c);
+  // hooded cloak
+  R(x,8,2,10,8,"#3f3a50");
+  R(x,7,9,12,12,"#332f42");
+  R(x,8,2,10,2,"#2a2636");
+  R(x,9,0,8,2,"#2a2636");
+  // face in shadow
+  R(x,12,5,4,4,"#17131f");
+  R(x,13,6,1,1,"#e8c39a"); R(x,15,6,1,1,"#e8c39a");
+  // hands
+  R(x,6,15,4,4,"#b28a5a"); R(x,16,15,4,4,"#b28a5a");
+  // belt + coin pouch
+  R(x,9,18,8,2,"#4a3920"); R(x,11,19,4,3,"#8a6a2a");
   return c;
  }
 
@@ -259,16 +270,21 @@ window.Delve = window.Delve || {};
   const boss = buildBoss();
   const rat = buildRat();
   const slime = buildSlime();
+  const goblinGold = tint(goblin, "#ffd75e");
+  const bruteGold = tint(brute, "#ffd75e");
+  const ratGold = tint(rat, "#ffd75e");
+  const slimeGold = tint(slime, "#ffd75e");
+  const wraithGold = tint(wraith, "#ffd75e");
 
   Delve.SPR = {
    shadow: shadow,
    soldier: { idle: soldier, hurt: tint(soldier,"#ff5c5c") },
-   goblin: { idle: goblin, hurt: tint(goblin,"#ff5c5c") },
-   brute: { idle: brute, hurt: tint(brute,"#ff5c5c") },
-   wraith: { idle: wraith, hurt: tint(wraith,"#ff5c5c") },
+   goblin: { idle: goblin, hurt: tint(goblin,"#ff5c5c"), elite: goblinGold },
+   brute: { idle: brute, hurt: tint(brute,"#ff5c5c"), elite: bruteGold },
+   wraith: { idle: wraith, hurt: tint(wraith,"#ff5c5c"), elite: wraithGold },
    boss: { idle: boss, hurt: tint(boss,"#ff5c5c") },
-   rat: { idle: rat, hurt: tint(rat,"#ff5c5c") },
-   slime: { idle: slime, hurt: tint(slime,"#ff5c5c") },
+   rat: { idle: rat, hurt: tint(rat,"#ff5c5c"), elite: ratGold },
+   slime: { idle: slime, hurt: tint(slime,"#ff5c5c"), elite: slimeGold },
 
    world: {
     goldPile: buildGoldPile(),
@@ -276,7 +292,8 @@ window.Delve = window.Delve || {};
     potionPile: buildPotionPile(),
     chestClosed: buildChest(false),
     chestOpen: buildChest(true),
-    barrel: buildBarrel()
+    barrel: buildBarrel(),
+    shopkeeper: buildMerchant()
    }
   };
  }
