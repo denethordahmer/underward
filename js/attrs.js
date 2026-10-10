@@ -3,31 +3,43 @@ window.Delve = window.Delve || {};
 
  const sec = function(){ return Delve.CONFIG.secondaries; };
 
- // ── Base attribute VALUES (persisted upgrades + trait mods) ──
- Delve.attrValue = function(attr){
-  const cfg = Delve.CONFIG.ATTRS;
-  const def = cfg[attr];
-  const level = (Delve.save && Delve.save.attr && Delve.save.attr[attr]) || 0;
-  let val = (def && def.base) || 0;
-  val += def.perLevel * level;
-  // trait-modified attributes
-  const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
-  if(attr === "agi") val += tb.agi || 0;
-  if(attr === "tou") val += tb.tou || 0;
-  return val;
+ // ── Attribute levels (persisted under save.lvls) ─────────────
+ Delve.attrLevel = function(attr){
+  return (Delve.save && Delve.save.lvls && Delve.save.lvls[attr]) || 0;
  };
 
- Delve.conPts = function(){ return Math.floor(Delve.attrValue("con")); };
- Delve.strPts = function(){ return Math.floor(Delve.attrValue("str")); };
+ // ── Purchase cost: costBase × 1.28^level ─────────────────────
+ Delve.attrCost = function(attr){
+  const a = Delve.CONFIG.ATTRS[attr];
+  if(!a) return 0;
+  return Math.round(a.costBase * Math.pow(Delve.CONFIG.costGrowth, Delve.attrLevel(attr)));
+ };
+
+ // ── Current value (base + perLevel×level) ────────────────────
+ Delve.attrValue = function(attr){
+  const a = Delve.CONFIG.ATTRS[attr];
+  if(!a) return 0;
+  return a.base + a.perLevel * Delve.attrLevel(attr);
+ };
+
+ // ── Convenience accessors ────────────────────────────────────
+ Delve.conPts = function(){ return Delve.attrValue("con"); };
+ Delve.strPts = function(){ return Delve.attrValue("str"); };
  Delve.touPts = function(){ return Delve.attrValue("tou"); };
- Delve.luckPts = function(){ const tb = Delve.traitBuffs ? Delve.traitBuffs() : {}; return Delve.attrValue("luc") + (tb.luck||0); };
- Delve.agiPts = function(){ return Delve.attrValue("agi"); };
+ Delve.luckPts = function(){
+  const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
+  return Delve.attrValue("luc") + (tb.luck || 0);
+ };
+ Delve.agiPts = function(){
+  const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
+  return Delve.attrValue("agi") + (tb.agi || 0);
+ };
 
  // ── ATK ──────────────────────────────────────────────────────
  Delve.atk = function(){
   const G = Delve.G;
   let a = Delve.strPts();
-  const buffs = G && G.equip ? Delve.itemBuffs() : { atk:0 };
+  const buffs = (G && G.equip) ? Delve.itemBuffs() : { atk:0 };
   a += buffs.atk;
   if(G) a += (G.atkBuff || 0);
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
@@ -35,28 +47,24 @@ window.Delve = window.Delve || {};
   return Math.max(1, Math.round(a));
  };
 
- // ── MAX HP ───────────────────────────────────────────────────
+ // ── MAX HP (CON base = 30, +5/level) ─────────────────────────
  Delve.maxHp = function(){
   const G = Delve.G;
-  let hp = Delve.conPts();
-  // CON level 3+ = +5 extra per level beyond 2
-  const conLvl = (Delve.save && Delve.save.attr && Delve.save.attr.con) || 0;
-  hp += Delve.conPts(); // con as HP base via perLevel
-  const buffs = G && G.equip ? Delve.itemBuffs() : { hp:0 };
+  let hp = Delve.attrValue("con");               // 30 + 5×level
+  const buffs = (G && G.equip) ? Delve.itemBuffs() : { hp:0 };
   hp += buffs.hp;
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
   hp += tb.maxHp || 0;
   return Math.max(10, Math.round(hp));
  };
 
- // ── Damage reduction (TOU → %; cap 50%) ─────────────────────
+ // ── Damage reduction (TOU %, cap 50%) ────────────────────────
  Delve.dmgRed = function(){
-  const v = Math.min(sec().touCap || 0.50, Delve.touPts());
-  return v;
+  return Math.min(0.50, Delve.touPts());
  };
  Delve.flatRed = function(){
   const G = Delve.G;
-  const buffs = G && G.equip ? Delve.itemBuffs() : { red:0 };
+  const buffs = (G && G.equip) ? Delve.itemBuffs() : { red:0 };
   let r = buffs.red;
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
   r += tb.flatRed || 0;
@@ -67,7 +75,7 @@ window.Delve = window.Delve || {};
  Delve.dodge = function(){
   const d = Math.min(sec().dodgeCap || 0.40, Delve.agiPts() * sec().dodgePerAgi);
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
-  return d + (tb.dodge||0);
+  return d + (tb.dodge || 0);
  };
 
  // ── Crit ─────────────────────────────────────────────────────
@@ -81,27 +89,27 @@ window.Delve = window.Delve || {};
  // ── Gold multiplier ──────────────────────────────────────────
  Delve.goldMult = function(){
   let m = 1 + Delve.luckPts() * (Delve.CONFIG.economy ? Delve.CONFIG.economy.goldLuckMult : 0.05);
-  const buffs = Delve.G && Delve.G.equip ? Delve.itemBuffs() : { goldBonus:0 };
+  const buffs = (Delve.G && Delve.G.equip) ? Delve.itemBuffs() : { goldBonus:0 };
   m += buffs.goldBonus;
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
   m += tb.goldMult || 0;
   return m;
  };
 
- // ── Drop chance bonus ────────────────────────────────────────
+ // ── Drop chance ──────────────────────────────────────────────
  Delve.dropChance = function(){
   const cfg = Delve.CONFIG.loot;
   let c = Math.min(cfg.dropCap, cfg.baseDrop + Delve.luckPts() * cfg.luckDrop);
-  const buffs = Delve.G && Delve.G.equip ? Delve.itemBuffs() : { dropBonus:0 };
+  const buffs = (Delve.G && Delve.G.equip) ? Delve.itemBuffs() : { dropBonus:0 };
   c += buffs.dropBonus;
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
   c += tb.dropBonus || 0;
   return c;
  };
 
- // ── Boss damage ──────────────────────────────────────────────
+ // ── Boss damage bonus ────────────────────────────────────────
  Delve.bossBonus = function(){
-  const buffs = Delve.G && Delve.G.equip ? Delve.itemBuffs() : { bossAtk:0 };
+  const buffs = (Delve.G && Delve.G.equip) ? Delve.itemBuffs() : { bossAtk:0 };
   let v = buffs.bossAtk;
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
   v += tb.bossAtk || 0;
@@ -111,26 +119,25 @@ window.Delve = window.Delve || {};
  // ── First Strike (AGI 3+) ────────────────────────────────────
  Delve.firstStrikeBonus = function(){
   const agi = Delve.agiPts();
-  const unlock = sec().firstStrikeUnlock || 3;
-  if(agi < unlock) return 0;
+  if(agi < (sec().firstStrikeUnlock || 3)) return 0;
   return Math.max(0, Math.round(agi / sec().firstStrikeDiv));
  };
 
- // ── Second Wind / Overkill / Bulwark checks ──────────────────
+ // ── Unlock checks ────────────────────────────────────────────
  Delve.hasSecondWind = function(){
-  return (Delve.save && Delve.save.attr && Delve.save.attr.con || 0) >= (sec().secondWindUnlock||3);
+  return Delve.attrLevel("con") >= (sec().secondWindUnlock || 3);
  };
  Delve.hasOverkill = function(){
-  return (Delve.save && Delve.save.attr && Delve.save.attr.str || 0) >= (sec().overkillUnlock||3);
+  return Delve.attrLevel("str") >= (sec().overkillUnlock || 3);
  };
  Delve.hasBulwark = function(){
-  return Math.floor(Delve.touPts()) >= (sec().bulwarkTotal||5);
+  return Math.floor(Delve.touPts() / 0.05) >= (sec().bulwarkTotal || 5);
  };
  Delve.hitCap = function(){
-  return Delve.maxHp() * (sec().bulwarkHitCap||0.60);
+  return Delve.maxHp() * (sec().bulwarkHitCap || 0.60);
  };
 
- // ── Heal-per-floor (Field Dressing trait) ───────────────────
+ // ── Trait heal-per-floor ─────────────────────────────────────
  Delve.traitHealPerFloor = function(){
   const tb = Delve.traitBuffs ? Delve.traitBuffs() : {};
   return tb.healPerFloor || 0;
