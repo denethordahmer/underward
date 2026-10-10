@@ -32,13 +32,12 @@ body{
 }
 .sico{ font-size:13px;line-height:1;flex-shrink:0; }
 .spacer{ flex:1;min-width:4px; }
-#invBtn{
+#invBtn,#minimapBtn,#gearBtn{
   background:#141b23;border:1px solid #7ee0ff44;border-radius:9px;
-  padding:5px 10px;font-size:12px;font-weight:700;color:#7ee0ff;
+  padding:5px 9px;font-size:12px;font-weight:700;color:#7ee0ff;
   font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0;touch-action:manipulation;
 }
-#invBtn:active{ background:#1a2a3a; }
-/* Rest dots */
+#invBtn:active,#minimapBtn:active,#gearBtn:active{ background:#1a2a3a; }
 #restDots{ display:flex;gap:3px;align-items:center;flex-shrink:0; }
 .rest-dot{
   width:7px;height:7px;border-radius:50%;background:#2ad0b0;
@@ -46,29 +45,49 @@ body{
 }
 .rest-dot.used{ background:#1a2a34;border-color:#2a3440; }
 
-/* ── Log: hidden by default, thin tab only ── */
+/* ── Log strip ── */
 #logPanel{
   position:absolute;bottom:0;left:0;right:0;z-index:4;
   height:34px;pointer-events:none;display:none;
   align-items:flex-end;justify-content:flex-end;padding:0 8px 6px;
 }
 #logPanel.active{ display:flex; }
-/* combatLog stays in the DOM (accrues entries) but is never shown inline */
 #logFade{ display:none; }
 #combatLog{ display:none; }
 .log-row{ font-size:11px;line-height:1.7;color:#c0cdd8; }
 #logExpandBtn{
-  position:relative;
-  background:rgba(8,12,16,.72);border:1px solid #2a3440;border-radius:8px;
+  position:relative;background:rgba(8,12,16,.72);border:1px solid #2a3440;border-radius:8px;
   color:#7ee0ff;font-size:12px;font-weight:700;padding:4px 12px;
   cursor:pointer;z-index:5;pointer-events:auto;font-family:inherit;backdrop-filter:blur(4px);
 }
 
-/* ── Combat vignette (red border when in fight) ── */
+/* ── Ability bar ── */
+#abilityBar{
+  position:absolute;left:8px;bottom:26px;z-index:6;
+  display:flex;gap:6px;padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.ability-btn{
+  min-width:76px;background:#141b23;border:1px solid #7ee0ff44;border-radius:10px;
+  padding:7px 10px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  font-family:inherit;color:#d7e3ee;cursor:pointer;text-align:left;touch-action:manipulation;
+}
+.ability-btn:active{ background:#1a2a3a; }
+.ability-btn:disabled{ opacity:.4;cursor:default; }
+.ability-name{ font-size:11px;font-weight:800; }
+.ability-cost{ font-size:10px;color:#7ee0ff;font-weight:700; }
+
+/* ── Minimap ── */
+#minimapWrap{
+  position:absolute;top:52px;right:8px;z-index:7;display:none;
+  background:rgba(8,12,16,.92);border:1px solid #2a3440;border-radius:10px;
+  padding:6px;backdrop-filter:blur(6px);
+}
+#minimap{ display:block;border-radius:6px; }
+
+/* ── Combat vignette ── */
 #combatVignette{
   position:absolute;inset:0;z-index:3;pointer-events:none;
-  box-shadow:inset 0 0 60px rgba(220,60,60,0);
-  transition:box-shadow .2s;
+  box-shadow:inset 0 0 60px rgba(220,60,60,0);transition:box-shadow .2s;
 }
 #combatVignette.active{
   box-shadow:inset 0 0 80px rgba(220,60,60,0.45);
@@ -84,7 +103,7 @@ body{
   position:absolute;inset:0;z-index:10;overflow-y:auto;
   display:flex;flex-direction:column;align-items:center;
   gap:16px;padding:22px 18px calc(22px + env(safe-area-inset-bottom));
-  text-align:center;background:rgba(8,11,15,.96);
+  text-align:center;background:rgba(8,11,15,.97);
 }
 .overlay h1{ font-size:clamp(36px,10vw,58px);letter-spacing:2px;margin:4px 0 0;line-height:1; }
 .overlay h2{ font-size:clamp(22px,6vw,30px);color:#ff9a9a;margin:0; }
@@ -125,13 +144,9 @@ body{
 
 /* ── Inventory screen ── */
 #inventoryScreen{ display:none; }
-.inv-header{
-  display:flex;justify-content:space-between;align-items:center;width:100%;max-width:480px;
-}
+.inv-header{ display:flex;justify-content:space-between;align-items:center;width:100%;max-width:480px; }
 .inv-header h2{ font-size:20px;color:#eafff5;margin:0; }
-#charFigure{
-  position:relative;width:180px;height:220px;flex-shrink:0;
-}
+#charFigure{ position:relative;width:180px;height:220px;flex-shrink:0; }
 #charFigure svg{ width:100%;height:100%; }
 .eq-slot{
   position:absolute;background:#141b23;border:1px dashed #2a3440;border-radius:10px;
@@ -160,8 +175,7 @@ body{
 /* ── Item stat card overlay ── */
 #itemCardOverlay{
   position:absolute;inset:0;z-index:25;
-  background:rgba(0,0,0,.75);display:none;
-  align-items:flex-end;justify-content:center;
+  background:rgba(0,0,0,.75);display:none;align-items:flex-end;justify-content:center;
 }
 #itemCard{
   background:#0e1620;border:1px solid #2a3440;border-radius:20px 20px 0 0;
@@ -173,67 +187,50 @@ body{
 #icTier{ font-size:12px;font-weight:800;letter-spacing:.06em;padding-top:4px; }
 #icFlavour{ font-size:12px;color:#7f94a8;font-style:italic;line-height:1.5; }
 #icStats{ display:flex;flex-direction:column;gap:5px; }
-.ic-stat-row{
-  display:flex;justify-content:space-between;
-  border-bottom:1px solid #1a2530;padding:4px 0;font-size:13px;
-}
+.ic-stat-row{ display:flex;justify-content:space-between;border-bottom:1px solid #1a2530;padding:4px 0;font-size:13px; }
 .ic-stat-label{ color:#9fb3c5; }
 .ic-stat-value{ font-weight:700; }
 #icButtons{ display:flex;gap:10px; }
 #icPrimaryBtn{
   flex:1;background:#1f7a5c;color:#eafff5;border:none;border-radius:12px;
-  padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;
-  font-family:inherit;
+  padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit;
 }
 #icPrimaryBtn:disabled{ background:#2f3d48;color:#83939f;cursor:default; }
 #icSecondaryBtn{
   flex:1;background:#141b23;color:#ff9a9a;border:1px solid #ff9a9a44;border-radius:12px;
-  padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;
-  font-family:inherit;
+  padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit;
 }
 
 /* ── Log window ── */
 #logWindow{
-  position:absolute;inset:0;z-index:20;display:none;
-  flex-direction:column;background:rgba(8,11,15,.97);
-  padding:16px 12px calc(16px + env(safe-area-inset-bottom));
+  position:absolute;inset:0;z-index:20;display:none;flex-direction:column;
+  background:rgba(8,11,15,.97);padding:16px 12px calc(16px + env(safe-area-inset-bottom));
 }
-#logWindowHeader{
-  display:flex;justify-content:space-between;align-items:center;
-  margin-bottom:10px;
-}
+#logWindowHeader{ display:flex;justify-content:space-between;align-items:center;margin-bottom:10px; }
 #logWindowHeader h3{ font-size:17px;font-weight:800;color:#eafff5; }
-#logWindowContent{
-  flex:1;overflow-y:auto;font-size:12px;line-height:1.8;
-  color:#c0cdd8;padding-right:4px;
-}
+#logWindowContent{ flex:1;overflow-y:auto;font-size:12px;line-height:1.8;color:#c0cdd8;padding-right:4px; }
 
 /* ── Stairs prompt ── */
 #stairsPrompt{
-  position:absolute;inset:0;z-index:22;
-  display:none;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.6);
+  position:absolute;inset:0;z-index:22;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);
 }
 #stairsCard{
-  background:#0e1620;border:1px solid #2ad0b066;border-radius:20px;
-  padding:28px 24px;max-width:320px;width:90%;text-align:center;
-  display:flex;flex-direction:column;gap:16px;
+  background:#0e1620;border:1px solid #2ad0b066;border-radius:20px;padding:28px 24px;
+  max-width:320px;width:90%;text-align:center;display:flex;flex-direction:column;gap:16px;
 }
 #stairsCard h3{ font-size:20px;font-weight:900;color:#2ad0b0; }
-#stairsCard p { font-size:14px;color:#a9bccd;line-height:1.5; }
+#stairsCard p{ font-size:14px;color:#a9bccd;line-height:1.5; }
 #stairsButtons{ display:flex;gap:10px; }
 #stairsYes{ flex:1;background:#1f7a5c;color:#eafff5;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit; }
-#stairsNo { flex:1;background:#141b23;color:#ff9a9a;border:1px solid #ff9a9a44;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit; }
+#stairsNo{ flex:1;background:#141b23;color:#ff9a9a;border:1px solid #ff9a9a44;border-radius:12px;padding:14px;font-size:16px;font-weight:800;cursor:pointer;touch-action:manipulation;font-family:inherit; }
 
 /* ── Floor title card ── */
 #floorCard{
-  position:absolute;inset:0;z-index:18;
-  display:none;align-items:center;justify-content:center;
+  position:absolute;inset:0;z-index:18;display:none;align-items:center;justify-content:center;
   pointer-events:none;background:rgba(0,0,0,.55);
 }
 #floorCardInner{
-  border:2px solid #2ad0b066;border-radius:18px;
-  padding:22px 36px;text-align:center;
+  border:2px solid #2ad0b066;border-radius:18px;padding:22px 36px;text-align:center;
   background:rgba(8,14,20,.88);backdrop-filter:blur(8px);
 }
 #floorCardNum{ font-size:clamp(28px,8vw,44px);font-weight:900;color:#2ad0b0;letter-spacing:2px; }
@@ -241,23 +238,90 @@ body{
 
 /* ── Boss intro overlay ── */
 #bossIntroOverlay{
-  position:absolute;inset:0;z-index:19;
-  display:none;align-items:center;justify-content:center;
+  position:absolute;inset:0;z-index:19;display:none;align-items:center;justify-content:center;
   pointer-events:none;background:rgba(0,0,0,.82);
 }
 #bossIntroCard{
-  text-align:center;padding:28px 24px;max-width:340px;
-  border:2px solid #c98aff66;border-radius:18px;
+  text-align:center;padding:28px 24px;max-width:340px;border:2px solid #c98aff66;border-radius:18px;
   background:rgba(12,8,20,.92);backdrop-filter:blur(8px);
 }
 #bossIntroWarning{ font-size:14px;color:#c98aff;font-weight:800;letter-spacing:.1em;margin-bottom:10px; }
-#bossIntroName  { font-size:clamp(28px,8vw,42px);font-weight:900;color:#eafff5;line-height:1; }
-#bossIntroTitle { font-size:14px;color:#c98aff;font-weight:700;margin-top:4px; }
+#bossIntroName{ font-size:clamp(28px,8vw,42px);font-weight:900;color:#eafff5;line-height:1; }
+#bossIntroTitle{ font-size:14px;color:#c98aff;font-weight:700;margin-top:4px; }
 #bossIntroFlavour{ font-size:13px;color:#9fb3c5;font-style:italic;margin-top:14px;line-height:1.6; }
 
-/* ── Hub + death ── */
+/* ── Hub ── */
 #hubScreen{ display:flex; }
+
+/* ── Shop screen ── */
+#shopScreen{ display:none; }
+#shopStock{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
+.shop-item{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  background:#141b23;border:1px solid #2a3440;border-radius:14px;padding:12px 14px;
+}
+.shop-item .si-name{ font-weight:800;font-size:15px;text-align:left; }
+.shop-item .si-desc{ font-size:12px;color:#9fb3c5;text-align:left;margin-top:2px; }
+.shop-buy{ flex-shrink:0; }
+#shopHealBtn{ width:100%;max-width:460px; }
+
+/* ── Victory screen ── */
+#victoryScreen{ display:none; }
+#victoryScreen .overlay-title{ color:#ffd75e; }
+#victorySummary{
+  width:100%;max-width:460px;display:flex;flex-direction:column;gap:6px;
+  background:#141b23;border:1px solid #2a3440;border-radius:16px;padding:16px;
+}
+.victory-row{ display:flex;justify-content:space-between;font-size:14px;padding:2px 0; }
+.victory-row .vr-label{ color:#9fb3c5; }
+.victory-row .vr-value{ font-weight:800; }
+#victoryButtons{ display:flex;flex-direction:column;gap:10px;width:100%;max-width:460px; }
+
+/* ── Death screen (crimson + cracked iron) ── */
 #deathScreen{ display:none; }
+#deathScreen{ background:radial-gradient(ellipse at center, rgba(60,6,10,.98), rgba(10,4,8,.99)); }
+#deathScreen h1{
+  color:#e77a7a;font-family:Georgia,"Times New Roman",serif;letter-spacing:3px;
+  text-shadow:0 0 18px rgba(180,20,30,.7);
+}
+#deathScreen h1::after{
+  content:"";display:block;height:2px;margin:10px auto 0;width:60%;
+  background:linear-gradient(90deg,transparent,#a04040,transparent);
+}
+#deathQuote{ color:#c08a8a;font-style:italic;font-size:14px;max-width:420px; }
+#deathSummary{
+  width:100%;max-width:460px;display:flex;flex-direction:column;gap:6px;
+  background:rgba(20,10,12,.7);border:1px solid #5a2a2a;border-radius:16px;padding:16px;
+  box-shadow:inset 0 0 30px rgba(120,10,20,.25);
+}
+.death-row{ display:flex;justify-content:space-between;font-size:14px;padding:2px 0; }
+.death-row .dr-label{ color:#b07a7a; }
+.death-row .dr-value{ font-weight:800;color:#e8c0c0; }
+
+/* ── Retreat menu ── */
+#retreatMenu{
+  position:absolute;inset:0;z-index:26;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.65);
+}
+#retreatCard{
+  background:#0e1620;border:1px solid #2a3440;border-radius:18px;padding:24px;
+  max-width:320px;width:90%;text-align:center;display:flex;flex-direction:column;gap:14px;
+}
+#retreatCard h3{ font-size:18px;font-weight:900;color:#ff9a9a; }
+#retreatCard p{ font-size:13px;color:#a9bccd;line-height:1.5; }
+
+/* ── Debug panel ── */
+#debugPanel{
+  position:absolute;top:52px;left:8px;z-index:30;display:none;
+  background:rgba(10,14,20,.94);border:1px solid #5a3a10;border-radius:10px;
+  padding:10px;flex-direction:column;gap:6px;max-width:230px;font-size:11px;
+}
+#debugPanel .dbg-row{ display:flex;gap:4px;flex-wrap:wrap;align-items:center; }
+.dbg-btn{
+  background:#1a2530;border:1px solid #2a3d52;border-radius:7px;color:#7ee0ff;
+  font-size:11px;padding:4px 8px;cursor:pointer;font-family:inherit;touch-action:manipulation;
+}
+.dbg-btn:active{ background:#22303c; }
+#debugPanel select{ background:#141b23;color:#d7e3ee;border:1px solid #2a3440;border-radius:6px;font-size:11px;padding:3px; }
 </style>
 </head>
 <body>
@@ -266,6 +330,7 @@ body{
 
   <div id="combatVignette"></div>
 
+  <!-- HUD -->
   <div id="hud" style="display:none">
     <span class="stat"><span class="sico">❤️</span><span id="hudHp">30/30</span></span>
     <span class="stat"><span class="sico">⚔️</span><span id="hudAtk">6</span></span>
@@ -273,19 +338,30 @@ body{
     <span class="stat"><span class="sico">👟</span><span id="hudAgi">4%</span></span>
     <span class="stat"><span class="sico">🍀</span><span id="hudLuc">1</span></span>
     <span class="stat"><span class="sico">🗺️</span><span id="hudFloor">1</span></span>
+    <span class="stat"><span class="sico">⚡</span><span id="hudEnergy">10</span></span>
     <span class="spacer"></span>
     <div id="restDots"></div>
     <span class="stat"><span class="sico">💰</span><span id="hudGold">0</span></span>
     <span class="stat"><span class="sico">💎</span><span id="hudShards">0</span></span>
+    <button id="minimapBtn">📍</button>
+    <button id="gearBtn">⚙</button>
     <button id="invBtn">🎒 Bag</button>
   </div>
 
+  <!-- Ability bar -->
+  <div id="abilityBar"></div>
+
+  <!-- Minimap -->
+  <div id="minimapWrap"><canvas id="minimap" width="170" height="170"></canvas></div>
+
+  <!-- Log strip -->
   <div id="logPanel">
     <button id="logExpandBtn">📜 Log</button>
     <div id="logFade"></div>
     <div id="combatLog"></div>
   </div>
 
+  <!-- Floor title card -->
   <div id="floorCard">
     <div id="floorCardInner">
       <div id="floorCardNum">Floor 1</div>
@@ -293,6 +369,7 @@ body{
     </div>
   </div>
 
+  <!-- Boss intro -->
   <div id="bossIntroOverlay">
     <div id="bossIntroCard">
       <div id="bossIntroWarning">⚠ WARD BOSS</div>
@@ -302,6 +379,7 @@ body{
     </div>
   </div>
 
+  <!-- Stairs confirm -->
   <div id="stairsPrompt">
     <div id="stairsCard">
       <h3>▼ Descend?</h3>
@@ -313,13 +391,11 @@ body{
     </div>
   </div>
 
+  <!-- Item stat card -->
   <div id="itemCardOverlay">
     <div id="itemCard">
       <div id="icHeader">
-        <div>
-          <div id="icName">Item Name</div>
-          <div id="icTier">Common</div>
-        </div>
+        <div><div id="icName">Item Name</div><div id="icTier">Common</div></div>
         <button class="close-btn" id="icCloseBtn">✕</button>
       </div>
       <div id="icFlavour"></div>
@@ -331,19 +407,15 @@ body{
     </div>
   </div>
 
+  <!-- Log window -->
   <div id="logWindow">
-    <div id="logWindowHeader">
-      <h3>📜 Combat Log</h3>
-      <button class="close-btn" id="logWindowClose">✕</button>
-    </div>
+    <div id="logWindowHeader"><h3>📜 Combat Log</h3><button class="close-btn" id="logWindowClose">✕</button></div>
     <div id="logWindowContent"></div>
   </div>
 
+  <!-- Inventory -->
   <div id="inventoryScreen" class="overlay">
-    <div class="inv-header">
-      <h2>🎒 Inventory</h2>
-      <button class="close-btn" id="invCloseBtn2">✕</button>
-    </div>
+    <div class="inv-header"><h2>🎒 Inventory</h2><button class="close-btn" id="invCloseBtn2">✕</button></div>
     <div id="charFigure">
       <svg viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
         <circle cx="90" cy="36" r="22" fill="#1a2532" stroke="#2a3d52" stroke-width="2"/>
@@ -362,12 +434,37 @@ body{
     <div id="invCarriedGrid"></div>
   </div>
 
+  <!-- Level-up -->
   <div id="levelupScreen" class="overlay">
     <h1>LEVEL UP</h1>
     <p class="sub">Choose a trait.</p>
     <div id="levelupChoices"></div>
   </div>
 
+  <!-- Shop -->
+  <div id="shopScreen" class="overlay">
+    <h1 class="overlay-title">🛒</h1>
+    <h1 style="font-size:clamp(26px,7vw,40px)">Trading Post</h1>
+    <p class="sub" id="shopGreeting"></p>
+    <div class="walletbar">💰 <span id="shopGold">0</span></div>
+    <div id="shopStock"></div>
+    <button class="btn-ghost" id="shopHealBtn">❤️ Restore 50% HP</button>
+    <button class="btn big" id="shopLeaveBtn">Leave</button>
+  </div>
+
+  <!-- Victory -->
+  <div id="victoryScreen" class="overlay">
+    <h1 class="overlay-title">WARD CLEARED</h1>
+    <p class="sub">The Warden lies broken at your feet. The way deeper yawns open.</p>
+    <div class="walletbar">💎 +<span id="victoryShards">0</span> shards banked</div>
+    <div id="victorySummary"></div>
+    <div id="victoryButtons">
+      <button class="btn big" id="victoryContinue">Descend deeper</button>
+      <button class="btn-ghost" id="victoryHub">Return to Hub</button>
+    </div>
+  </div>
+
+  <!-- Hub -->
   <div id="hubScreen" class="overlay">
     <h1>underward</h1>
     <p class="sub">Earn shards. Spend them on attributes. Go deeper.</p>
@@ -376,11 +473,60 @@ body{
     <button class="btn big" id="startBtn">START RUN</button>
   </div>
 
+  <!-- Death -->
   <div id="deathScreen" class="overlay">
     <h1>YOU DIED</h1>
+    <div id="deathQuote"></div>
     <h2 id="deathInfo"></h2>
+    <div id="deathSummary"></div>
     <div class="walletbar"><span class="sico">💎</span><span id="deathShards">0</span></div>
     <button class="btn big" id="deathBtn">BACK TO HUB</button>
+  </div>
+
+  <!-- Retreat menu -->
+  <div id="retreatMenu">
+    <div id="retreatCard">
+      <h3>Flee to the surface?</h3>
+      <p>Your run ends, and carried gold is converted to shards at 10:1.</p>
+      <div style="display:flex;gap:10px">
+        <button class="btn" id="retreatYes">Flee</button>
+        <button class="btn-ghost" id="retreatNo">Stay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug panel -->
+  <div id="debugPanel">
+    <div class="dbg-row">
+      <select id="dbgFloor">
+        <option value="1">Floor 1</option><option value="3">Floor 3</option>
+        <option value="5">Floor 5 (shop)</option><option value="7">Floor 7</option>
+        <option value="9">Floor 9 (elites)</option><option value="10">Floor 10 (boss)</option>
+      </select>
+      <button class="dbg-btn" id="dbgGo">Go</button>
+    </div>
+    <div class="dbg-row">
+      <button class="dbg-btn" id="dbgGold">+25g</button>
+      <button class="dbg-btn" id="dbgShards">+5◇</button>
+      <button class="dbg-btn" id="dbgHeal">Full HP</button>
+      <button class="dbg-btn" id="dbgLowHp">5 HP</button>
+    </div>
+    <div class="dbg-row">
+      <button class="dbg-btn" id="dbgPoison">Poison</button>
+      <button class="dbg-btn" id="dbgBleed">Bleed</button>
+      <button class="dbg-btn" id="dbgWeaken">Weaken</button>
+      <button class="dbg-btn" id="dbgElite">Elite</button>
+    </div>
+    <div class="dbg-row">
+      <button class="dbg-btn" id="dbgXP">+XP</button>
+      <button class="dbg-btn" id="dbgShop">Shop</button>
+      <button class="dbg-btn" id="dbgVictory">Victory</button>
+      <button class="dbg-btn" id="dbgDeath">Death</button>
+    </div>
+    <div class="dbg-row">
+      <button class="dbg-btn" id="dbgDump">Dump stats</button>
+      <button class="dbg-btn" id="dbgReset">Reset save</button>
+    </div>
   </div>
 </div>
 
@@ -394,6 +540,7 @@ body{
 <script src="js/levels.js"></script>
 <script src="js/traits.js"></script>
 <script src="js/combat.js"></script>
+<script src="js/effects.js"></script>
 <script src="js/log.js"></script>
 <script src="js/render.js"></script>
 <script src="js/pathfind.js"></script>
