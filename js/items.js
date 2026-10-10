@@ -115,6 +115,7 @@ window.Delve = window.Delve || {};
 
  // ── Pickup with capacity enforcement ──────────────────────────
  Delve.pickupItem = function(item){
+  if(Delve.sfx) Delve.sfx("pickup");
   const G = Delve.G;
   if(!G.inventory) G.inventory = [];
   if(G.inventory.length >= Delve.inventoryCap()){
