@@ -193,6 +193,10 @@ window.Delve = window.Delve || {};
  } else if(cell===T().STAIR){
  Delve.promptStairs();
  } else {
+ // Walking onto a barrel smashes it
+ if(cell===T().BARREL){
+ Delve.smashBarrel(tx, ty);
+ }
  G.px=tx; G.py=ty;
  Delve.collectGold(tx, ty);
  const idx=G.items.findIndex(i=>i.x===tx&&i.y===ty);
@@ -227,11 +231,36 @@ window.Delve = window.Delve || {};
  } else if(cell===T().STAIR){
  G._path=null; Delve.promptStairs();
  } else {
+ if(cell===T().BARREL){
+ Delve.smashBarrel(tx, ty);
+ }
  G.px=tx; G.py=ty;
  Delve.collectGold(tx, ty);
  const idx=G.items.findIndex(i=>i.x===tx&&i.y===ty);
  if(idx>=0){ const it=G.items.splice(idx,1)[0]; Delve.pickupItem(it); }
  Delve.enemiesTurn();
+ }
+ Delve.updateHUD();
+ };
+
+ // ── Smash barrel (step onto it) ─────────────────────────────
+ Delve.smashBarrel = function(tx, ty){
+ const G=Delve.G;
+ const roll = Math.random();
+ let gold = 0;
+ if(roll < 0.35) gold = Delve.rng(1,4);
+ else if(roll < 0.55) gold = Delve.rng(4,8);
+
+ if(G.grid[ty] && G.grid[ty][tx]===T().BARREL) G.grid[ty][tx]=T().FLOOR;
+ Delve.addShake(1);
+
+ if(gold>0){
+ G.gold += gold;
+ Delve.addFloater("+" + gold + "g", tx, ty, "#ffd75e");
+ if(Delve.logSystem) Delve.logSystem("Barrel smashed! +" + gold + " gold");
+ } else {
+ Delve.addFloater("empty", tx, ty, "#9fb3c5");
+ if(Delve.logSystem) Delve.logSystem("Barrel smashed — empty.");
  }
  Delve.updateHUD();
  };
