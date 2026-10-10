@@ -43,18 +43,12 @@ window.Delve = window.Delve || {};
   return best;
  }
 
- // Torch flicker state — cycles every ~400ms through 3 frames
- let torchFrame = 0;
- let torchLast = 0;
- setInterval(function(){ torchFrame = (torchFrame + 1) % 3; }, 400);
-
  // ── Hash helpers ─────────────────────────────────────────────
  function hash2(x, y){
   let n = x*374761393 + y*668265263;
   n = (n ^ (n>>13)) * 1274126177;
   return ((n ^ (n>>16)) >>> 0) / 4294967295;
  }
- // Secondary hash so one tile can roll multiple independent values
  function hash3(x, y, salt){
   return hash2(x * 2053 + salt, y * 3571 + salt * 7);
  }
@@ -90,13 +84,11 @@ window.Delve = window.Delve || {};
   const n3 = hash3(gx, gy, 31);
   const n4 = hash3(gx, gy, 53);
 
-  // ── Slab base: two-tone checker with occasional water-darkened slab
   let slabCol = ((gx + gy) % 2 === 0) ? b.floor : b.floor2;
   if(n3 < 0.05){
    slabCol = blendHex(slabCol, "#0a0e12", 0.35);
   }
 
-  // Inset flagstone: fill background (mortar) then draw slab face inset by ~2px
   const mortar = 2;
   ctx.fillStyle = b.wallBrick;
   ctx.fillRect(sx, sy, ts, ts);
@@ -110,7 +102,6 @@ window.Delve = window.Delve || {};
   ctx.fillRect(sx + ts - mortar - 2, sy + mortar, 2, ts - mortar*2);
   ctx.fillRect(sx + mortar, sy + ts - mortar - 2, ts - mortar*2, 2);
 
-  // ── Chipped corner (~8% of tiles)
   if(n2 < 0.08){
    const corner = Math.floor(n2 / 0.02) % 4;
    const cs = Math.max(3, Math.floor(ts * 0.18));
@@ -121,7 +112,6 @@ window.Delve = window.Delve || {};
    if(corner === 3) ctx.fillRect(sx + ts - mortar - cs, sy + ts - mortar - cs, cs, cs);
   }
 
-  // ── 10 crack varieties (~18% of tiles)
   if(n > 0.82){
    const crackType = Math.floor(hash3(gx, gy, 7) * 10);
    ctx.save();
@@ -170,7 +160,6 @@ window.Delve = window.Delve || {};
    ctx.restore();
   }
 
-  // ── Puddle (~3% of tiles)
   if(n4 < 0.03){
    ctx.save();
    ctx.globalAlpha = 0.55;
@@ -192,7 +181,6 @@ window.Delve = window.Delve || {};
    ctx.restore();
   }
 
-  // ── Weeds / growth (~6% of non-crack tiles)
   const weedRoll = hash3(gx, gy, 43);
   if(weedRoll < 0.06 && n <= 0.82){
    const weedType = Math.floor(hash3(gx, gy, 47) * 6);
@@ -200,7 +188,6 @@ window.Delve = window.Delve || {};
   }
  }
 
- // ── WEED / GROWTH DRAWINGS ────────────────────────────────────
  function drawWeed(ctx, sx, sy, ts, gx, gy, b, type){
   ctx.save();
   ctx.globalAlpha = 0.72;
@@ -330,7 +317,8 @@ window.Delve = window.Delve || {};
   ctx.fillRect(sx, sy + ts - 2, ts, 2);
  }
 
- // ── WALL TORCH ───────────────────────────────────────────────
+ // ── WALL TORCH — flame flicker driven by slow interval ──────
+ let torchFrame = 0;
  function drawWallTorch(ctx, sx, sy, ts, b){
   const flicker = [
    { h:0.22, w:0.10, a:0.90 },
@@ -391,7 +379,6 @@ window.Delve = window.Delve || {};
 
  // ── STAIRS (carved stone steps, descending) ──────────────────
  function drawStairs(ctx, sx, sy, ts, b){
-  // stone slab base (matches floor material)
   ctx.fillStyle = b.wallBrick;
   ctx.fillRect(sx, sy, ts, ts);
   ctx.fillStyle = b.floor2;
@@ -402,15 +389,12 @@ window.Delve = window.Delve || {};
   const stepH = inner / steps;
   for(let i = 0; i < steps; i++){
    const y0 = sy + 2 + i*stepH;
-   // darker toward the bottom = descending into the floor
    const t = 0.12 + i*0.18;
    ctx.fillStyle = blendHex(b.floor2, "#05070a", t);
    ctx.fillRect(sx+2, y0, inner, stepH);
-   // leading edge catch-light on each step
    ctx.fillStyle = "rgba(255,255,255,0.07)";
    ctx.fillRect(sx+2, y0, inner, 1);
   }
-  // deep shadow at the bottom of the stairwell
   ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.fillRect(sx+2, sy+ts-4, inner, 2);
  }
@@ -522,7 +506,6 @@ window.Delve = window.Delve || {};
   floaters = alive;
  }
 
- // ── Hex colour blend helper ──────────────────────────────────
  function blendHex(hex, hex2, t){
   const p = c => parseInt(c, 16);
   const r1=p(hex.slice(1,3)), g1=p(hex.slice(3,5)), b1=p(hex.slice(5,7));
@@ -556,6 +539,8 @@ window.Delve = window.Delve || {};
    ox = (Math.random()-0.5)*shakeMag;
    oy = (Math.random()-0.5)*shakeMag;
    shakeT--;
+  } else {
+   shakeMag = 0;
   }
 
   ctx.save();
@@ -563,7 +548,6 @@ window.Delve = window.Delve || {};
   ctx.fillStyle = "#06090d";
   ctx.fillRect(-10, -10, W+20, H+20);
 
-  // ── Pass 1: floor tiles
   for(let y = 0; y < vh+1; y++){
    for(let x = 0; x < vw+1; x++){
     const gx = camX+x, gy = camY+y;
@@ -577,7 +561,6 @@ window.Delve = window.Delve || {};
    }
   }
 
-  // ── Pass 2: wall tiles
   for(let y = 0; y < vh+1; y++){
    for(let x = 0; x < vw+1; x++){
     const gx = camX+x, gy = camY+y;
@@ -586,10 +569,8 @@ window.Delve = window.Delve || {};
     const sx = x*ts, sy = y*ts;
     drawWallTile(ctx, sx, sy, ts, gx, gy, b);
 
-    // Secret room false wall twinkle
     const fd = G.floorData;
-    if(fd && fd.secretRoom &&
-       fd.secretRoom.falseWallX === gx && fd.secretRoom.falseWallY === gy){
+    if(fd && fd.secretRoom && fd.secretRoom.falseWallX === gx && fd.secretRoom.falseWallY === gy){
      const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003);
      ctx.save();
      ctx.globalAlpha = pulse * 0.55;
@@ -599,18 +580,13 @@ window.Delve = window.Delve || {};
      ctx.fill();
      ctx.restore();
     }
-    // Torch: ~4% of wall tiles that have a floor tile directly below
     const tBelow = tileAt(gx, gy+1);
     if(tBelow !== null && tBelow !== T.WALL){
-     const torchRoll = hash3(gx, gy, 137);
-     if(torchRoll < 0.04){
-      drawWallTorch(ctx, sx, sy, ts, b);
-     }
+     if(hash3(gx, gy, 137) < 0.04) drawWallTorch(ctx, sx, sy, ts, b);
     }
    }
   }
 
-  // ── Path destination highlight
   if(G._path && G._path.length > 0){
    const dest = G._path[G._path.length - 1];
    if(dest.x >= camX && dest.y >= camY && dest.x < camX+vw && dest.y < camY+vh){
@@ -623,7 +599,6 @@ window.Delve = window.Delve || {};
    }
   }
 
-  // ── Adjacency highlights
   const adj = [[0,1],[0,-1],[1,0],[-1,0]];
   for(const d of adj){
    const gx = G.px+d[0], gy = G.py+d[1];
@@ -643,32 +618,26 @@ window.Delve = window.Delve || {};
    ctx.strokeRect(sx+1, sy+1, ts-2, ts-2);
   }
 
-  // ── Items
   for(const it of (G.items || [])){
    if(it.x < camX || it.y < camY || it.x >= camX+vw || it.y >= camY+vh) continue;
    drawItem(ctx, it, (it.x-camX)*ts + ts/2, (it.y-camY)*ts + ts/2, ts);
   }
 
-  // ── Decor
   const decor = (G.floorData && G.floorData.decor) || [];
   for(const d of decor){
    if(d.x < camX || d.y < camY || d.x >= camX+vw || d.y >= camY+vh) continue;
    drawTreasure(ctx, d.thing, (d.x-camX)*ts + ts/2, (d.y-camY)*ts + ts/2, ts);
   }
 
-  // ── Monsters
   for(const m of G.monsters){
    if(m.x < camX || m.y < camY || m.x >= camX+vw || m.y >= camY+vh) continue;
    drawMob(ctx, m, (m.x-camX)*ts + ts/2, (m.y-camY)*ts + ts/2, ts);
   }
 
-  // ── Boss
-  if(G.boss && G.boss.x >= camX && G.boss.y >= camY &&
-     G.boss.x < camX+vw && G.boss.y < camY+vh){
+  if(G.boss && G.boss.x >= camX && G.boss.y >= camY && G.boss.x < camX+vw && G.boss.y < camY+vh){
    drawMob(ctx, G.boss, (G.boss.x-camX)*ts + ts/2, (G.boss.y-camY)*ts + ts/2, ts);
   }
 
-  // ── Player
   const pSX = (G.px-camX)*ts, pSY = (G.py-camY)*ts;
   const pHurt = G.playerHit && Date.now() - G.playerHit < 150;
   let prx = 0, pry = 0;
@@ -683,10 +652,8 @@ window.Delve = window.Delve || {};
   }
   drawPlayer(ctx, pSX+ts/2, pSY+ts/2, ts, pHurt, prx, pry);
 
-  // ── Floaters
   drawFloaters(ctx, camX, camY, ts);
 
-  // ── Vignette
   const vig = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.8);
   vig.addColorStop(0, "rgba(0,0,0,0)");
   vig.addColorStop(1, "rgba(0,0,0,0.45)");
@@ -695,7 +662,6 @@ window.Delve = window.Delve || {};
 
   ctx.restore();
 
-  // ── Flash message
   if(G.msg && Date.now() < G.msgUntil){
    ctx.font = "700 16px system-ui, sans-serif";
    ctx.textAlign = "center";
@@ -706,19 +672,22 @@ window.Delve = window.Delve || {};
   }
  };
 
- Delve.addFloater = function(txt, x, y, col){
+ Delve.addFloater = function(txt, x, y){
   const sameSpot = floaters.filter(f => f.x === x && f.y === y).length;
-  floaters.push({ txt, x, y: y + sameSpot*0.5, col, born: Date.now() });
+  floaters.push({ txt, x, y: y + sameSpot*0.5, born: Date.now() });
  };
  Delve.addShake = function(mag){
   shakeMag = Math.max(shakeMag, mag);
   shakeT = 6;
  };
 
- // ── Continuous rAF loop — floaters + torch flicker
- (function loop(){
-  if(Delve.G) Delve.draw();
-  requestAnimationFrame(loop);
- })();
+ // ── Torch flicker on a slow interval (NOT a full rAF loop) ──
+ setInterval(function(){
+  torchFrame = (torchFrame + 1) % 3;
+  // Redraw only if we're actively in a run and no menu is open
+  if(Delve.G && !Delve.G.dead && !document.getElementById("inventoryScreen").style.display.match(/flex/)){
+   Delve.draw();
+  }
+ }, 400);
 
 })();
