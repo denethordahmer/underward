@@ -783,10 +783,22 @@ window.Delve = window.Delve || {};
  });
 
  $("gearBtn").addEventListener("click", function(){
-  if(Delve.G && !Delve.G.runEnded) $("retreatMenu").style.display = "flex";
+  if(Delve.G && !Delve.G.runEnded) $("pauseMenu").style.display = "flex";
  });
- $("retreatYes").addEventListener("click", function(){ $("retreatMenu").style.display = "none"; Delve.retreat(); });
- $("retreatNo").addEventListener("click", function(){ $("retreatMenu").style.display = "none"; });
+ $("pauseCloseBtn").addEventListener("click", function(){ $("pauseMenu").style.display = "none"; });
+ $("pauseRetreatBtn").addEventListener("click", function(){
+  $("pauseMenu").style.display = "none";
+  Delve.retreat();
+ });
+ // Mute toggle
+ $("muteBtn").addEventListener("click", function(){
+  const muted = Delve.sfxToggleMute ? Delve.sfxToggleMute() : false;
+  $("muteBtn").textContent = muted ? "🔇" : "🔊";
+ });
+ // Volume slider
+ $("volumeSlider").addEventListener("input", function(){
+  if(Delve.sfxSetVolume) Delve.sfxSetVolume(parseFloat(this.value));
+ });
 
  $("shopHealBtn").addEventListener("click", doShopHeal);
  $("shopLeaveBtn").addEventListener("click", closeShop);
