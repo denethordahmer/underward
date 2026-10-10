@@ -135,134 +135,132 @@ window.Delve = window.Delve || {};
    }
   }
 
-  // barrels
-  const barrelCount = Delve.rng(3, 7);
-  const openTiles = [];
-  for(let y=1; y<G.gridH-1; y++){
-   for(let x=1; x<G.gridW-1; x++){
-    if(G.grid[y][x] === T().FLOOR && Delve.mdist(x,y,G.px,G.py) > 4) openTiles.push({x,y});
-   }
+ // barrels
+ const barrelCount = Delve.rng(3, 7);
+ const openTiles = [];
+ for(let by=1; by<G.gridH-1; by++){
+  for(let bx=1; bx<G.gridW-1; bx++){
+   if(G.grid[by][bx] === T().FLOOR && Delve.mdist(bx,by,G.px,G.py) > 4) openTiles.push({x:bx,y:by});
   }
-  for(let i=0; i<barrelCount && openTiles.length; i++){
-   const pick = openTiles.splice(Math.floor(Math.random()*openTiles.length), 1)[0];
-   if(G.grid[pick.y][pick.x] !== T().FLOOR) continue;
-   G.barrels.push({ x:pick.x, y:pick.y });
-   G.grid[pick.y][pick.x] = T().BARREL;
-  }
+ }
+ for(let i=0; i<barrelCount && openTiles.length>0; i++){
+  const pick = openTiles.splice(Math.floor(Math.random()*openTiles.length), 1)[0];
+  if(G.grid[pick.y][pick.x] !== T().FLOOR) continue;
+  G.barrels.push({ x:pick.x, y:pick.y });
+  G.grid[pick.y][pick.x] = T().BARREL;
+ }
 
-  // chests
-  const ward2 = ward;
-  const chestChance = Delve.hasProgression && Delve.hasProgression("sealed_cache") ? 1
-   : Math.min(ward2.treasureChanceCap || 0.45, (ward2.treasureChanceBase || 0.14) + (ward2.treasureChanceLuck || 0.018) * Delve.luckPts());
-  let chestsWanted = (Math.random() < chestChance) ? 1 : 0;
-  const spots = openTiles.length ? openTiles : [];
-  for(let c=0; c<chestsWanted && spots.length; c++){
-   const s = spots.splice(Math.floor(Math.random()*spots.length), 1)[0];
-   if(G.grid[s.y][s.x] !== T().FLOOR) continue;
+ // chests
+ const ward2 = ward;
+ const chestChance = (Delve.hasProgression && Delve.hasProgression("sealed_cache")) ? 1
+  : Math.min(ward2.treasureChanceCap || 0.45, (ward2.treasureChanceBase || 0.14) + (ward2.treasureChanceLuck || 0.018) * Delve.luckPts());
+ if(Math.random() < chestChance && openTiles.length > 0){
+  const s = openTiles.splice(Math.floor(Math.random()*openTiles.length), 1)[0];
+  if(G.grid[s.y][s.x] === T().FLOOR){
    G.grid[s.y][s.x] = T().CHEST;
    G.chests.push({ x:s.x, y:s.y, open:false });
   }
-
-  // normal monsters
-  const band = Delve.getMonsterBand(G.floor);
-  const count = Delve.rng(band.countMin || 10, band.countMax || 14);
-  let spawned = 0;
-  for(let i=0; i<count && spots.length; i++){
-   const s = spots.splice(Math.floor(Math.random()*spots.length), 1)[0];
-   if(G.grid[s.y][s.x] !== T().FLOOR) continue;
-   if(spawnMonster(G, s.x, s.y, band)) spawned++;
-  }
-
-  // elite
-  if(G.floor >= (cfg.elite.minFloor||3) && G.floor <= (cfg.elite.maxFloor||9)){
-   if(Math.random() < (cfg.elite.chance||0.10)){
-    const m = G.monsters.find(function(x){ return x && !x.elite; });
-    if(m) Delve.makeElite(m);
-   }
-  }
-
-  // secret room (false wall + hidden chest behind)
-  const secretChance = Math.min(ward2.secretRoomChanceCap || 0.70,
-   (ward2.secretRoomChanceBase || 0.20) + (ward2.secretRoomChanceLuck || 0.04) * Delve.luckPts());
-  if(Math.random() < secretChance * 0.30){
-   const adjWalls = [];
-   for(let y=1; y<G.gridH-1; y++){
-    for(let x=1; x<G.gridW-1; x++){
-     if(G.grid[y][x] === T().WALL){
-      if(G.grid[y-1][x] === T().FLOOR || G.grid[y+1][x] === T().FLOOR ||
-         G.grid[y][x-1] === T().FLOOR || G.grid[y][x+1] === T().FLOOR){
-       adjWalls.push({x,y});
-      }
-     }
-    }
-   }
-   if(adjWalls.length){
-    const w = adjWalls[Math.floor(Math.random()*adjWalls.length)];
-    for(let yy=w.y-1; yy<=w.y+1; yy++){
-     for(let xx=w.x-1; xx<=w.x+1; xx++){
-      if(G.grid[yy] && G.grid[yy][xx] === T().WALL) G.grid[yy][xx] = T().FLOOR;
-     }
-    }
-    G.grid[w.y][w.x] = T().CHEST;
-    G.chests.push({ x:w.x, y:w.y, open:false, secret:true });
-    G.floorData = G.floorData || {};
-    G.floorData.secretRoom = { falseWallX:w.x, falseWallY:w.y };
-   }
-  }
- };
-
- // ── Monster spawn helper ─────────────────────────────────────
- function spawnMonster(G, x, y, band){
-  if(Delve.mdist(x,y,G.px,G.py) < 3) return null;
-  if(G.grid[y][x] !== T().FLOOR) return null;
-  const kind = Delve.pickWeighted(band.weights);
-  if(!kind) return null;
-  const row = C().MONSTER_ROSTER[kind] || C().MONSTER_ROSTER.goblin;
-  const m = {
-   id:"m"+Date.now()+"_"+Math.floor(Math.random()*99999),
-   kind: row.kind, name: row.name,
-   x:x, y:y,
-   maxHp: row.hp + Math.floor((G.floor-1) * row.hpPerFloor),
-   atk: row.atk + Math.floor(G.floor * row.atkPerFloor),
-   speed: row.speed,
-   xp: row.xp, shards: row.shards, gold: row.gold,
-   effects: [], elite: false, hasActed: false
-  };
-  m.hp = m.maxHp;
-  G.monsters.push(m);
-  G.grid[y][x] = T().MONSTER;
-  return m;
  }
 
- // ── Chest loot ───────────────────────────────────────────────
- Delve.openChest = function(x, y){
-  const G = Delve.G;
-  const chest = G.chests.find(function(c){ return c.x===x && c.y===y; });
-  if(!chest || chest.open) return;
-  chest.open = true;
-  G.grid[y][x] = T().FLOOR;
-  if(Delve.logSystem) Delve.logSystem("You open a chest.");
-  const source = chest.secret ? { kind:"secret" } : { kind:"chest" };
-  const roll = Math.random();
-  if(roll < 0.45){
-   let tier = Delve.rollTier(G.floor);
-   if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
-   const it = Delve.makeItem(tier);
-   it.x = x; it.y = y;
-   Delve.stampProvenance(it, source);
-   G.items.push(it);
-  } else if(roll < 0.8){
-   Delve.dropPotion(x, y, 2, source);
-  } else {
-   const mult = Delve.goldMult ? Delve.goldMult() : 1;
-   const gold = Math.round((15 + Math.floor(Math.random()*10) + G.floor*2) * mult);
-   G.gold += gold;
-   Delve.recordStat("goldEarned", gold);
-   Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
-   if(Delve.logSystem) Delve.logSystem("Chest contained " + gold + " gold.");
-  }
-  Delve.updateHUD();
-  Delve.draw();
- };
+ // normal monsters
+ const band = Delve.getMonsterBand(G.floor);
+ const count = Delve.rng(band.countMin || 10, band.countMax || 14);
+ for(let i=0; i<count && openTiles.length>0; i++){
+  const s = openTiles.splice(Math.floor(Math.random()*openTiles.length), 1)[0];
+  if(G.grid[s.y][s.x] !== T().FLOOR) continue;
+  spawnMonster(G, s.x, s.y, band);
+ }
 
-})();  // markRunTrait hook stays inside progression.js; traits.js calls it as-is
+ // elite
+ if(G.floor >= (cfg.elite.minFloor||3) && G.floor <= (cfg.elite.maxFloor||9)){
+  if(Math.random() < (cfg.elite.chance||0.10)){
+   const m = G.monsters.find(function(x){ return x && !x.elite; });
+   if(m) Delve.makeElite(m);
+  }
+ }
+
+ // secret room (false wall + hidden chest behind)
+ const secretChance = Math.min(ward2.secretRoomChanceCap || 0.70,
+  (ward2.secretRoomChanceBase || 0.20) + (ward2.secretRoomChanceLuck || 0.04) * Delve.luckPts());
+ if(Math.random() < secretChance * 0.30){
+  const adjWalls = [];
+  for(let y=1; y<G.gridH-1; y++){
+   for(let x=1; x<G.gridW-1; x++){
+    if(G.grid[y][x] === T().WALL){
+     if(G.grid[y-1][x] === T().FLOOR || G.grid[y+1][x] === T().FLOOR ||
+        G.grid[y][x-1] === T().FLOOR || G.grid[y][x+1] === T().FLOOR){
+      adjWalls.push({x,y});
+     }
+    }
+   }
+  }
+  if(adjWalls.length){
+   const w = adjWalls[Math.floor(Math.random()*adjWalls.length)];
+   for(let yy=w.y-1; yy<=w.y+1; yy++){
+    for(let xx=w.x-1; xx<=w.x+1; xx++){
+     if(G.grid[yy] && G.grid[yy][xx] === T().WALL) G.grid[yy][xx] = T().FLOOR;
+    }
+   }
+   G.grid[w.y][w.x] = T().CHEST;
+   G.chests.push({ x:w.x, y:w.y, open:false, secret:true });
+   G.floorData = G.floorData || {};
+   G.floorData.secretRoom = { falseWallX:w.x, falseWallY:w.y };
+  }
+ }
+};
+
+// ── Monster spawn helper ─────────────────────────────────────
+function spawnMonster(G, x, y, band){
+ if(Delve.mdist(x,y,G.px,G.py) < 3) return null;
+ if(G.grid[y][x] !== T().FLOOR) return null;
+ const kind = Delve.pickWeighted(band.weights);
+ if(!kind) return null;
+ const row = C().MONSTER_ROSTER[kind] || C().MONSTER_ROSTER.goblin;
+ const m = {
+  id:"m"+Date.now()+"_"+Math.floor(Math.random()*99999),
+  kind: row.kind, name: row.name,
+  x:x, y:y,
+  maxHp: row.hp + Math.floor((G.floor-1) * row.hpPerFloor),
+  atk: row.atk + Math.floor(G.floor * row.atkPerFloor),
+  speed: row.speed,
+  xp: row.xp, shards: row.shards, gold: row.gold,
+  effects: [], elite: false, hasActed: false
+ };
+ m.hp = m.maxHp;
+ G.monsters.push(m);
+ G.grid[y][x] = T().MONSTER;
+ return m;
+}
+
+// ── Chest loot ───────────────────────────────────────────────
+Delve.openChest = function(x, y){
+ const G = Delve.G;
+ const chest = G.chests.find(function(c){ return c.x===x && c.y===y; });
+ if(!chest || chest.open) return;
+ chest.open = true;
+ G.grid[y][x] = T().FLOOR;
+ if(Delve.logSystem) Delve.logSystem("You open a chest.");
+ const source = chest.secret ? { kind:"secret" } : { kind:"chest" };
+ const roll = Math.random();
+ if(roll < 0.45){
+  let tier = Delve.rollTier(G.floor);
+  if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
+  const it = Delve.makeItem(tier);
+  it.x = x; it.y = y;
+  Delve.stampProvenance(it, source);
+  G.items.push(it);
+ } else if(roll < 0.8){
+  Delve.dropPotion(x, y, 2, source);
+ } else {
+  const mult = Delve.goldMult ? Delve.goldMult() : 1;
+  const gold = Math.round((15 + Math.floor(Math.random()*10) + G.floor*2) * mult);
+  G.gold += gold;
+  Delve.recordStat("goldEarned", gold);
+  Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
+  if(Delve.logSystem) Delve.logSystem("Chest contained " + gold + " gold.");
+ }
+ Delve.updateHUD();
+ Delve.draw();
+};
+
+})();
