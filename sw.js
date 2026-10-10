@@ -1,10 +1,8 @@
-const CACHE = "underward-v10";
+const CACHE = "underward-v12";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
   "./js/config.js",
   "./js/save.js",
   "./js/attrs.js",
@@ -15,15 +13,26 @@ const ASSETS = [
   "./js/levels.js",
   "./js/traits.js",
   "./js/combat.js",
+  "./js/log.js",
   "./js/render.js",
+  "./js/pathfind.js",
   "./js/input.js",
   "./js/ui.js",
   "./js/main.js"
 ];
 
+const ICONS = [
+  "./icons/icon-192.png",
+  "./icons/icon-512.png"
+];
+
 self.addEventListener("install", e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c =>
+      c.addAll(ASSETS).then(() =>
+        Promise.allSettled(ICONS.map(url => c.add(url)))
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
