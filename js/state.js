@@ -56,3 +56,26 @@ Delve.recordStat = function(key, amount){
  G.runStats = G.runStats || {};
  G.runStats[key] = (G.runStats[key] || 0) + amount;
 };
+
+Delve.newRun = function(){
+ const cfg = Delve.CONFIG;
+ Delve.G = {
+  dead:false, runEnded:false, floor:1, level:1, xp:0, gold:0,
+  energy:cfg.energyStart || 10, restCount:0,
+  traits:[], abilities:[], takenUniques:[], inventory:[],
+  equip:{ weapon:null, offhand:null, head:null, body:null, hands:null, feet:null, cloak:null, amulet:null, ring1:null, ring2:null },
+  atkBuff:0, speedBuff:0, redBuff:0, luckBuff:0,
+  secondWindUsed:false, unbrokenUsed:false, victoryDone:false, stoneSkin:0,
+  effects:[], runStats:{}, runShards:0,
+  combatTarget:null, inCombat:false, combatTimer:null, targetingAbility:null,
+  pendingLevelUps:0, levelUpOpen:false,
+  lastDir:"right", msg:"", msgUntil:0,
+  visited:[], _visitedFloor:-1,
+  monsters:[], goldPiles:[], barrels:[], chests:[], items:[],
+  shop:{ x:-1, y:-1, stock:null }, stairs:null, boss:null, floorData:{},
+  px:0, py:0, gridW:0, gridH:0, grid:[]
+ };
+ Delve.G.hp = Delve.maxHp();
+ Delve.genFloor();
+ Delve.updateHUD();
+};
