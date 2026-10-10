@@ -29,12 +29,86 @@
   <div id="console"></div>
 </div>
 
+<!-- Fixtures: minimal DOM that the game scripts expect -->
+<div style="display:none" id="fixtures">
+  <canvas id="canvas" width="800" height="600"></canvas>
+  <canvas id="minimap" width="170" height="170"></canvas>
+  <canvas id="charCanvas" width="200" height="260"></canvas>
+
+  <div id="hud">
+    <span id="hudHp"></span><span id="hudAtk"></span><span id="hudTou"></span>
+    <span id="hudAgi"></span><span id="hudLuc"></span><span id="hudFloor"></span>
+    <span id="hudEnergy"></span><span id="hudGold"></span><span id="hudShards"></span>
+    <div id="restDots"></div>
+    <button id="minimapBtn"></button><button id="gearBtn"></button><button id="invBtn"></button>
+  </div>
+
+  <div id="abilityBar"></div>
+  <div id="minimapWrap"></div>
+  <div id="combatVignette"></div>
+
+  <div id="logPanel"><button id="logExpandBtn"></button><div id="combatLog"></div></div>
+  <div id="logWindow"><div id="logWindowHeader"><button id="logWindowClose"></button></div><div id="logWindowContent"></div></div>
+
+  <div id="floorCard"><div id="floorCardInner"><span id="floorCardNum"></span><span id="floorCardName"></span></div></div>
+  <div id="bossIntroOverlay"><div id="bossIntroCard"><span id="bossIntroName"></span><span id="bossIntroTitle"></span><span id="bossIntroFlavour"></span></div></div>
+
+  <div id="stairsPrompt"><div id="stairsCard"><button id="stairsYes"></button><button id="stairsNo"></button></div></div>
+
+  <div id="itemCardOverlay"><div id="itemCard">
+    <div id="icHeader"><div id="icName"></div><div id="icTier"></div></div>
+    <div id="icFlavour"></div><div id="icStats"></div>
+    <div id="icButtons"><button id="icPrimaryBtn"></button><button id="icSecondaryBtn"></button></div>
+    <button id="icCloseBtn"></button>
+  </div></div>
+
+  <div id="inventoryScreen"><div class="inv-header"><button id="invCloseBtn2"></button></div>
+    <div id="equipRack"></div><div id="invCarriedGrid"></div></div>
+
+  <div id="levelupScreen"><div id="levelupChoices"></div></div>
+
+  <div id="shopScreen"><span id="shopGold"></span><span id="shopGreeting"></span>
+    <div id="shopStock"></div><button id="shopHealBtn"></button><button id="shopLeaveBtn"></button></div>
+
+  <div id="hubScreen"><span id="hubShards"></span><div id="hubTabs"></div>
+    <div class="shop" id="shop"></div><div id="treePanel"></div><button id="startBtn"></button></div>
+
+  <div id="victoryScreen"><span id="victoryShards"></span><div id="victorySummary"></div>
+    <button id="victoryContinue"></button><button id="victoryHub"></button></div>
+
+  <div id="deathScreen"><div id="deathInfo"></div><div id="deathQuote"></div>
+    <div id="deathSummary"></div><span id="deathShards"></span><button id="deathBtn"></button></div>
+
+  <div id="retreatMenu"><button id="retreatYes"></button><button id="retreatNo"></button></div>
+</div>
+
 <script>
+// ── Canvas 2D mock (no-ops everything, supports gradient + measureText) ──
+function makeCtx() {
+  var gradient = { addColorStop: function(){} };
+  return new Proxy(function(){}, {
+    get: function(t, p){
+      if (p === "createLinearGradient" || p === "createRadialGradient" || p === "createPattern") return function(){ return gradient; };
+      if (p === "measureText") return function(){ return { width: 0 }; };
+      if (p === "canvas") return {};
+      return function(){};
+    },
+    set: function(t, p, v){ t[p] = v; return true; }
+  });
+}
+var canvases = document.querySelectorAll("canvas");
+for (var c = 0; c < canvases.length; c++) canvases[c].getContext = function(){ return makeCtx(); };
+
+// Neutralise the render loop so the page doesn't spam a live canvas
+window.requestAnimationFrame = function(){};
+window.cancelAnimationFrame = function(){};
+
 var outBox = document.getElementById("console");
 function out(html){ outBox.insertAdjacentHTML("beforeend", html); }
-function secStart(title){
-  out('<div class="section"><h2>'+title+'</h2><div id="'+title.replace(/[^a-z]/gi,"")+'"></div></div>');
-  return document.getElementById(title.replace(/[^a-z]/gi,""));
+function sec(title){
+  var id = "sec" + (sec.n = (sec.n || 0) + 1);
+  out('<div class="section"><h2>' + title + '</h2><div id="' + id + '"></div></div>');
+  return document.getElementById(id);
 }
 
 var FILES = [
@@ -48,123 +122,111 @@ var ownership = {};
 var dupes = {};
 var errors = [];
 
-// ── SECTION 1: load each file, track ownership ──
-var s1 = secStart("1. Script loading");
-
+// ── 1. Load each file, track ownership ──
+var s1 = sec("1. Script loading &amp; ownership");
 FILES.forEach(function(file){
   var before = {};
-  for(var k in window.Delve){ before[k] = 1; }
+  for (var k in window.Delve) before[k] = 1;
 
   var loaded = false;
   try {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", file, false);
     xhr.send();
-    if(xhr.status !== 0 && xhr.status !== 200){
-      errors.push(file + " returned status " + xhr.status);
+    if (xhr.status !== 0 && xhr.status !== 200) {
+      errors.push(file + " status " + xhr.status);
+      s1.insertAdjacentHTML("beforeend", '<div class="fail">✗ ' + file + ' — fetch status ' + xhr.status + '</div>');
     } else {
       (new Function(xhr.responseText))();
       loaded = true;
     }
-  } catch(err){
+  } catch (err) {
     errors.push(file + ": " + err.message);
-    s1.insertAdjacentHTML("beforeend", '<div class="fail">✗ '+file+' — '+err+'</div>');
+    s1.insertAdjacentHTML("beforeend", '<div class="fail">✗ ' + file + ' — ' + err.message + '</div>');
   }
 
-  if(loaded){
+  if (loaded) {
     var added = [];
-    for(var k in window.Delve){
-      if(!before[k]){
+    for (var k in window.Delve) {
+      if (!before[k]) {
         added.push(k);
-        if(ownership[k]){ (dupes[k]=dupes[k]||[]).push(file); }
-        else { ownership[k] = file; }
+        if (ownership[k]) (dupes[k] = dupes[k] || []).push(file);
+        else ownership[k] = file;
       }
     }
-    s1.insertAdjacentHTML("beforeend",
-      '<div class="pass">✓ '+file+' <span class="file-owner">('+added.length+' new)</span></div>');
+    s1.insertAdjacentHTML("beforeend", '<div class="pass">✓ ' + file + ' <span style="color:#9fb3c5">(' + added.length + ' new)</span></div>');
   }
 });
 
-// ── SECTION 2: duplicates ──
-var s2 = secStart("2. Duplicate definitions (a function owned twice)");
+// Prevent the render.js setInterval from calling Delve.draw during checks
+if (typeof window.Delve.draw === "function") window.Delve.draw = function(){};
+
+// ── 2. Duplicates ──
+var s2 = sec("2. Duplicate definitions");
 var dupKeys = Object.keys(dupes);
-if(dupKeys.length === 0){
-  s2.innerHTML = '<div class="pass">✓ No duplicates.</div>';
-} else {
-  s2.innerHTML = '<div class="warn">These functions are defined in more than one file (high bug risk):</div><table><tr><th>Function</th><th>Defined in</th></tr>';
-  dupKeys.forEach(function(k){
-    s2.innerHTML += '<tr><td class="dup">'+k+'</td><td>'+[ownership[k]].concat(dupes[k]).join(", ")+'</td></tr>';
-  });
+if (!dupKeys.length) s2.innerHTML = '<div class="pass">✓ No duplicates.</div>';
+else {
+  s2.innerHTML = '<div class="warn">Defined in more than one file:</div><table><tr><th>Function</th><th>Files</th></tr>';
+  dupKeys.forEach(function(k){ s2.innerHTML += '<tr><td class="dup">' + k + '</td><td>' + [ownership[k]].concat(dupes[k]).join(", ") + '</td></tr>'; });
   s2.innerHTML += '</table>';
 }
 
-// ── SECTION 3: required functions present ──
-var s3 = secStart("3. Required functions");
+// ── 3. Required functions ──
+var s3 = sec("3. Required functions");
 var REQUIRED = [
-  "newRun","genFloor","maxHp","atk","dmgRed","dodge","crit","luckPts","agiPts","touchPts",
+  "newRun","genFloor","maxHp","atk","dmgRed","dodge","crit","luckPts","agiPts","touPts",
   "equipItem","unequipItem","useConsumable","itemStatLines","itemBuffs","makeItem","rollTier",
   "killRewards","floorClearBonus","makeElite","startCombat","triggerVictory","tryRest","descend",
   "die","retreat","convertGold","recordStat","addFloater","draw","updateHUD","renderMinimap",
   "refreshHub","openInventory","openShop","buildShop","applyEffect","applyPlayerEffect"
 ];
-var missing = [];
-REQUIRED.forEach(function(k){
-  if(typeof window.Delve[k] !== "function") missing.push(k);
-});
-if(missing.length === 0){
-  s3.innerHTML = '<div class="pass">✓ All '+REQUIRED.length+' required functions present.</div>';
-} else {
-  s3.innerHTML = '<div class="fail">Missing functions:</div><div class="missing">' + missing.join(', ') + '</div>';
-}
+var missing = REQUIRED.filter(function(k){ return typeof window.Delve[k] !== "function"; });
+if (!missing.length) s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED.length + ' required functions present.</div>';
+else s3.innerHTML = '<div class="fail">Missing:</div><div class="missing">' + missing.join(", ") + '</div>';
 
-// ── SECTION 4: floor checks ──
-var s4 = secStart("4. Floor generation (50 trials)");
+// ── 4. Floor generation checks ──
+var s4 = sec("4. Floor generation (50 trials)");
 try {
-  var save = window.Delve.save;
-  if(!save){ throw new Error("Delve.save missing; cannot run floor checks"); }
-  var G = Delve.G;
+  if (typeof window.Delve.newRun !== "function") throw new Error("newRun missing — cannot seed a run");
+  window.Delve.newRun();   // seeds Delve.G once
+  var G = window.Delve.G;
+  if (!G) throw new Error("Delve.G still null after newRun");
+
   var trials = 50, fails = [];
-  for(var t=0;t<trials;t++){
+  for (var t = 0; t < trials; t++) {
     G.floor = (t % 10) + 1;
     Delve.genFloor();
     var w = G.grid[0].length, h = G.grid.length;
-    // player inside map and not in wall
-    if(G.px < 0 || G.py < 0 || G.px >= w || G.py >= h) fails.push("trial "+t+": player outside map");
-    else if(G.grid[G.py][G.px] !== Delve.T.FLOOR) fails.push("trial "+t+": player not on floor tile");
-    // stairs exist on non-boss floors
-    if(G.floor % 10 !== 0 && !G.stairs) fails.push("trial "+t+": no stairs on floor "+G.floor);
-    // monsters not adjacent to spawn
+    if (G.px < 0 || G.py < 0 || G.px >= w || G.py >= h) fails.push("trial " + t + ": player outside map");
+    else if (G.grid[G.py][G.px] !== Delve.T.FLOOR) fails.push("trial " + t + ": player not on floor tile");
+    if (G.floor % 10 !== 0 && !G.stairs) fails.push("trial " + t + ": no stairs on floor " + G.floor);
     G.monsters.forEach(function(m){
-      if(Delve.mdist(m.x,m.y,G.px,G.py) <= 1) fails.push("trial "+t+": monster adjacent to spawn");
+      if (Delve.mdist(m.x, m.y, G.px, G.py) <= 1) fails.push("trial " + t + ": monster adjacent to spawn");
     });
-    if(fails.length > 20) break;
+    if (fails.length > 25) break;
   }
-  if(fails.length === 0){
-    s4.innerHTML = '<div class="pass">✓ '+trials+' floors generated cleanly (spawn valid, stairs present, monsters spread).</div>';
-  } else {
-    s4.innerHTML = '<div class="fail">Found '+fails.length+' problem(s):</div><ul style="margin-left:18px">';
-    fails.slice(0,25).forEach(function(f){ s4.innerHTML += '<li>'+f+'</li>'; });
-    s4.innerHTML += '</ul>';
+  if (!fails.length) s4.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly.</div>';
+  else {
+    s4.innerHTML = '<div class="fail">' + fails.length + ' problem(s):</div><ul style="margin-left:18px">';
+    fails.slice(0, 25).forEach(function(f){ s4.innerHTML += "<li>" + f + "</li>"; });
+    s4.innerHTML += "</ul>";
   }
-} catch(err){
-  s4.innerHTML = '<div class="fail">Floor checks aborted: '+err.message+'</div>';
+} catch (err) {
+  s4.innerHTML = '<div class="fail">Floor checks aborted: ' + err.message + '</div>';
 }
 
-// ── SECTION 5: summary ──
-var s5 = secStart("5. Summary");
-var totalFail = errors.length + missing.length;
-if(errors.length) s5.innerHTML += '<div class="fail">Script errors: '+errors.length+'</div>';
-if(missing.length) s5.innerHTML += '<div class="fail">Missing functions: '+missing.length+'</div>';
-if(dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: '+dupKeys.length+'</div>';
-if(!errors.length && !missing.length && !dupKeys.length){
-  s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
-}
+// ── 5. Summary ──
+var s5 = sec("5. Summary");
+if (errors.length) s5.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
+if (missing.length) s5.innerHTML += '<div class="fail">Missing functions: ' + missing.length + '</div>';
+if (dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.length + '</div>';
+if (!errors.length && !missing.length && !dupKeys.length) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
 
-// ── SECTION 6: full ownership registry ──
-var s6 = secStart("6. Ownership registry");
+// ── 6. Ownership registry ──
+var s6 = sec("6. Ownership registry");
 var keys = Object.keys(ownership).sort();
 var table = '<table><tr><th>Function</th><th>Owned by</th></tr>';
-keys.forEach(function(k){ table += '<tr><td><code>'+k+'</code></td><td>'+ownership[k]+'</td></tr>'; });
+keys.forEach(function(k){ table += '<tr><td><code>' + k + '</code></td><td>' + ownership[k] + '</td></tr>'; });
 table += '</table>';
 s6.innerHTML = table;
 </script>
