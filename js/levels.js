@@ -213,11 +213,13 @@ window.Delve = window.Delve || {};
  for(let i=0;i<count;i++){
  const tier=Delve.rollTier(G.floor);
  const item=Delve.makeItem(chest.guaranteed ? Math.max(2,tier) : tier);
+ if(G.grid[y+i]&&G.grid[y+i][x]===T().FLOOR){
  item.x=x; item.y=y+i;
- if(G.grid[y+i]&&G.grid[y+i][x]===T().FLOOR)
  G.items.push(item);
- else
- G.items.push(Object.assign({},item,{x,y}));
+ } else {
+ item.x=x; item.y=y;
+ G.items.push(item);
+ }
  }
  Delve.flash("Chest opened!");
  if(Delve.logSystem) Delve.logSystem("Opened a chest.");
