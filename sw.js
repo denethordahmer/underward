@@ -1,4 +1,4 @@
-const CACHE = "underward-v12";
+const CACHE = "underward-v13";
 const ASSETS = [
   "./",
   "./index.html",
