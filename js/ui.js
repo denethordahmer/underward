@@ -11,14 +11,27 @@ window.Delve = window.Delve || {};
   "Your torch gutters. The dark does not wait."
  ];
 
- // Overlays that should close when switching major screens.
- // (levelupScreen is deliberately excluded so a pending level-up isn't lost.)
  function hideAll(){
   ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
    "stairsPrompt","bossIntroOverlay","retreatMenu","itemCardOverlay","logWindow"].forEach(function(id){
-   const el = $(id); if(el) el.style.display = "none";
+    const el = $(id); if(el) el.style.display = "none";
   });
  }
+
+ // ── Slot unlock state ────────────────────────────────────────
+ Delve.isSlotUnlocked = function(slotKey){
+  const def = Delve.CONFIG.SLOTS && Delve.CONFIG.SLOTS[slotKey];
+  if(!def) return true;
+  if(def.unlock === 0) return true;
+  if(Delve.save && Delve.save.unlocks && Delve.save.unlocks[slotKey]) return true;
+  return false;
+ };
+
+ Delve.equipSlots = function(){
+  const G = Delve.G;
+  if(!G.equip) G.equip = {};
+  return G.equip;
+ };
 
  // ── HUD update ───────────────────────────────────────────────
  Delve.updateHUD = function(){
@@ -37,9 +50,9 @@ window.Delve = window.Delve || {};
   if(rd){
    const max = Delve.CONFIG.restPerFloor, used = G.restCount || 0;
    rd.innerHTML = "";
-   for(let i = 0; i < max; i++){
+   for(let i=0;i<max;i++){
     const d = document.createElement("span");
-    d.className = "rest-dot" + (i < used ? " used" : "");
+    d.className = "rest-dot" + (i<used ? " used" : "");
     rd.appendChild(d);
    }
   }
@@ -47,9 +60,200 @@ window.Delve = window.Delve || {};
   Delve.renderMinimap();
  };
 
+ // ── PAPER DOLL ───────────────────────────────────────────────
+ function drawPaperDoll(){
+  const cv = $("charCanvas");
+  if(!cv) return;
+  const W = cv.width, H = cv.height;
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0,0,W,H);
+
+  const eq = Delve.equipSlots();
+  const cx = W/2;
+
+  // backdrop shadow
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
+  ctx.beginPath(); ctx.ellipse(cx, H-24, 46, 10, 0, 0, Math.PI*2); ctx.fill();
+
+  // palettes
+  const skin = "#e8c39a", hair = "#5a3d2c", bodyBase = "#33507a", bodyDark = "#233a5c";
+  const tier = function(item){
+   return item ? (Delve.TIERS.colors[item.tier] || "#cfd8e0") : "#1a2532";
+  };
+
+  // ── draw order: back pieces, body, front pieces ──
+
+  // cloak (behind everything)
+  if(eq.cloak){
+   ctx.fillStyle = tier(eq.cloak);
+   ctx.beginPath();
+   ctx.moveTo(cx-16, H-120);
+   ctx.lineTo(cx-42, H-36);
+   ctx.lineTo(cx+42, H-36);
+   ctx.lineTo(cx+16, H-120);
+   ctx.closePath();
+   ctx.fill();
+  }
+
+  // legs
+  ctx.fillStyle = "#4d3622";
+  ctx.fillRect(cx-15, H-80, 12, 52);
+  ctx.fillRect(cx+3, H-80, 12, 52);
+  // feet
+  if(eq.feet){ drawSwatch(ctx, cx-17, H-32, 16, 8, tier(eq.feet)); drawSwatch(ctx, cx+1, H-32, 16, 8, tier(eq.feet)); }
+  else { ctx.fillStyle = "#2b2118"; ctx.fillRect(cx-17, H-34, 16, 8); ctx.fillRect(cx+1, H-34, 16, 8); }
+
+  // torso
+  const bodyCol = eq.body ? tier(eq.body) : bodyBase;
+  ctx.fillStyle = bodyCol;
+  ctx.beginPath();
+  ctx.roundRect(cx-22, H-132, 44, 58, 8);
+  ctx.fill();
+  ctx.fillStyle = eq.body ? bodyCol : bodyDark;
+  ctx.fillRect(cx-22, H-132, 5, 58);
+  ctx.fillRect(cx+17, H-132, 5, 58);
+
+  // arms
+  ctx.fillStyle = skin;
+  ctx.fillRect(cx-36, H-128, 9, 40);
+  ctx.fillRect(cx+27, H-128, 9, 40);
+  // hands
+  if(eq.hands){ drawSwatch(ctx, cx-37, H-90, 11, 8, tier(eq.hands)); drawSwatch(ctx, cx+26, H-90, 11, 8, tier(eq.hands)); }
+  else { ctx.fillStyle = skin; ctx.fillRect(cx-37, H-90, 11, 7); ctx.fillRect(cx+26, H-90, 11, 7); }
+
+  // neck + head
+  ctx.fillStyle = skin;
+  ctx.fillRect(cx-5, H-140, 10, 8);
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(cx, H-152, 20, 0, Math.PI*2); ctx.fill();
+  // hair
+  ctx.fillStyle = hair;
+  ctx.beginPath(); ctx.arc(cx, H-158, 20, Math.PI, 0); ctx.fill();
+  // face
+  ctx.fillStyle = "#1d232b";
+  ctx.fillRect(cx-8, H-156, 3, 3); ctx.fillRect(cx+5, H-156, 3, 3);
+  // head equipment
+  if(eq.head){
+   ctx.fillStyle = tier(eq.head);
+   ctx.beginPath(); ctx.arc(cx, H-156, 21, Math.PI, Math.PI*2); ctx.fill();
+   ctx.fillRect(cx-22, H-158, 44, 7);
+  }
+
+  // weapon (right hand side)
+  if(eq.weapon){
+   ctx.save();
+   ctx.translate(cx+30, H-98);
+   ctx.rotate(-0.6);
+   ctx.fillStyle = tier(eq.weapon);
+   ctx.fillRect(-3, -34, 6, 34);  // blade
+   ctx.fillStyle = "#8a5a33"; ctx.fillRect(-8, -4, 16, 5); // hilt
+   ctx.restore();
+  }
+  // offhand
+  if(eq.offhand){
+   ctx.fillStyle = tier(eq.offhand);
+   ctx.beginPath(); ctx.arc(cx-40, H-106, 13, 0, Math.PI*2); ctx.fill();
+   ctx.fillStyle = "rgba(0,0,0,0.2)";
+   ctx.beginPath(); ctx.arc(cx-40, H-106, 13, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // amulet (chest)
+  if(eq.amulet){
+   ctx.fillStyle = tier(eq.amulet);
+   ctx.beginPath(); ctx.arc(cx, H-112, 5, 0, Math.PI*2); ctx.fill();
+  }
+
+  function drawSwatch(ctx2, x, y, w, h, col){
+   ctx2.fillStyle = col; ctx2.fillRect(x, y, w, h);
+   ctx2.fillStyle = "rgba(255,255,255,0.12)"; ctx2.fillRect(x, y, w, 2);
+  }
+ }
+
+ // ── INVENTORY ────────────────────────────────────────────────
+ Delve.openInventory = function(){
+  const G = Delve.G; if(!G) return;
+  dibb1();
+ };
+
+ function dibb1(){ /* placeholder to keep structure if drawn later */ }
+
+ Delve.openInventory = function(){
+  const G = Delve.G;
+  if(!G) return;
+  const eq = Delve.equipSlots();
+  drawPaperDoll();
+
+  // Build equipment slot grid
+  const rack = $("equipRack");
+  rack.innerHTML = "";
+  Delve.CONFIG.SLOT_ORDER.forEach(function(key){
+   const def = Delve.CONFIG.SLOTS[key];
+   const unlocked = Delve.isSlotUnlocked(key);
+   const item = eq[key];
+   const slot = document.createElement("div");
+   slot.className = "equip-cell";
+   if(!unlocked) slot.classList.add("locked");
+   const lbl = document.createElement("div");
+   lbl.className = "equip-cell-label";
+   lbl.textContent = def.icon + " " + def.label;
+   const val = document.createElement("div");
+   val.className = "equip-cell-val";
+   if(!unlocked){
+    val.textContent = "🔒 " + def.unlock + "◇";
+    val.style.color = "#5a4a34";
+   } else if(item){
+    val.textContent = item.name;
+    val.style.color = Delve.TIERS.colors[item.tier] || "#cfd8e0";
+   } else {
+    val.textContent = "empty";
+    val.style.color = "#3a4d5c";
+   }
+   slot.appendChild(lbl); slot.appendChild(val);
+   if(unlocked && item){
+    slot.addEventListener("click", function(){ Delve.showItemCard(item, "inventory"); });
+   } else if(unlocked){
+    // tapping empty unlocked slot does nothing for now
+   }
+   rack.appendChild(slot);
+  });
+
+  // Carried items grid
+  const grid = $("invCarriedGrid");
+  grid.innerHTML = "";
+  const inv = G.inventory || [];
+  const cap = Delve.inventoryCap ? Delve.inventoryCap() : (Delve.CONFIG.inventorySlots || 16);
+  if(!inv.length){
+   const empty = document.createElement("div");
+   empty.style.cssText = "color:#3a4d5c;font-size:13px;padding:8px;";
+   empty.textContent = "Nothing carried. (" + inv.length + "/" + cap + ")";
+   grid.appendChild(empty);
+  } else {
+   const count = document.createElement("div");
+   count.style.cssText = "width:100%;color:#7f94a8;font-size:11px;font-weight:700;";
+   count.textContent = inv.length + " / " + cap + " carried";
+   grid.appendChild(count);
+   inv.forEach(function(it){
+    const col = Delve.TIERS.colors[it.tier] || "#cfd8e0";
+    const btn = document.createElement("button");
+    btn.className = "inv-item-btn";
+    btn.style.borderColor = col + "66";
+    const n = document.createElement("span");
+    n.textContent = it.name; n.style.color = col; n.style.fontWeight = "800";
+    const t = document.createElement("span");
+    t.textContent = Delve.TIERS.names[it.tier] || ""; t.style.color = "#7f94a8";
+    btn.appendChild(n); btn.appendChild(t);
+    btn.addEventListener("click", function(){ Delve.showItemCard(it, "inventory"); });
+    grid.appendChild(btn);
+   });
+  }
+
+  $("inventoryScreen").style.display = "flex";
+ };
+ $("invBtn").addEventListener("click", Delve.openInventory);
+ $("invCloseBtn2").addEventListener("click", function(){ $("inventoryScreen").style.display = "none"; });
+
  // ── ITEM STAT CARD ───────────────────────────────────────────
  let pendingItemAction = null;
-
  function closeItemCard(){ $("itemCardOverlay").style.display = "none"; }
 
  Delve.showItemCard = function(item, source){
@@ -62,7 +266,7 @@ window.Delve = window.Delve || {};
   $("icName").style.color = tierCol;
   $("icTier").textContent = tierName;
   $("icTier").style.color = tierCol;
-  $("icFlavour").textContent = item.flavour || "";
+  $("icFlavour").textContent = item.lore || item.flavour || "";
 
   const body = $("icStats");
   body.innerHTML = "";
@@ -73,17 +277,23 @@ window.Delve = window.Delve || {};
    lbl.className = "ic-stat-label"; lbl.textContent = l.label;
    const val = document.createElement("span");
    val.className = "ic-stat-value"; val.textContent = l.value;
-   if(l.delta > 0){ val.textContent += " ▲" + l.delta; val.style.color = "#7ee08a"; }
-   else if(l.delta < 0){ val.textContent += " ▼" + Math.abs(l.delta); val.style.color = "#ff9a9a"; }
+   if(l.delta > 0){ val.textContent += "  +" + l.delta; val.style.color = "#7ee08a"; }
+   else if(l.delta < 0){ val.textContent += "  " + l.delta; val.style.color = "#ff9a9a"; }
    row.appendChild(lbl); row.appendChild(val);
    body.appendChild(row);
   });
+  if(item.provenance){
+   const prov = document.createElement("div");
+   prov.style.cssText = "font-size:11px;color:#7f94a8;font-style:italic;margin-top:6px;";
+   prov.textContent = item.provenance;
+   body.appendChild(prov);
+  }
 
   const primary = $("icPrimaryBtn");
   const secondary = $("icSecondaryBtn");
 
   if(source === "floor"){
-   const full = Delve.G.inventory.length >= Delve.CONFIG.inventorySlots;
+   const full = Delve.G.inventory.length >= (Delve.inventoryCap ? Delve.inventoryCap() : Delve.CONFIG.inventorySlots);
    primary.textContent = full ? "No Room" : "Pick Up";
    primary.disabled = full;
    secondary.textContent = "Leave";
@@ -99,32 +309,7 @@ window.Delve = window.Delve || {};
     Delve.updateHUD(); Delve.draw(); closeItemCard();
    };
   } else {
-   if(item.type === "weapon" || item.type === "armour" || item.type === "trinket"){
-    const equipped = isEquipped(item);
-    primary.textContent = equipped ? "Unequip" : "Equip";
-    primary.disabled = equipped && Delve.G.inventory.length >= Delve.CONFIG.inventorySlots;
-    primary.onclick = function(){
-     if(equipped){
-      if(item.type === "weapon") Delve.unequipWeapon();
-      else if(item.type === "armour") Delve.unequipArmour();
-      else Delve.unequipTrinket(item);
-     } else {
-      if(item.type === "weapon") Delve.equipWeapon(item);
-      else if(item.type === "armour") Delve.equipArmour(item);
-      else Delve.equipTrinket(item);
-     }
-     Delve.updateHUD(); Delve.draw(); closeItemCard(); Delve.openInventory();
-    };
-    secondary.textContent = equipped ? "Close" : "Discard";
-    secondary.onclick = function(){
-     if(!equipped){
-      const i = Delve.G.inventory.indexOf(item);
-      if(i >= 0) Delve.G.inventory.splice(i, 1);
-      Delve.flash("Discarded " + item.name);
-     }
-     Delve.updateHUD(); Delve.draw(); closeItemCard(); Delve.openInventory();
-    };
-   } else {
+   if(item.slot === "consumable"){
     primary.textContent = "Use";
     primary.disabled = false;
     primary.onclick = function(){
@@ -140,71 +325,40 @@ window.Delve = window.Delve || {};
      Delve.flash("Discarded " + item.name);
      Delve.updateHUD(); Delve.draw(); closeItemCard(); Delve.openInventory();
     };
+   } else {
+    const equipped = isEquipped(item);
+    primary.textContent = equipped ? "Unequip" : "Equip";
+    primary.disabled = equipped && Delve.G.inventory.length >= (Delve.inventoryCap ? Delve.inventoryCap() : Delve.CONFIG.inventorySlots);
+    primary.onclick = function(){
+     if(equipped){
+      Delve.unequipItem(item);
+     } else {
+      Delve.equipItem(item);
+     }
+     Delve.updateHUD(); Delve.draw(); closeItemCard(); Delve.openInventory();
+    };
+    secondary.textContent = equipped ? "Close" : "Discard";
+    secondary.onclick = function(){
+     if(!equipped){
+      const i = Delve.G.inventory.indexOf(item);
+      if(i >= 0) Delve.G.inventory.splice(i, 1);
+      Delve.flash("Discarded " + item.name);
+     }
+     Delve.updateHUD(); Delve.draw(); closeItemCard(); Delve.openInventory();
+    };
    }
   }
   overlay.style.display = "flex";
  };
 
  function isEquipped(item){
-  const e = Delve.G.equip || {};
-  return e.weapon === item || e.armour === item || (e.trinkets || []).indexOf(item) >= 0;
+  const eq = Delve.equipSlots();
+  for(const k of Delve.CONFIG.SLOT_ORDER){
+   if(eq[k] === item) return true;
+  }
+  return false;
  }
-
  $("icCloseBtn").addEventListener("click", closeItemCard);
-
- // ── INVENTORY ────────────────────────────────────────────────
- Delve.openInventory = function(){
-  const G = Delve.G; if(!G) return;
-  const eq = G.equip || { weapon:null, armour:null, trinkets:[] };
-
-  function fillSlot(id, item){
-   const el = $(id); if(!el) return;
-   el.innerHTML = "";
-   const span = document.createElement("span");
-   if(item){
-    span.textContent = item.name;
-    span.style.color = Delve.TIERS.colors[item.tier] || "#cfd8e0";
-    el.classList.add("filled");
-    el.onclick = function(){ Delve.showItemCard(item, "inventory"); };
-   } else {
-    span.textContent = "empty";
-    span.style.color = "#3a4d5c";
-    el.classList.remove("filled");
-    el.onclick = null;
-   }
-   el.appendChild(span);
-  }
-  fillSlot("slot-weapon", eq.weapon);
-  fillSlot("slot-armour", eq.armour);
-  fillSlot("slot-trinket1", (eq.trinkets || [])[0] || null);
-  fillSlot("slot-trinket2", (eq.trinkets || [])[1] || null);
-
-  const grid = $("invCarriedGrid");
-  grid.innerHTML = "";
-  const inv = G.inventory || [];
-  if(!inv.length){
-   const empty = document.createElement("div");
-   empty.style.cssText = "color:#3a4d5c;font-size:13px;padding:8px;";
-   empty.textContent = "Nothing carried.";
-   grid.appendChild(empty);
-  }
-  inv.forEach(function(it){
-   const col = Delve.TIERS.colors[it.tier] || "#cfd8e0";
-   const btn = document.createElement("button");
-   btn.className = "inv-item-btn";
-   btn.style.borderColor = col + "66";
-   const n = document.createElement("span");
-   n.textContent = it.name; n.style.color = col; n.style.fontWeight = "800";
-   const t = document.createElement("span");
-   t.textContent = Delve.TIERS.names[it.tier] || ""; t.style.color = "#7f94a8";
-   btn.appendChild(n); btn.appendChild(t);
-   btn.addEventListener("click", function(){ Delve.showItemCard(it, "inventory"); });
-   grid.appendChild(btn);
-  });
-  $("inventoryScreen").style.display = "flex";
- };
- $("invBtn").addEventListener("click", Delve.openInventory);
- $("invCloseBtn2").addEventListener("click", function(){ $("inventoryScreen").style.display = "none"; });
 
  // ── LOG WINDOW ───────────────────────────────────────────────
  $("logExpandBtn").addEventListener("click", function(){
@@ -215,10 +369,7 @@ window.Delve = window.Delve || {};
 
  // ── STAIRS / FLOOR CARD / BOSS INTRO ─────────────────────────
  Delve.showStairsPrompt = function(){ $("stairsPrompt").style.display = "flex"; };
- $("stairsYes").addEventListener("click", function(){
-  $("stairsPrompt").style.display = "none";
-  Delve.descend();
- });
+ $("stairsYes").addEventListener("click", function(){ $("stairsPrompt").style.display = "none"; Delve.descend(); });
  $("stairsNo").addEventListener("click", function(){ $("stairsPrompt").style.display = "none"; });
 
  Delve.showFloorCard = function(floor){
@@ -364,14 +515,12 @@ window.Delve = window.Delve || {};
   if(G._visitedFloor !== G.floor){ G.visited = []; G._visitedFloor = G.floor; }
   if(!G.visited) G.visited = [];
   const h = G.grid.length, w = G.grid[0].length, R = 5;
-  for(let dy = -R; dy <= R; dy++){
-   for(let dx = -R; dx <= R; dx++){
-    if(Math.abs(dx) + Math.abs(dy) > R) continue;
-    const ux = x + dx, uy = y + dy;
-    if(ux < 0 || uy < 0 || ux >= w || uy >= h) continue;
-    if(!G.visited[uy]) G.visited[uy] = [];
-    G.visited[uy][ux] = 1;
-   }
+  for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+   if(Math.abs(dx)+Math.abs(dy) > R) continue;
+   const ux=x+dx, uy=y+dy;
+   if(ux<0||uy<0||ux>=w||uy>=h) continue;
+   if(!G.visited[uy]) G.visited[uy] = [];
+   G.visited[uy][ux] = 1;
   }
  };
 
@@ -382,75 +531,69 @@ window.Delve = window.Delve || {};
   const ctx = cv.getContext("2d");
   const G = Delve.G;
   ctx.fillStyle = "#070a0e";
-  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillRect(0,0,cv.width,cv.height);
   if(!G || !G.grid || !G.grid.length) return;
   const gw = G.grid[0].length, gh = G.grid.length;
-  const s = Math.min(cv.width / gw, cv.height / gh);
-  const ox = (cv.width - gw*s) / 2, oy = (cv.height - gh*s) / 2;
+  const s = Math.min(cv.width/gw, cv.height/gh);
+  const ox = (cv.width-gw*s)/2, oy = (cv.height-gh*s)/2;
   const vis = G.visited || [];
   const T = Delve.T;
-  const seen = function(x, y){ return vis[y] && vis[y][x]; };
-  for(let y = 0; y < gh; y++){
-   for(let x = 0; x < gw; x++){
-    const t = G.grid[y][x];
-    if(t === T.WALL || !seen(x, y)) continue;
-    let col = "#2a333d";
-    if(t === T.STAIR) col = "#2ad0b0";
-    else if(t === T.GOLD) col = "#d9a11f";
-    else if(t === T.CHEST) col = "#c9971f";
-    else if(t === T.BARREL) col = "#7a5c3a";
-    ctx.fillStyle = col;
-    ctx.fillRect(ox + x*s, oy + y*s, s + 0.5, s + 0.5);
-   }
+  const seen = function(x,y){ return vis[y] && vis[y][x]; };
+  for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){
+   const t = G.grid[y][x];
+   if(t === T.WALL || !seen(x,y)) continue;
+   let col = "#2a333d";
+   if(t === T.STAIR) col = "#2ad0b0";
+   else if(t === T.GOLD) col = "#d9a11f";
+   else if(t === T.CHEST) col = "#c9971f";
+   else if(t === T.BARREL) col = "#7a5c3a";
+   ctx.fillStyle = col;
+   ctx.fillRect(ox+x*s, oy+y*s, s+0.5, s+0.5);
   }
   if(G.shop && G.shop.x >= 0 && seen(G.shop.x, G.shop.y)){
    ctx.fillStyle = "#ffd75e";
-   ctx.fillRect(ox + G.shop.x*s, oy + G.shop.y*s, s + 1, s + 1);
+   ctx.fillRect(ox+G.shop.x*s, oy+G.shop.y*s, s+1, s+1);
   }
-  const dot = function(x, y, col, r){
+  const dot = function(x,y,col,r){
    ctx.fillStyle = col;
    ctx.beginPath();
-   ctx.arc(ox + x*s + s/2, oy + y*s + s/2, s*r, 0, Math.PI*2);
+   ctx.arc(ox+x*s+s/2, oy+y*s+s/2, s*r, 0, Math.PI*2);
    ctx.fill();
   };
-  (G.monsters || []).forEach(function(m){ if(seen(m.x, m.y)) dot(m.x, m.y, m.elite ? "#c98aff" : "#e05a6a", 0.45); });
-  if(G.boss && seen(G.boss.x, G.boss.y)) dot(G.boss.x, G.boss.y, "#ff4a3d", 0.6);
-  dot(G.px, G.py, "#ffffff", 0.4);
+  (G.monsters||[]).forEach(function(m){ if(seen(m.x,m.y)) dot(m.x,m.y,m.elite?"#c98aff":"#e05a6a",0.45); });
+  if(G.boss && seen(G.boss.x,G.boss.y)) dot(G.boss.x,G.boss.y,"#ff4a3d",0.6);
+  dot(G.px,G.py,"#ffffff",0.4);
  };
 
  // ── SHOP ─────────────────────────────────────────────────────
  function shopItemPool(type){
   return Object.keys(Delve.itemDefs).map(function(k){ return Delve.itemDefs[k]; })
-   .filter(function(d){ return type === "consumable" ? d.type === "consumable" : d.type !== "consumable"; });
+   .filter(function(d){ return type === "consumable" ? d.slot === "consumable" : d.slot !== "consumable"; });
  }
-
  function makeShopStock(G){
-  const shopNum = Math.floor(G.floor / 10) + 1;
-  const maxTier = shopNum >= 3 ? 4 : shopNum === 2 ? 3 : 2;
+  const shopNum = Math.floor(G.floor/10)+1;
+  const maxTier = shopNum>=3?4:shopNum===2?3:2;
   const stock = [];
-
   let gear = shopItemPool("gear").filter(function(d){ return d.tier <= maxTier; });
   const top = gear.filter(function(d){ return d.tier === maxTier; });
-  if(top.length && Math.random() < 0.7) gear = top;
-  for(let i = 0; i < (Delve.CONFIG.shop.stockGear || 1) && gear.length; i++){
+  if(top.length && Math.random()<0.7) gear = top;
+  for(let i=0;i<(Delve.CONFIG.shop.stockGear||1) && gear.length;i++){
    stock.push({ item: Object.assign({}, gear[Math.floor(Math.random()*gear.length)]), sold:false });
   }
-
-  const cons = shopItemPool("consumable").filter(function(d){ return d.tier <= Math.min(maxTier, 3); });
+  const cons = shopItemPool("consumable").filter(function(d){ return d.tier <= Math.min(maxTier,3); });
   const used = {};
-  const want = Math.min(Delve.CONFIG.shop.stockConsumables || 4, cons.length);
-  let guard = 0;
-  while(Object.keys(used).length < want && guard++ < 100){
+  const want = Math.min(Delve.CONFIG.shop.stockConsumables||4, cons.length);
+  let guard=0;
+  while(Object.keys(used).length < want && guard++<100){
    const pick = cons[Math.floor(Math.random()*cons.length)];
    if(used[pick.id]) continue;
-   used[pick.id] = 1;
+   used[pick.id]=1;
    stock.push({ item: Object.assign({}, pick), sold:false });
   }
   return stock;
  }
-
  function shopHealCost(G){
-  return Math.max(1, Math.round(Delve.healCost(G.floor) * (1 - Delve.luckDiscount())));
+  return Math.max(1, Math.round(Delve.healCost(G.floor)*(1-Delve.luckDiscount())));
  }
 
  Delve.openShop = function(){
@@ -468,39 +611,33 @@ window.Delve = window.Delve || {};
   $("shopGreeting").textContent = Delve.luckDiscount() > 0
    ? "\"Lucky one, aren't you? Here's " + Math.round(Delve.luckDiscount()*100) + "% off.\""
    : "\"Take a look. Everything's honestly priced.\"";
-
   const healCost = shopHealCost(G);
   const hb = $("shopHealBtn");
   hb.textContent = "❤️ Restore 50% HP — " + healCost + "g";
   hb.disabled = G.gold < healCost || G.hp >= Delve.maxHp();
-
   const wrap = $("shopStock");
   wrap.innerHTML = "";
   G.shop.stock.forEach(function(entry){
    const item = entry.item;
    const price = Delve.itemPrice(item);
-   const row = document.createElement("div");
-   row.className = "shop-item";
+   const row = document.createElement("div"); row.className = "shop-item";
    const info = document.createElement("div");
-   const nm = document.createElement("div");
-   nm.className = "si-name";
-   nm.style.color = Delve.TIERS.colors[item.tier] || "#fff";
-   nm.textContent = item.name;
-   const ds = document.createElement("div");
-   ds.className = "si-desc";
-   ds.textContent = item.flavour || "";
+   const nm = document.createElement("div"); nm.className="si-name";
+   nm.style.color = Delve.TIERS.colors[item.tier]||"#fff"; nm.textContent = item.name;
+   const ds = document.createElement("div"); ds.className="si-desc"; ds.textContent = item.lore||item.flavour||"";
    info.appendChild(nm); info.appendChild(ds);
-   const buy = document.createElement("button");
-   buy.className = "btn shop-buy";
-   buy.textContent = entry.sold ? "Sold" : price + "g";
+   const buy = document.createElement("button"); buy.className="btn shop-buy";
+   buy.textContent = entry.sold?"Sold":price+"g";
    buy.disabled = entry.sold || G.gold < price;
    buy.addEventListener("click", function(){
-    if(entry.sold || G.gold < price) return;
-    if(G.inventory.length >= Delve.CONFIG.inventorySlots){ Delve.flash("Bag is full!"); return; }
+    if(entry.sold || G.gold<price) return;
+    if(G.inventory.length >= (Delve.inventoryCap?Delve.inventoryCap():Delve.CONFIG.inventorySlots)){ Delve.flash("Bag is full!"); return; }
     G.gold -= price;
     entry.sold = true;
     Delve.recordStat("goldSpentShop", price);
-    Delve.pickupItem(Object.assign({}, item));
+    const bought = Object.assign({}, item);
+    Delve.stampProvenance(bought, { kind:"shop" });
+    Delve.pickupItem(bought);
     Delve.updateHUD();
     Delve.buildShop();
    });
@@ -515,35 +652,26 @@ window.Delve = window.Delve || {};
   Delve.updateHUD();
   Delve.draw();
  }
-
  function doShopHeal(){
   const G = Delve.G;
   const cost = shopHealCost(G);
   if(G.gold < cost || G.hp >= Delve.maxHp()) return;
   G.gold -= cost;
-  const heal = Math.round(Delve.maxHp() * Delve.CONFIG.shop.healPct);
-  G.hp = Math.min(Delve.maxHp(), G.hp + heal);
+  const heal = Math.round(Delve.maxHp()*Delve.CONFIG.shop.healPct);
+  G.hp = Math.min(Delve.maxHp(), G.hp+heal);
   Delve.recordStat("goldSpentShop", cost);
   Delve.flash("+" + heal + " HP");
   Delve.updateHUD();
   Delve.buildShop();
  }
 
- // Walking into / tapping the shopkeeper opens the shop
+ // shopkeeper tap-to-open
  (function wrapShopTap(){
-  function atShop(tx, ty){
-   const G = Delve.G;
-   return G && G.shop && G.shop.x === tx && G.shop.y === ty && !G.inCombat && !G.targetingAbility;
-  }
-  function open(){
-   const G = Delve.G;
-   G._path = null;
-   if(G._pathTimer){ clearInterval(G._pathTimer); G._pathTimer = null; }
-   Delve.openShop();
-  }
-  const a1 = Delve.tryAct, a2 = Delve.tryActOnStep;
-  Delve.tryAct = function(tx, ty){ if(atShop(tx, ty)) open(); else a1(tx, ty); };
-  Delve.tryActOnStep = function(tx, ty){ if(atShop(tx, ty)) open(); else a2(tx, ty); };
+  function atShop(tx,ty){ const G=Delve.G; return G && G.shop && G.shop.x===tx && G.shop.y===ty && !G.inCombat && !G.targetingAbility; }
+  function open(){ const G=Delve.G; G._path=null; if(G._pathTimer){clearInterval(G._pathTimer); G._pathTimer=null;} Delve.openShop(); }
+  const a1=Delve.tryAct, a2=Delve.tryActOnStep;
+  Delve.tryAct = function(tx,ty){ if(atShop(tx,ty)) open(); else a1(tx,ty); };
+  Delve.tryActOnStep = function(tx,ty){ if(atShop(tx,ty)) open(); else a2(tx,ty); };
  })();
 
  // ── VICTORY / END SCREENS ────────────────────────────────────
@@ -560,16 +688,14 @@ window.Delve = window.Delve || {};
    ["Shards this run", Delve.G ? Delve.G.runShards : 0]
   ];
   return rows.map(function(r){
-   return '<div class="death-row"><span class="dr-label">' + r[0] +
-    '</span><span class="dr-value">' + r[1] + '</span></div>';
+   return '<div class="death-row"><span class="dr-label">'+r[0]+'</span><span class="dr-value">'+r[1]+'</span></div>';
   }).join("");
  }
 
  Delve.showVictory = function(shards){
   hideAll();
   $("victoryShards").textContent = shards || 0;
-  $("victorySummary").innerHTML = summaryRows().replace(/death-row/g, "victory-row")
-   .replace(/dr-label/g, "vr-label").replace(/dr-value/g, "vr-value");
+  $("victorySummary").innerHTML = summaryRows().replace(/death-row/g,"victory-row").replace(/dr-label/g,"vr-label").replace(/dr-value/g,"vr-value");
   $("victoryScreen").style.display = "flex";
  };
 
@@ -577,12 +703,12 @@ window.Delve = window.Delve || {};
   hideAll();
   $("levelupScreen").style.display = "none";
   const title = $("deathScreen").querySelector("h1");
-  if(kind === "victory"){ Delve.showVictory((extra && extra.shards) || 0); return; }
+  if(kind === "victory"){ Delve.showVictory((extra&&extra.shards)||0); return; }
   if(kind === "retreat"){
    title.textContent = "ESCAPED";
    $("deathInfo").textContent = "You climbed back to the surface.";
    $("deathQuote").textContent = "Some runs are measured in what you carry out.";
-   $("deathShards").textContent = "+" + ((extra && extra.shards) || 0) + " shards from gold";
+   $("deathShards").textContent = "+" + ((extra&&extra.shards)||0) + " shards from gold";
   } else {
    title.textContent = "YOU DIED";
    $("deathInfo").textContent = "You reached floor " + Delve.G.floor + " — best " + Delve.save.bestFloor;
@@ -593,13 +719,13 @@ window.Delve = window.Delve || {};
   $("deathScreen").style.display = "flex";
  };
 
- // ── DEBUG PANEL (?debug=1) ───────────────────────────────────
+ // ── DEBUG PANEL ──────────────────────────────────────────────
  function applyDebugEffect(id){
   return function(){
    const G = Delve.G; if(!G) return;
    let t = null;
-   if(G.boss && Delve.mdist(G.boss.x, G.boss.y, G.px, G.py) <= 1) t = G.boss;
-   else t = G.monsters.find(function(m){ return Delve.mdist(m.x, m.y, G.px, G.py) <= 1; }) || G.monsters[0];
+   if(G.boss && Delve.mdist(G.boss.x,G.boss.y,G.px,G.py)<=1) t = G.boss;
+   else t = G.monsters.find(function(m){ return Delve.mdist(m.x,m.y,G.px,G.py)<=1; }) || G.monsters[0];
    if(t && Delve.applyEffect){ Delve.applyEffect(t, id); Delve.flash(id + " applied"); }
    else Delve.flash("No target");
    Delve.updateHUD(); Delve.draw();
@@ -612,7 +738,7 @@ window.Delve = window.Delve || {};
   const need = function(){ return Delve.G && !Delve.G.runEnded; };
   $("dbgGo").addEventListener("click", function(){
    if(!need()) return;
-   Delve.G.floor = parseInt($("dbgFloor").value, 10);
+   Delve.G.floor = parseInt($("dbgFloor").value,10);
    Delve.genFloor(); Delve.updateHUD(); Delve.draw();
    Delve.showFloorCard(Delve.G.floor);
   });
@@ -622,11 +748,7 @@ window.Delve = window.Delve || {};
   $("dbgLowHp").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = 5; Delve.updateHUD(); });
   $("dbgPoison").addEventListener("click", applyDebugEffect("poison"));
   $("dbgBleed").addEventListener("click", applyDebugEffect("bleed"));
-  $("dbgWeaken").addEventListener("click", function(){
-   if(!need()) return;
-   if(Delve.applyPlayerEffect) Delve.applyPlayerEffect("weaken");
-   Delve.flash("Weaken applied (you)");
-  });
+  $("dbgWeaken").addEventListener("click", function(){ if(!need()) return; if(Delve.applyPlayerEffect) Delve.applyPlayerEffect("weaken"); Delve.flash("Weaken applied (you)"); });
   $("dbgElite").addEventListener("click", function(){
    if(!need()) return;
    const m = Delve.G.monsters.find(function(x){ return !x.elite; });
@@ -635,7 +757,7 @@ window.Delve = window.Delve || {};
   });
   $("dbgXP").addEventListener("click", function(){ if(!need()) return; Delve.addXP(20); });
   $("dbgShop").addEventListener("click", function(){ if(!need()) return; Delve.openShop(); });
-  $("dbgVictory").addEventListener("click", function(){ if(!need()) return; Delve.showVictory(Math.floor(Delve.G.gold / 10)); });
+  $("dbgVictory").addEventListener("click", function(){ if(!need()) return; Delve.showVictory(Math.floor(Delve.G.gold/10)); });
   $("dbgDeath").addEventListener("click", function(){ if(!need()) return; Delve.die(); });
   $("dbgDump").addEventListener("click", function(){
    console.log("RUN STATS", Delve.G && Delve.G.runStats);
@@ -661,10 +783,7 @@ window.Delve = window.Delve || {};
  $("gearBtn").addEventListener("click", function(){
   if(Delve.G && !Delve.G.runEnded) $("retreatMenu").style.display = "flex";
  });
- $("retreatYes").addEventListener("click", function(){
-  $("retreatMenu").style.display = "none";
-  Delve.retreat();
- });
+ $("retreatYes").addEventListener("click", function(){ $("retreatMenu").style.display = "none"; Delve.retreat(); });
  $("retreatNo").addEventListener("click", function(){ $("retreatMenu").style.display = "none"; });
 
  $("shopHealBtn").addEventListener("click", doShopHeal);
