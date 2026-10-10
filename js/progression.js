@@ -1,6 +1,6 @@
 window.Delve = window.Delve || {};
 (function(){
- const $ = id => document.getElementById(id);
+ const $ = function(id){ return document.getElementById(id); };
 
  const TREES = [
   { id:"attrs", name:"Attributes" },
@@ -84,6 +84,7 @@ window.Delve = window.Delve || {};
   }
   return true;
  }
+
  function tierUnlocked(treeId, tier){
   if(tier === 1) return true;
   const nodes = NODES[treeId] || [];
@@ -113,6 +114,7 @@ window.Delve = window.Delve || {};
   Delve.persist();
  }
 
+ // ── Tree display state (owned here, not overriding refreshHub) ──
  let activeTree = "attrs";
 
  function renderTabs(){
@@ -123,7 +125,11 @@ window.Delve = window.Delve || {};
    const b = document.createElement("button");
    b.className = "hub-tab" + (t.id === activeTree ? " active" : "");
    b.textContent = t.name;
-   b.addEventListener("click", function(){ activeTree = t.id; renderTabs(); renderHub(); });
+   b.addEventListener("click", function(){
+    activeTree = t.id;
+    renderTabs();
+    renderPanels();
+   });
    tabs.appendChild(b);
   });
  }
@@ -175,10 +181,12 @@ window.Delve = window.Delve || {};
      card.addEventListener("click", function(){
       if(owned(n.id)) return;
       if(Delve.save.shards < n.cost) return;
-      Delve.save.shards -= n.cost; Delve.save.shards = Math.max(0, Delve.save.shards);
+      Delve.save.shards -= n.cost;
+      Delve.save.shards = Math.max(0, Delve.save.shards);
       afterBuy(n);
       Delve.flash(n.name + " — unlocked");
-      renderTabs(); renderHub();
+      renderTabs();
+      renderPanels();
      });
     }
     wrap.appendChild(card);
@@ -187,40 +195,35 @@ window.Delve = window.Delve || {};
   }
  }
 
- const originalRefreshHub = Delve.refreshHub;
- function renderHub(){
+ function renderPanels(){
   const shop = $("shop");
   const tree = $("treePanel");
   if(activeTree === "attrs"){
    if(tree) tree.style.display = "none";
-   if(typeof originalRefreshHub === "function") originalRefreshHub();
    if(shop) shop.style.display = "flex";
-   return;
+  } else {
+   if(shop) shop.style.display = "none";
+   if(tree){
+    renderTree(activeTree);
+    tree.style.display = "flex";
+   }
   }
-  if(shop) shop.style.display = "none";
-  if(tree) tree.innerHTML = "";
-  renderTree(activeTree);
-  if(tree) tree.style.display = "flex";
  }
- Delve.refreshHub = function(){
-  renderTabs();
-  renderHub();
- };
- Delve.showTreePanel = renderTree;
 
- const originalNewRun = Delve.newRun;
- Delve.newRun = function(){
-  if(typeof originalNewRun === "function") originalNewRun();
+ // ── Run-start injection (registered as a hook, not an override) ──
+ function injectRunStart(){
   const s = Delve.save;
   s.nodes = s.nodes || {};
   s.unlocks = s.unlocks || {};
   s.inventoryCap = s.inventoryCap || 16;
   s.abilities = s.abilities || [];
   s.abilityRanks = s.abilityRanks || {};
-  const startLevel = (s.nodes && s.nodes.veteran) ? 2 : 1;
-  Delve.G.level = startLevel;
+
+  if(s.nodes && s.nodes.veteran) Delve.G.level = 2;
+
   if(s.nodes && s.nodes.coinpurse) Delve.G.gold = (Delve.G.gold || 0) + 25;
   if(s.nodes && s.nodes.coin_chest) Delve.G.gold = (Delve.G.gold || 0) + 50;
+
   if(s.nodes && s.nodes.quartermaster){
    const possible = Object.keys(Delve.itemDefs).filter(function(k){
     const d = Delve.itemDefs[k];
@@ -241,19 +244,10 @@ window.Delve = window.Delve || {};
    let pot = Delve.potionDefs ? Delve.potionDefs[Math.floor(Math.random()*Delve.potionDefs.length)] : null;
    if(pot){ const stored = Object.assign({}, pot); delete stored.x; delete stored.y; Delve.G.inventory.push(stored); Delve.flash("Master Provisioner: " + stored.name); }
   }
-  Delve.updateHUD();
- };
+ }
 
+ // ── Public helpers (additions, named clearly, no overrides) ──
  Delve.hasProgression = function(id){ return !!owned(id); };
- Delve.inventoryCapacityProgression = function(){
-  const s = Delve.save;
-  return s.inventoryCap || 16;
- };
- Delve.inventoryCap = function(){
-  const s = Delve.save;
-  return Math.min(Delve.CONFIG.inventoryMax || 24, s.inventoryCap || Delve.CONFIG.inventorySlots || 16);
- };
-
  Delve.markRunTrait = function(name, id){
   const s = Delve.save;
   s.runTraits = s.runTraits || [];
@@ -262,7 +256,18 @@ window.Delve = window.Delve || {};
   if(name && s.runTraits.indexOf(name) < 0) s.runTraits.push(name);
  };
 
- // ── BOOT: always draw the hub, tabs included ─────────────────
+ // ── Register hooks (core files call these; nothing is overwritten) ──
+ Delve._hooks = Delve._hooks || {};
+ Delve._hooks.hubLoaded = Delve._hooks.hubLoaded || [];
+ Delve._hooks.runStart = Delve._hooks.runStart || [];
+
+ Delve._hooks.hubLoaded.push(function(){
+  renderTabs();
+  renderPanels();
+ });
+ Delve._hooks.runStart.push(injectRunStart);
+
+ // Re-render the hub now that this module's hooks are registered
  Delve.refreshHub();
 
 })();
