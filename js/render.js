@@ -616,6 +616,19 @@ window.Delve = window.Delve || {};
         const sx = x*ts, sy = y*ts;
         drawWallTile(ctx, sx, sy, ts, gx, gy, b);
 
+        // Secret room false wall twinkle
+        const fd = G.floorData;
+        if(fd && fd.secretRoom &&
+           fd.secretRoom.falseWallX === gx && fd.secretRoom.falseWallY === gy){
+          const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.003);
+          ctx.save();
+          ctx.globalAlpha = pulse * 0.55;
+          ctx.fillStyle = "#7ee0ff";
+          ctx.beginPath();
+          ctx.arc(sx + ts*0.5, sy + ts*0.5, ts*0.15, 0, Math.PI*2);
+          ctx.fill();
+          ctx.restore();
+        }
         // Torch: ~4% of wall tiles that have a floor tile directly below
         const tBelow = tileAt(gx, gy+1);
         if(tBelow !== null && tBelow !== T.WALL){
