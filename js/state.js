@@ -15,7 +15,7 @@ Delve.mdist = function(x1,y1,x2,y2){ return Math.abs(x1-x2)+Math.abs(y1-y2); };
 Delve.getWard = function(floor){
  const wards = Delve.CONFIG.WARDS || [];
  for(const w of wards){
- if(floor >= w.floors[0] && floor <= w.floors[1]) return w;
+  if(floor >= w.floors[0] && floor <= w.floors[1]) return w;
  }
  return wards[0] || { id:1, name:"Upper Ruins", floors:[1,10], biome:0 };
 };
@@ -23,7 +23,7 @@ Delve.getWard = function(floor){
 Delve.getMonsterBand = function(floor){
  const bands = Delve.CONFIG.MONSTER_BANDS || [];
  for(const b of bands){
- if(floor >= b.floors[0] && floor <= b.floors[1]) return b;
+  if(floor >= b.floors[0] && floor <= b.floors[1]) return b;
  }
  return bands[bands.length-1] || { weights:{goblin:100}, countMin:10, countMax:14, boss:false };
 };
@@ -37,25 +37,19 @@ Delve.pickWeighted = function(weights){
  return Object.keys(weights)[0];
 };
 
-// ── Shop floor helper: floor%10===5 (5, 15, 25, ...) ──────────
+// ── Shop floor helper ─────────────────────────────────────────
 Delve.isShopFloor = function(floor){
  const s = Delve.CONFIG.shop;
  return floor > 0 && (floor % 10 === s.offset);
 };
 
-// ── Shop heal cost: 30 + 8×ln(floor+1), luck discount applied later ──
+// ── Shop heal cost ────────────────────────────────────────────
 Delve.healCost = function(floor){
  const e = Delve.CONFIG.economy;
  return Math.round(e.healCostA + e.healCostB * Math.log(floor + 1));
 };
 
-// ── Mercompan discount from Luck (2%/pt, cap 20%) ─────────────
-Delve.luckDiscount = function(){
- const e = Delve.CONFIG.economy;
- return Math.min(e.maxLuckDiscount, Delve.luckPts() * e.luckDiscountPerPoint);
-};
-
-// ── Run-stat recorder (feeds end-of-run summary screens) ──────
+// ── Run-stat recorder ─────────────────────────────────────────
 Delve.recordStat = function(key, amount){
  const G = Delve.G;
  if(!G) return;
