@@ -12,7 +12,6 @@ window.Delve = window.Delve || {};
   G.gold -= shards * r;
   G.runShards += shards;
   Delve.save.shards += shards;
-  Delve.recordStat("goldConverted", G.gold);
   Delve.persist();
   return shards;
  };
@@ -26,13 +25,8 @@ window.Delve = window.Delve || {};
   Delve.persist();
   if(Delve.showEndScreen){
    Delve.showEndScreen(kind, extra);
-  } else {
-   // Legacy fallback until the UI batch lands
-   if(kind === "death"){
-    document.getElementById("deathScreen").style.display = "flex";
-   } else {
-    document.getElementById("hubScreen").style.display = "flex";
-   }
+  } else if(kind === "death"){
+   if(document.getElementById("deathScreen")) document.getElementById("deathScreen").style.display = "flex";
   }
  };
 
@@ -108,11 +102,10 @@ window.Delve = window.Delve || {};
   Delve.draw();
  };
 
- // ── Player swing (status ticks FIRST, then strike) ──────────
+ // ── Player swing (status-on-hit, crit, vampiric) ─────────────
  function playerSwing(m){
   const G = Delve.G, sec = C().secondaries;
 
-  // Weaken: this swing is reduced if the debuff was active
   const weakened = Delve.playerWeakened ? Delve.playerWeakened() : false;
   if(Delve.tickPlayerEffects) Delve.tickPlayerEffects();
 
@@ -120,8 +113,7 @@ window.Delve = window.Delve || {};
   m.hitFlash = Date.now();
 
   let dmg = Delve.atk();
-  if(m.isBoss) dmg += Delve.itemBuffs().bossAtk;
-  if(m.elite) dmg = Math.max(1, Math.round(dmg * 0.9)); // armour plate
+  if(m.isBoss) dmg += Delve.bossBonus ? Delve.bossBonus() : (Delve.itemBuffs().bossAtk || 0);
 
   const fs = Delve.firstStrikeBonus();
   if(fs && !m.hasActed) dmg += fs;
@@ -135,10 +127,26 @@ window.Delve = window.Delve || {};
    Delve.addFloater("-" + dmg, m.x, m.y, "#ffd75e");
   }
 
-  if(weakened) dmg = Math.max(1, Math.round(dmg * 0.7)); // -30%
+  if(weakened) dmg = Math.max(1, Math.round(dmg * 0.7));
   if(Delve.logPlayerAtk) Delve.logPlayerAtk(m.name || m.kind || "enemy", dmg, isCrit);
   Delve.recordStat("damageDealt", dmg);
   m.hp -= dmg;
+
+  // Weapon on-hit status (poison/bleed/burn from item)
+  const equip = G.equip || {};
+  const wpn = equip.weapon;
+  const ws = wpn && Delve.weaponStatus ? Delve.weaponStatus(wpn) : null;
+  if(ws && m.hp > 0 && Math.random() < ws.chance){
+   if(Delve.applyEffect) Delve.applyEffect(m, ws.kind);
+   Delve.addFloater(Delve.CONFIG.STATUS_EFFECTS[ws.kind].name.toUpperCase(), m.x, m.y - 0.6, Delve.CONFIG.STATUS_EFFECTS[ws.kind].color);
+  }
+
+  // Vampiric Strike: crits heal for half damage
+  if(isCrit && tb().vampiric){
+   const heal = Math.round(dmg / 2);
+   G.hp = Math.min(Delve.maxHp(), G.hp + heal);
+   Delve.addFloater("+" + heal, G.px, G.py, "#7ee08a");
+  }
 
   if(m.hp <= 0){
    if(Delve.hasOverkill()){
@@ -155,11 +163,13 @@ window.Delve = window.Delve || {};
   }
  }
 
- // ── Monster swing (its DOTs tick at start of its cycle) ─────
+ // helper for trait buffs inside combat tick
+ const tb = () => Delve.traitBuffs ? Delve.traitBuffs() : {};
+
+ // ── Monster swing (DOTs tick at start of its cycle) ──────────
  function monsterSwing(m){
   const G = Delve.G, sec = C().secondaries;
 
-  // Status effects tick at the start of the monster's swing
   if(Delve.tickMonsterEffects && Delve.tickMonsterEffects(m)){
    Delve.killMonster(m);
    Delve.endCombat(false);
@@ -203,14 +213,16 @@ window.Delve = window.Delve || {};
 
   if(Delve.hasSecondWind() && !G.secondWindUsed &&
      G.hp <= Math.floor(Delve.maxHp() * sec.secondWindTrigger)){
-   const heal = Math.round(Delve.maxHp() * (G.traits && G.traits.secondWindHealOverride || sec.secondWindHeal));
+   const ov = tb().secondWindHealOverride;
+   const pct = ov > 0 ? ov : sec.secondWindHeal;
+   const heal = Math.round(Delve.maxHp() * pct);
    G.hp = Math.min(Delve.maxHp(), G.hp + heal);
    G.secondWindUsed = true;
    Delve.addFloater("+" + heal, G.px, G.py, "#7ee08a");
    if(Delve.logSecondWind) Delve.logSecondWind(heal);
   }
 
-  if(G.hp <= 0 && G.traits && G.traits.unbroken && !G.unbrokenUsed){
+  if(G.hp <= 0 && tb().unbroken && !G.unbrokenUsed){
    G.hp = 1; G.unbrokenUsed = true;
    Delve.flash("Unbroken! Survived at 1 HP");
   }
@@ -301,7 +313,7 @@ window.Delve = window.Delve || {};
   Delve.updateHUD();
  };
 
- // ── Smash barrel (EV = 1.0, sim-calibrated) ─────────────────
+ // ── Smash barrel ─────────────────────────────────────────────
  Delve.smashBarrel = function(tx, ty){
   const G = Delve.G, b = C().barrel;
   let gold = 0;
@@ -313,10 +325,12 @@ window.Delve = window.Delve || {};
   Delve.recordStat("barrelsSmashed", 1);
 
   if(gold > 0){
-   G.gold += gold;
-   Delve.recordStat("goldEarned", gold);
-   Delve.addFloater("+" + gold + "g", tx, ty, "#ffd75e");
-   if(Delve.logSystem) Delve.logSystem("Barrel smashed! +" + gold + " gold");
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   const gained = Math.round(gold * mult);
+   G.gold += gained;
+   Delve.recordStat("goldEarned", gained);
+   Delve.addFloater("+" + gained + "g", tx, ty, "#ffd75e");
+   if(Delve.logSystem) Delve.logSystem("Barrel smashed! +" + gained + " gold");
   } else {
    Delve.addFloater("empty", tx, ty, "#9fb3c5");
    if(Delve.logSystem) Delve.logSystem("Barrel smashed — empty.");
@@ -324,7 +338,7 @@ window.Delve = window.Delve || {};
   Delve.updateHUD();
  };
 
- // ── Rest (player effects tick off while resting too) ────────
+ // ── Rest ─────────────────────────────────────────────────────
  Delve.tryRest = function(){
   const G = Delve.G, cfg = C();
   if(G.inCombat || G.runEnded) return;
@@ -386,27 +400,48 @@ window.Delve = window.Delve || {};
 
   if(m.isBoss){
    G.boss = null;
-   // boss gold is carried directly (converted on the victory screen)
-   G.gold += rewards.gold;
-   Delve.recordStat("goldEarned", rewards.gold);
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   G.gold += Math.round(rewards.gold * mult);
+   Delve.recordStat("goldEarned", Math.round(rewards.gold * mult));
    G.stairs = { x: m.x, y: m.y };
    g[m.y][m.x] = T().STAIR;
    Delve.flash("THE WARDEN FALLS!");
    Delve.addShake(6);
    if(Delve.logSystem) Delve.logSystem("The Warden has fallen.");
+   // drop a guaranteed boss item (legendary-leaning)
+   if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { guaranteed:true, minTier:3, name:m.name, elite:false, boss:true });
    Delve.triggerVictory();
   } else {
    G.monsters = G.monsters.filter(x => x !== m);
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
    G.goldPiles = G.goldPiles || [];
-   G.goldPiles.push({ x: m.x, y: m.y, amount: rewards.gold });
+   G.goldPiles.push({ x: m.x, y: m.y, amount: Math.round(rewards.gold * mult) });
    g[m.y][m.x] = T().GOLD;
    Delve.addShake(2);
-   if(m.elite && C().elite.guaranteedPotion && Delve.dropPotion) Delve.dropPotion(m.x, m.y);
+   if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { name:m.name, elite:!!m.elite });
+   if(m.elite && C().elite.guaranteedPotion && Delve.dropPotion){
+    Delve.dropPotion(m.x, m.y, 2, { kind:"monster", name:m.name, elite:true });
+   }
   }
 
+  // shards: small-int + elite multiplier
   Delve.save.shards += rewards.shards;
   G.runShards += rewards.shards;
   Delve.recordStat("shardsEarned", rewards.shards);
+
+  // floor-clear bonus: granted if this emptied the floor
+  if(!m.isBoss && G.monsters.length === 0 && !G.floorCleared){
+   G.floorCleared = true;
+   const bonus = Delve.floorClearBonus ? Delve.floorClearBonus() : 0;
+   if(bonus > 0){
+    Delve.save.shards += bonus;
+    G.runShards += bonus;
+    Delve.recordStat("shardsEarned", bonus);
+    Delve.addFloater("+" + bonus + "◇ floor cleared", G.px, G.py, "#7ee0ff");
+    if(Delve.logSystem) Delve.logSystem("Floor cleared! +" + bonus + " shards");
+   }
+  }
+
   Delve.persist();
 
   if(Delve.logKill) Delve.logKill(m.name || m.kind || "enemy", rewards.gold, rewards.shards, m.isBoss);
@@ -414,14 +449,13 @@ window.Delve = window.Delve || {};
   if(buffs.healOnKill){
    G.hp = Math.min(Delve.maxHp(), G.hp + buffs.healOnKill);
    Delve.addFloater("+" + buffs.healOnKill, G.px, G.py, "#7ee08a");
-   if(Delve.logHeal) Delve.logHeal(buffs.healOnKill, "Bloodthirst");
+   if(Delve.logHeal) Delve.logHeal(buffs.healOnKill, "Life Steal");
   }
-  if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y);
   if(Delve.addXP) Delve.addXP(rewards.xp);
-  G.energy = Math.min(100, (G.energy || 0) + C().energyPerKill);
+  G.energy = Math.min(100, (G.energy || 0) + C().energyPerKill + (tb().extraEnergyPerKill || 0));
  };
 
- // ── Victory (boss defeated) ──────────────────────────────────
+ // ── Victory ──────────────────────────────────────────────────
  Delve.triggerVictory = function(){
   const G = Delve.G;
   if(G.victoryDone) return;
@@ -436,7 +470,7 @@ window.Delve = window.Delve || {};
   Delve.draw();
  };
 
- // ── Collect gold pile (walk-over) ────────────────────────────
+ // ── Collect gold pile ────────────────────────────────────────
  Delve.collectGold = function(tx, ty){
   const G = Delve.G;
   if(!G.goldPiles) return;
@@ -457,6 +491,7 @@ window.Delve = window.Delve || {};
   G.floor++;
   if(G.floor > Delve.save.bestFloor){ Delve.save.bestFloor = G.floor; Delve.persist(); }
   G.secondWindUsed = false;
+  G.floorCleared = false;
   Delve.recordStat("floorsDescended", 1);
   if(Delve.logFloor) Delve.logFloor(G.floor);
   Delve.genFloor();
