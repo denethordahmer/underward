@@ -2,7 +2,6 @@ window.Delve = window.Delve || {};
 (function(){
  const $ = id => document.getElementById(id);
 
- // ── TREE DEFINITIONS ─────────────────────────────────────────
  const TREES = [
   { id:"attrs", name:"Attributes" },
   { id:"kit", name:"Kit" },
@@ -74,13 +73,8 @@ window.Delve = window.Delve || {};
   ]
  };
 
- // ── PERSISTENCE ──────────────────────────────────────────────
  function owned(id){ return !!(Delve.save.nodes && Delve.save.nodes[id]); }
- function ownedCount(treeId, tier){
-  return (Delve.CONFIG.PROGRESSION_TIERS && Delve.CONFIG.PROGRESSION_TIERS > 0) ? 0 : 0;
- }
 
- // ── REQUIREMENTS ─────────────────────────────────────────────
  function reqMet(node){
   if(node.req && !owned(node.req)) return false;
   if(node.traitReq){
@@ -91,13 +85,12 @@ window.Delve = window.Delve || {};
   return true;
  }
  function tierUnlocked(treeId, tier){
-  if(tier <= 1) return true;
+  if(tier === 1) return true;
   const nodes = NODES[treeId] || [];
-  const ownedLower = nodes.filter(n => n.tier < tier && owned(n.id)).length;
+  const ownedLower = nodes.filter(function(n){ return n.tier < tier && owned(n.id); }).length;
   return ownedLower >= 2;
  }
 
- // ── APPLY NODE EFFECTS ───────────────────────────────────────
  function afterBuy(node){
   const s = Delve.save;
   s.nodes = s.nodes || {};
@@ -117,11 +110,9 @@ window.Delve = window.Delve || {};
    s.abilityRanks = s.abilityRanks || {};
    s.abilityRanks[node.ability] = (s.abilityRanks[node.ability] || 0) + 1;
   }
-  if(node.type === "stoneSkin"){ /* handled via abilityRank */ }
   Delve.persist();
  }
 
- // ── RENDER TABS ──────────────────────────────────────────────
  let activeTree = "attrs";
 
  function renderTabs(){
@@ -141,11 +132,10 @@ window.Delve = window.Delve || {};
   const panel = $("treePanel");
   if(!panel) return;
   panel.innerHTML = "";
-  panel.style.display = "flex";
   const nodes = NODES[treeId] || [];
   const tiers = {};
   nodes.forEach(function(n){ (tiers[n.tier] = tiers[n.tier] || []).push(n); });
-  for(let t = 1; t <= 4; t++){
+  for(let t = 1; t !== 5; t++){
    const tier = tiers[t] || [];
    if(!tier.length) continue;
    const label = document.createElement("div");
@@ -197,19 +187,20 @@ window.Delve = window.Delve || {};
   }
  }
 
- // ── HUB RERENDER (replaces ui.js refreshHub) ────────────────
  const originalRefreshHub = Delve.refreshHub;
  function renderHub(){
   const shop = $("shop");
+  const tree = $("treePanel");
   if(activeTree === "attrs"){
+   if(tree) tree.style.display = "none";
    if(typeof originalRefreshHub === "function") originalRefreshHub();
    if(shop) shop.style.display = "flex";
-   if($("treePanel")) $("treePanel").style.display = "none";
    return;
   }
   if(shop) shop.style.display = "none";
+  if(tree) tree.innerHTML = "";
   renderTree(activeTree);
-  if($("treePanel")) $("treePanel").style.display = "flex";
+  if(tree) tree.style.display = "flex";
  }
  Delve.refreshHub = function(){
   renderTabs();
@@ -217,7 +208,6 @@ window.Delve = window.Delve || {};
  };
  Delve.showTreePanel = renderTree;
 
- // ── START-RUN INJECTIONS ─────────────────────────────────────
  const originalNewRun = Delve.newRun;
  Delve.newRun = function(){
   if(typeof originalNewRun === "function") originalNewRun();
@@ -231,17 +221,16 @@ window.Delve = window.Delve || {};
   Delve.G.level = startLevel;
   if(s.nodes && s.nodes.coinpurse) Delve.G.gold = (Delve.G.gold || 0) + 25;
   if(s.nodes && s.nodes.coin_chest) Delve.G.gold = (Delve.G.gold || 0) + 50;
-  // Provisions
   if(s.nodes && s.nodes.quartermaster){
-   const possible = Object.keys(Delve.itemDefs).filter(k => {
+   const possible = Object.keys(Delve.itemDefs).filter(function(k){
     const d = Delve.itemDefs[k];
     return d.slot && d.slot !== "consumable" && d.tier === 1;
-   }).map(k => Delve.itemDefs[k]);
+   }).map(function(k){ return Delve.itemDefs[k]; });
    if(possible.length){
     const it = Object.assign({}, possible[Math.floor(Math.random()*possible.length)]);
-    const stored = it; delete stored.x; delete stored.y;
-    Delve.G.inventory.push(stored);
-    Delve.flash("Quartermaster: " + stored.name);
+    delete it.x; delete it.y;
+    Delve.G.inventory.push(it);
+    Delve.flash("Quartermaster: " + it.name);
    }
   }
   if(s.nodes && s.nodes.provisioner){
@@ -255,7 +244,6 @@ window.Delve = window.Delve || {};
   Delve.updateHUD();
  };
 
- // ── HELPER INJECTIONS FOR EXISTING SYSTEMS ───────────────────
  Delve.hasProgression = function(id){ return !!owned(id); };
  Delve.inventoryCapacityProgression = function(){
   const s = Delve.save;
@@ -263,11 +251,9 @@ window.Delve = window.Delve || {};
  };
  Delve.inventoryCap = function(){
   const s = Delve.save;
-  // keep at current save cap; items.js reads via this function
   return Math.min(Delve.CONFIG.inventoryMax || 24, s.inventoryCap || Delve.CONFIG.inventorySlots || 16);
  };
 
- // Trait-name tracking for requirements like Cleave III <-> Bloodthirst
  Delve.markRunTrait = function(name, id){
   const s = Delve.save;
   s.runTraits = s.runTraits || [];
@@ -276,7 +262,7 @@ window.Delve = window.Delve || {};
   if(name && s.runTraits.indexOf(name) < 0) s.runTraits.push(name);
  };
 
- // ── BOOT ─────────────────────────────────────────────────────
- if(Delve.G) Delve.refreshHub();
+ // ── BOOT: always draw the hub, tabs included ─────────────────
+ Delve.refreshHub();
 
 })();
