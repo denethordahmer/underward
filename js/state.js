@@ -75,7 +75,10 @@ Delve.newRun = function(){
   shop:{ x:-1, y:-1, stock:null }, stairs:null, boss:null, floorData:{},
   px:0, py:0, gridW:0, gridH:0, grid:[]
  };
- Delve.G.hp = Delve.maxHp();
+  Delve.G.hp = Delve.maxHp();
+
+ (Delve._hooks && Delve._hooks.runStart || []).forEach(function(fn){ fn(); });
+
  Delve.genFloor();
  Delve.updateHUD();
 };
