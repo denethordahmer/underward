@@ -1,250 +1,93 @@
 window.Delve = window.Delve || {};
 (function(){
 
-  // ---- XP & level-up state ----
-  Delve.XP_CURVE = function(floor){
-    const cfg = Delve.CONFIG;
-    const step = cfg.xpWardStep || 2;
-    const ward = Delve.getWard(floor);
-    const wardIdx = Math.max(0, (Delve.CONFIG.WARDS.indexOf(ward) || 0));
-    return cfg.XP_CURVE.map(v => v + wardIdx * step);
+ // ── Chosen traits live in G.traits as an ARRAY of objects ───
+ // Legacy code treated it as a map; delved now uses helpers.
+
+ Delve.traits = function(){
+  const G = Delve.G;
+  if(!G.traits) G.traits = [];
+  return G.traits;
+ };
+
+ // ── Sum all passive trait effects into stat modifiers ────────
+ Delve.traitBuffs = function(){
+  const b = {
+   atk:0, maxHp:0, dodge:0, luck:0, goldMult:0, crit:0,
+   bossAtk:0, flatRed:0, healPerFloor:0, healOnKill:0,
+   dropBonus:0, speedBonus:0, extraEnergyPerKill:0, agi:0, tou:0,
+   vampiric:false, unbroken:false, secondWindHealOverride:0
   };
-
-  Delve.addXP = function(amount){
-    const G = Delve.G;
-    if(!G || G.dead) return;
-    G.xp = (G.xp || 0) + (amount || 0);
-
-    // process multiple level-ups sequentially
-    while(checkLevelUp()){ /* loop */ }
-    Delve.updateHUD();
-  };
-
-  function checkLevelUp(){
-    const G = Delve.G;
-    const curve = Delve.XP_CURVE(G.floor);
-    const next = curve[G.level - 1];
-    if(next !== undefined && G.xp >= next){
-      G.xp -= next;
-      G.level++;
-      G.pendingLevelUps = (G.pendingLevelUps || 0) + 1;
-      if(!G.levelUpOpen){
-        G.levelUpOpen = true;
-        if(Delve.logXP) Delve.logXP(0, G.level);
-        showLevelUpChoices();
-      }
-      return true;
+  const traits = Delve.traits();
+  traits.forEach(t => {
+   const ef = t.effects || {};
+   for(const k in ef){
+    if(k in b){
+     if(typeof b[k] === "boolean") b[k] = true;
+     else b[k] += ef[k];
     }
-    return false;
+   }
+  });
+  return b;
+ };
+
+ // ── Individual trait-state checks used by combat ─────────────
+ Delve.hasUnbroken = function(){ return Delve.traitBuffs().unbroken; };
+ Delve.secondWindHealOverride = function(){ return Delve.traitBuffs().secondWindHealOverride; };
+
+ // ── Add XP, trigger level-up when threshold crossed ──────────
+ Delve.addXP = function(amount){
+  const G = Delve.G;
+  G.xp = (G.xp||0) + amount;
+  const curve = Delve.CONFIG.XP_CURVE;
+  const need = curve[Math.min(G.level-1, curve.length-1)];
+  if(G.xp >= need && G.abilities.length < 3){
+   G.xp -= need;
+   Delve.triggerLevelUp();
   }
+ };
 
-  // ---- level-up choice generation ----
-  function showLevelUpChoices(){
-    const G = Delve.G;
-    const cfg = Delve.CONFIG.TRAITS;
+ // ── Level-up screen ──────────────────────────────────────────
+ Delve.triggerLevelUp = function(){
+  const G = Delve.G;
+  if(G.runEnded) return;
+  const choices = pickChoices();
+  if(!choices.length) return;
+  G.pendingChoices = choices;
+  if(Delve.showLevelUp) Delve.showLevelUp(choices);
+ };
 
-    const pool = [];
-    const passives = cfg.passives || [];
-    const uniques = cfg.uniques || [];
-    const abilities = cfg.abilities || [];
-
-    // always offer some passives
-    for(let i=0; i<3; i++){
-      const pick = passives[Math.floor(Math.random()*passives.length)];
-      pool.push(pick);
-    }
-    // chance for an ability (if under cap)
-    if(G.abilities.length < Delve.CONFIG.levelMaxAbilities && Math.random() < 0.5){
-      pool[Math.floor(Math.random()*pool.length)] =
-        abilities[Math.floor(Math.random()*abilities.length)];
-    }
-    // unique slot if any remain untaken
-    const openUniques = uniques.filter(u => !(G.takenUniques || []).includes(u.id));
-    if(openUniques.length && Math.random() < 0.25){
-      const pick = openUniques[Math.floor(Math.random()*openUniques.length)];
-      pool[Math.floor(Math.random()*pool.length)] = pick;
-    }
-
-    G.levelUpChoices = pool;
-    renderLevelUpChoices(pool);
+ function pickChoices(){
+  const cfg = Delve.CONFIG.TRAITS;
+  const all = (cfg.passives||[]).concat((cfg.uniques||[]).map(u => Object.assign({}, u, {once:true})));
+  const chosen = Delve.traits().map(t => t.id);
+  const unseen = all.filter(t => !chosen.includes(t.id));
+  const pool = unseen.length ? unseen : cfg.passives;
+  return shuffle(pool).slice(0, 3);
+ }
+ function shuffle(a){
+  const arr = a.slice();
+  for(let i=arr.length-1;i>0;i--){
+   const j = Math.floor(Math.random()*(i+1));
+   [arr[i],arr[j]] = [arr[j],arr[i]];
   }
+  return arr;
+ }
 
-  function renderLevelUpChoices(choices){
-    const G = Delve.G;
-    if(!G) return;
+ // ── Choose a trait from the level-up screen ──────────────────
+ Delve.chooseTrait = function(id){
+  const cfg = Delve.CONFIG.TRAITS;
+  const all = (cfg.passives||[]).concat((cfg.uniques||[]));
+  const t = all.find(x => x.id === id);
+  if(!t) return;
+  const traits = Delve.traits();
+  traits.push(Object.assign({}, t));
+  G = Delve.G;
+  G.level = (G.level||1) + 1;
+  Delve.flash("Learned: " + t.name);
+  if(Delve.logTrait) Delve.logTrait(t.name, t.id);
+  Delve.updateHUD();
+  Delve.draw();
+ };
 
-    const overlay = document.getElementById("levelupScreen");
-    if(!overlay) return;
-
-    overlay.style.display = "flex";
-    const slot = document.getElementById("levelupChoices");
-    slot.innerHTML = "";
-
-    choices.forEach(function(t){
-      const card = document.createElement("button");
-      card.className = "btn";
-      card.style.cssText = "width:100%; padding:14px; text-align:left; font-size:17px; min-height:82px; background:#1a2a3a; box-shadow:0 3px 0 #0b141c; overflow:hidden;";
-
-      const title = document.createElement("div");
-      title.style.cssText = "font-weight:800; font-size:19px; margin-bottom:4px;";
-      title.textContent = t.name;
-      const desc = document.createElement("div");
-      desc.style.cssText = "font-size:14px; color:#a9bccd; white-space:normal;";
-      desc.textContent = t.desc;
-
-      card.appendChild(title);
-      card.appendChild(desc);
-
-      card.addEventListener("click", function(){
-        applyTrait(t);
-        overlay.style.display = "none";
-
-        const pending = G.pendingLevelUps || 0;
-        G.pendingLevelUps = pending - 1;
-        if(G.pendingLevelUps > 0){
-          G.levelUpOpen = true;
-          showLevelUpChoices();
-        } else {
-          G.levelUpOpen = false;
-        }
-        Delve.updateHUD();
-        Delve.draw();
-      });
-
-      slot.appendChild(card);
-    });
-  }
-
-  function applyTrait(t){
-    const G = Delve.G;
-    if(!G || !t) return;
-
-    // mark uniques as taken
-    if(t.unique){
-      G.takenUniques = G.takenUniques || [];
-      G.takenUniques.push(t.id);
-    }
-
-    // abilities have their own slot system
-    if(t.cost !== undefined){
-      Delve.addAbility(t);
-      return;
-    }
-
-    // passives are stackable, stored as a list of effects
-    G.traits = G.traits || [];
-    G.traits.push(Object.assign({}, t));
-
-    // some effects are immediate + permanent per run
-    if(t.effects){
-      if(t.effects.maxHp) G.hp += t.effects.maxHp;
-      if(t.effects.atk) G.hp += 0; // no direct HP change for ATK
-      Delve.flash(t.name + " acquired");
-    }
-  }
-
-  // ---- abilities ----
-  Delve.addAbility = function(a){
-    const G = Delve.G;
-    if(!G) return;
-    G.abilities = G.abilities || [];
-    if(G.abilities.length >= Delve.CONFIG.levelMaxAbilities){
-      // replace oldest (or stand-in if later UI allows choice)
-      G.abilities.shift();
-    }
-    // strip to plain ability ID + instance
-    G.abilities.push({
-      id: a.id,
-      name: a.name,
-      cost: a.cost,
-      target: a.target,
-      desc: a.desc
-    });
-    Delve.flash("Ability learned: " + a.name);
-  };
-
-  // ---- ability resolution helper (called by combat when target chosen) ----
-  Delve.castAbility = function(ability, tx, ty){
-    const G = Delve.G;
-    if(!G || !ability) return false;
-
-    const energy = Delve.currentEnergy ? Delve.currentEnergy() : G.energy;
-    if(energy < ability.cost){
-      Delve.flash("Not enough Energy");
-      return false;
-    }
-
-    // spend energy
-    G.energy -= ability.cost;
-
-    const T = Delve.T;
-    const targetMonster = G.monsters.find(function(m){ return m.x===tx && m.y===ty; }) || G.boss;
-
-    switch(ability.id){
-      case "cleave":
-        // hit target + all adjacent enemies
-        const adjacent = allMonstersAdjacentTo(tx, ty);
-        adjacent.forEach(function(m){
-          m.hp -= Delve.atk();
-          if(m.hp <= 0) Delve.killMonster(m);
-        });
-        break;
-
-      case "lunge":
-        // move to target and attack
-        G.px = tx; G.py = ty;
-        if(targetMonster){
-          targetMonster.hp -= Delve.atk() + 4;
-          if(targetMonster.hp <= 0) Delve.killMonster(targetMonster);
-        }
-        break;
-
-      case "stone_skin":
-        G.stoneSkin = 2; // 2 turns of 60% reduction
-        Delve.flash("Stone Skin! -60% damage for 2 turns");
-        break;
-
-      case "cinderbolt":
-        if(targetMonster){
-          targetMonster.hp -= 10;
-          if(targetMonster.hp <= 0) Delve.killMonster(targetMonster);
-        }
-        break;
-
-      case "rally":
-        G.hp = Math.min(Delve.maxHp(), G.hp + Math.round(Delve.maxHp()*0.35));
-        Delve.flash("Rally! +35% HP");
-        break;
-
-      case "blink":
-        if(!G.grid[ty] || G.grid[ty][tx] === undefined || G.grid[ty][tx] !== T.FLOOR){
-          Delve.flash("Teleport failed — not an empty tile");
-          return false;
-        }
-        G.px = tx; G.py = ty;
-        break;
-
-      case "whirlwind":
-        allAdjacentEnemies().forEach(function(m){
-          m.hp -= Delve.atk();
-          if(m.hp <= 0) Delve.killMonster(m);
-        });
-        break;
-
-      default:
-        return false;
-    }
-
-    Delve.updateHUD();
-    return true;
-  };
-
-  function allMonstersAdjacentTo(x,y){
-    return (Delve.G.monsters || []).filter(function(m){
-      return Math.abs(m.x-x)+Math.abs(m.y-y) === 1;
-    });
-  }
-  function allAdjacentEnemies(){
-    return allMonstersAdjacentTo(Delve.G.px, Delve.G.py);
-  }
 })();
