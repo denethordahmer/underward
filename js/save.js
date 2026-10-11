@@ -17,6 +17,12 @@ window.Delve = window.Delve || {};
       bestFloor: 1,
       lvls: makeDefaultLevels(),
       unlocks: {},
+      nodes: {},            // progression tree purchases (v3.1)
+      inventoryCap: 16,     // bag capacity from Field Pack / Deep Pack
+      abilities: [],        // hub-purchased ability ids
+      abilityRanks: {},     // ability id -> rank count
+      runTraits: [],        // run-observed trait names (for traitReq gating)
+      runTraitsSeen: [],    // run-observed trait ids
       seenTutorial: false,
       lastUpdated: Date.now()
     };
@@ -36,13 +42,28 @@ window.Delve = window.Delve || {};
     return levels;
   }
 
-  function sanitizeUnlocks(raw){
-    const unlocked = {};
+  function sanitizeBoolMap(raw){
+    const out = {};
     const src = raw && typeof raw === "object" ? raw : {};
     for(const key in src){
-      if(src[key] === true || src[key] === 1){ unlocked[key] = true; }
+      if(src[key] === true || src[key] === 1) out[key] = true;
     }
-    return unlocked;
+    return out;
+  }
+
+  function sanitizeStringArray(raw){
+    if(!Array.isArray(raw)) return [];
+    return raw.filter(function(s){ return typeof s === "string"; });
+  }
+
+  function sanitizeAbilityRanks(raw){
+    const out = {};
+    const src = raw && typeof raw === "object" ? raw : {};
+    for(const key in src){
+      const v = src[key];
+      if(typeof v === "number" && Number.isFinite(v)) out[key] = Math.max(0, Math.round(v));
+    }
+    return out;
   }
 
   function migrateSave(raw){
@@ -58,14 +79,33 @@ window.Delve = window.Delve || {};
     if(src.lvls && typeof src.lvls === "object"){
       base.lvls = sanitizeLevels(src.lvls);
     } else {
-      const legacy = makeDefaultLevels();
-      if(typeof src.hpLvl === "number") legacy.con = src.hpLvl;
-      if(typeof src.atkLvl === "number") legacy.str = src.atkLvl;
-      base.lvls = legacy;
+      // pre-v3 flat fields
+      if(typeof src.hpLvl === "number") base.lvls.con = src.hpLvl;
+      if(typeof src.atkLvl === "number") base.lvls.str = src.atkLvl;
     }
 
     if(src.unlocks && typeof src.unlocks === "object"){
-      base.unlocks = sanitizeUnlocks(src.unlocks);
+      base.unlocks = sanitizeBoolMap(src.unlocks);
+    }
+
+    // ── progression fields (added v3.1; previously dropped by whitelist) ──
+    if(src.nodes && typeof src.nodes === "object"){
+      base.nodes = sanitizeBoolMap(src.nodes);
+    }
+    if(typeof src.inventoryCap === "number" && Number.isFinite(src.inventoryCap)){
+      base.inventoryCap = Math.max(1, Math.round(src.inventoryCap));
+    }
+    if(Array.isArray(src.abilities)){
+      base.abilities = sanitizeStringArray(src.abilities);
+    }
+    if(src.abilityRanks && typeof src.abilityRanks === "object"){
+      base.abilityRanks = sanitizeAbilityRanks(src.abilityRanks);
+    }
+    if(Array.isArray(src.runTraits)){
+      base.runTraits = sanitizeStringArray(src.runTraits);
+    }
+    if(Array.isArray(src.runTraitsSeen)){
+      base.runTraitsSeen = sanitizeStringArray(src.runTraitsSeen);
     }
 
     return base;
@@ -74,7 +114,7 @@ window.Delve = window.Delve || {};
   function safelyParseJSON(value){
     if(typeof value !== "string" || value.trim() === "") return null;
     try { return JSON.parse(value); }
-    catch(_err) { return null; }
+    catch(_err){ return null; }
   }
 
   function readSaveFromStorage(storageKey){
@@ -88,25 +128,31 @@ window.Delve = window.Delve || {};
 
   function writeSaveToStorage(storageKey, saveData){
     try {
+      // IMPORTANT: this whitelist must mirror makeDefaultSave()/migrateSave().
+      // Any new persisted field must be added in all three places.
       const safeSave = {
         version: 3,
         shards: sanitizeNumber(saveData.shards, 0),
         bestFloor: sanitizeNumber(saveData.bestFloor, 1),
         lvls: sanitizeLevels(saveData.lvls),
-        unlocks: sanitizeUnlocks(saveData.unlocks),
+        unlocks: sanitizeBoolMap(saveData.unlocks),
+        nodes: sanitizeBoolMap(saveData.nodes),
+        inventoryCap: sanitizeNumber(saveData.inventoryCap, 16),
+        abilities: sanitizeStringArray(saveData.abilities),
+        abilityRanks: sanitizeAbilityRanks(saveData.abilityRanks),
+        runTraits: sanitizeStringArray(saveData.runTraits),
+        runTraitsSeen: sanitizeStringArray(saveData.runTraitsSeen),
         seenTutorial: !!saveData.seenTutorial,
         lastUpdated: Date.now()
       };
       localStorage.setItem(storageKey, JSON.stringify(safeSave));
       return safeSave;
-    } catch(_err) {
+    } catch(_err){
       return null;
     }
   }
 
-  Delve.createDefaultSave = function(){
-    return makeDefaultSave();
-  };
+  Delve.createDefaultSave = function(){ return makeDefaultSave(); };
 
   Delve.resetSave = function(options){
     const silent = !!(options && options.silent);
@@ -129,11 +175,9 @@ window.Delve = window.Delve || {};
 
     if(!loaded){
       loaded = makeDefaultSave();
-      writeSaveToStorage(SAVE_KEY, loaded);
-    } else {
-      writeSaveToStorage(SAVE_KEY, loaded);
     }
 
+    writeSaveToStorage(SAVE_KEY, loaded);
     Delve.save = loaded;
     return Delve.save;
   };
