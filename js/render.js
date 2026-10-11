@@ -268,7 +268,10 @@ window.Delve = window.Delve || {};
    let px=cx+rx-totalW/2; const py=cy+ry-ts*0.55;
    m.effects.forEach(e => { ctx.fillStyle=Delve.statusColor?Delve.statusColor(e.id):"#fff"; ctx.fillRect(px,py,pw,3); px+=pw+gap; });
   }
-  const mhp = m.isBoss ? Delve.bossHp() : m.maxHp;
+  
+  // FIX #35: Delve.bossHp() was never defined — every frame with a boss
+  // on screen threw a TypeError. Boss objects carry maxHp like all monsters.
+  const mhp = m.maxHp;
   const frac = Math.max(0,Math.min(1,m.hp/mhp));
   ctx.fillStyle="rgba(0,0,0,0.6)"; ctx.fillRect(cx+rx-ts*0.34, cy+ry-ts*0.48, ts*0.68, 4);
   ctx.fillStyle = m.isBoss?"#c98aff":m.elite?"#ffd75e":"#ff7d93";
