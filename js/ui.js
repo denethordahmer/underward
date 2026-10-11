@@ -286,6 +286,7 @@ window.Delve = window.Delve || {};
  Delve.showFloorCard = function(floor){
   const ward = Delve.getWard(floor);
   const wname = (ward && ward.name) || "The Undercroft";
+  if(Delve.sfx) Delve.sfx("floor_enter", { ward: ward ? ward.id : 1 });
   $("floorCardNum").textContent = "Floor " + floor;
   $("floorCardName").textContent =
    Delve.isShopFloor(floor) ? "Trading Post — " + wname :
@@ -311,6 +312,7 @@ window.Delve = window.Delve || {};
   if(titleEl) titleEl.style.color = accent;
   if(cardEl) cardEl.style.borderColor = accent + "66";
   const ov = $("bossIntroOverlay");
+  if(Delve.sfx) Delve.sfx("boss_intro", { ward: Math.ceil(f/10) });
   ov.style.display = "flex";
   clearTimeout(Delve._bossIntroT);
   Delve._bossIntroT = setTimeout(function(){ ov.style.display = "none"; }, 3000);
@@ -359,6 +361,7 @@ window.Delve = window.Delve || {};
 
  Delve.showHub = function(){
   hideAll();
+  if(Delve.sfxStopAmbience) Delve.sfxStopAmbience();
   $("levelupScreen").style.display = "none";
   $("hubScreen").style.display = "flex";
   $("hud").style.display = "none";
@@ -374,10 +377,11 @@ window.Delve = window.Delve || {};
   $("levelupScreen").style.display = "none";
  };
 
-  Delve.startRun = function(){
+ Delve.startRun = function(){
   hideAll();
   $("hud").style.display = "flex";
   Delve.newRun();
+  if(Delve.sfxStartAmbience) Delve.sfxStartAmbience();
   if(Delve.resize) Delve.resize();
   Delve.draw();
   Delve.showFloorCard(Delve.G.floor);
@@ -443,6 +447,7 @@ window.Delve = window.Delve || {};
   hideAll();
   if(!G.shop) G.shop = { x:-1, y:-1 };
   if(!G.shop.stock) G.shop.stock = Delve.makeShopStock(G);
+  if(Delve.sfx) Delve.sfx("shop_open");
   $("shopScreen").style.display = "flex";
   Delve.buildShop();
  };
@@ -473,10 +478,11 @@ window.Delve = window.Delve || {};
    buy.disabled = entry.sold || G.gold < price;
    buy.addEventListener("click", function(){
     if(entry.sold || G.gold<price) return;
-    if(G.inventory.length >= (Delve.inventoryCap?Delve.inventoryCap():Delve.CONFIG.inventorySlots)){ Delve.flash("Bag is full!"); return; }
+    if(G.inventory.length >= (Delve.inventoryCap?Delve.inventoryCap():Delve.CONFIG.inventorySlots)){ Delve.flash("Bag is full!"); if(Delve.sfx) Delve.sfx("deny"); return; }
     G.gold -= price;
     entry.sold = true;
     Delve.recordStat("goldSpentShop", price);
+    if(Delve.sfx) Delve.sfx("buy");
     const bought = Object.assign({}, item);
     Delve.stampProvenance(bought, { kind:"shop" });
     Delve.pickupItem(bought);
@@ -502,6 +508,7 @@ window.Delve = window.Delve || {};
   const heal = Math.round(Delve.maxHp()*Delve.CONFIG.shop.healPct);
   G.hp = Math.min(Delve.maxHp(), G.hp+heal);
   Delve.recordStat("goldSpentShop", cost);
+  if(Delve.sfx) Delve.sfx("potion");
   Delve.flash("+" + heal + " HP");
   Delve.updateHUD();
   Delve.buildShop();
@@ -664,6 +671,19 @@ window.Delve = window.Delve || {};
  $("volumeSlider").addEventListener("input", function(){
   if(Delve.sfxSetVolume) Delve.sfxSetVolume(parseFloat(this.value));
  });
+ $("musicSlider").addEventListener("input", function(){
+  if(Delve.musicSetVolume) Delve.musicSetVolume(parseFloat(this.value));
+ });
+ $("hapticsBtn").addEventListener("click", function(){
+  const on = Delve.sfxGetHaptics ? !Delve.sfxGetHaptics() : false;
+  if(Delve.sfxSetHaptics) Delve.sfxSetHaptics(on);
+  $("hapticsBtn").textContent = on ? "ON" : "OFF";
+ });
+ // Sync controls to persisted audio prefs on load.
+ if(Delve.sfxGetVolume) $("volumeSlider").value = Delve.sfxGetVolume();
+ if(Delve.musicGetVolume) $("musicSlider").value = Delve.musicGetVolume();
+ if(Delve.sfxGetHaptics) $("hapticsBtn").textContent = Delve.sfxGetHaptics() ? "ON" : "OFF";
+ if(Delve.sfxMuted) $("muteBtn").textContent = Delve.sfxMuted() ? "🔇" : "🔊";
 
  $("shopHealBtn").addEventListener("click", doShopHeal);
  $("shopLeaveBtn").addEventListener("click", closeShop);
