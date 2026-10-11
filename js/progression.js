@@ -172,10 +172,14 @@ window.Delve = window.Delve || {};
    let pot = Delve.potionDefs ? Delve.potionDefs[Math.floor(Math.random()*Delve.potionDefs.length)] : null;
    if(pot){ const stored = Object.assign({}, pot); delete stored.x; delete stored.y; Delve.G.inventory.push(stored); Delve.flash("Provisioner: " + stored.name); }
   }
-  if(s.nodes && s.nodes.master_provisioner){
+   if(s.nodes && s.nodes.master_provisioner){
    let pot = Delve.potionDefs ? Delve.potionDefs[Math.floor(Math.random()*Delve.potionDefs.length)] : null;
    if(pot){ const stored = Object.assign({}, pot); delete stored.x; delete stored.y; Delve.G.inventory.push(stored); Delve.flash("Master Provisioner: " + stored.name); }
+   Delve.G.gold = (Delve.G.gold || 0) + 25; // Master Provisioner: +25g (desc said so, was missing)
   }
+
+  // Hub-purchased abilities enter every run.
+  if(Delve.injectHubAbilities) Delve.injectHubAbilities();
  }
 
  // ── Public helpers (additions, named clearly, no overrides) ──
