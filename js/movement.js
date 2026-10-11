@@ -4,10 +4,12 @@ window.Delve = window.Delve || {};
  const C = () => Delve.CONFIG;
 
  // movement.js : tile interaction and traversal — tapping to move, step-on
- // pathfinding, rest, barrels, gold pickup, and floor descent.
- // Split out of combat.js. Load AFTER js/combat.js (calls Delve.startCombat,
- // Delve.enemiesTurn, Delve.openShop). All references are call-time, so no
- // load-time dependency exists in either direction.
+ // pathfinding, rest, barrels, gold pickup, chests, and floor descent.
+ // Split out of combat.js (C-006). Load AFTER js/combat.js (calls Delve.startCombat,
+ // Delve.enemiesTurn); Delve.openShop lives in ui.js. All references are call-time,
+ // so no load-time dependency exists in either direction.
+ //
+ // C-017: every entry point that reads Delve.G now guards it before dereferencing.
 
  // ── Single-step act (tap to move) ────────────────────────────
  Delve.tryAct = function(tx, ty){
@@ -113,6 +115,7 @@ window.Delve = window.Delve || {};
  // ── Smash barrel ─────────────────────────────────────────────
  Delve.smashBarrel = function(tx, ty){
   const G = Delve.G, b = C().barrel;
+  if(!G || G.dead || G.runEnded) return;      // C-017 guard
   let gold = 0;
   if(Math.random() < b.goldChance) gold = Delve.rng(b.goldMin, b.goldMax);
 
@@ -138,7 +141,8 @@ window.Delve = window.Delve || {};
  // ── Rest ─────────────────────────────────────────────────────
  Delve.tryRest = function(){
   const G = Delve.G, cfg = C();
-  if(G.inCombat || G.runEnded) return;
+  if(!G || G.dead || G.runEnded) return;      // C-017 guard
+  if(G.inCombat) return;
   if(G.restCount >= cfg.restPerFloor){ Delve.flash("No more rest available this floor"); return; }
   const heal = Math.max(cfg.restMinHeal, Math.round(Delve.maxHp() * cfg.restHealPct));
   G.hp = Math.min(Delve.maxHp(), G.hp + heal);
@@ -154,7 +158,7 @@ window.Delve = window.Delve || {};
  // ── Collect gold pile ────────────────────────────────────────
  Delve.collectGold = function(tx, ty){
   const G = Delve.G;
-  if(!G.goldPiles) return;
+  if(!G || !G.goldPiles) return;              // C-017 guard
   const idx = G.goldPiles.findIndex(p => p.x === tx && p.y === ty);
   if(idx < 0) return;
   const pile = G.goldPiles.splice(idx,1)[0];
@@ -168,6 +172,7 @@ window.Delve = window.Delve || {};
  // ── Descend ──────────────────────────────────────────────────
  Delve.descend = function(){
   const G = Delve.G, cfg = C();
+  if(!G || G.dead || G.runEnded) return;      // C-017 guard
   G.hp = Math.min(Delve.maxHp(), G.hp + Math.round(Delve.maxHp() * cfg.healOnDescendPct));
   // Hearty Stew / floorHeal: consume one charge on descend.
   if(G.floorHealLeft > 0){
@@ -187,6 +192,9 @@ window.Delve = window.Delve || {};
   if(Delve.showFloorCard) Delve.showFloorCard(G.floor);
  };
 
+ // ── Stairs prompt ────────────────────────────────────────────
+ // Reads no G state of its own, so no guard is needed here — the ui.js
+ // prompt and the descend() fallback both handle their own.
  Delve.promptStairs = function(){
   if(Delve.showStairsPrompt) Delve.showStairsPrompt();
   else Delve.descend();
