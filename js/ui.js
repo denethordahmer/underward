@@ -374,8 +374,7 @@ window.Delve = window.Delve || {};
   $("levelupScreen").style.display = "none";
  };
 
- Delve.startRun = function(){
-  if(Delve.hideIntro) Delve.hideIntro();
+  Delve.startRun = function(){
   hideAll();
   $("hud").style.display = "flex";
   Delve.newRun();
