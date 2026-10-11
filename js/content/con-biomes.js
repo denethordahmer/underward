@@ -2,7 +2,7 @@ window.Delve = window.Delve || {};
 (function(){
  const C = Delve.CONFIG;
 
- // ── content/biomes.js : biome visuals + ward (floor-band) rules ──
+ // ── content/con-biomes.js : biome visuals + ward (floor-band) rules ──
 
  C.WARDS = [
   { id:1, name:"Upper Ruins", floors:[1,10], biome:0,
