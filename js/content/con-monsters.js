@@ -9,7 +9,7 @@ window.Delve = window.Delve || {};
   slime: { name:"Slime", hp:18, hpPerFloor:2.0, atk:2, atkPerFloor:0.3, xp:2, gold:2, shards:2, kind:"slime", speed:0.7 },
   goblin: { name:"Goblin", hp:12, hpPerFloor:2.5, atk:4, atkPerFloor:0.6, xp:3, gold:3, shards:2, kind:"goblin", speed:1.0 },
   brute: { name:"Brute", hp:18, hpPerFloor:4.0, atk:7, atkPerFloor:0.8, xp:5, gold:5, shards:3, kind:"brute", speed:0.75 },
-  wraith: { name:"Wraith", hp:16, hpPerFloor:3.0, atk:4, atkPerFloor:0.7, xp:6, gold:6, shards:3, kind:"wraith", speed:1.2 },
+  wraith: { name:"Wraith", hp:16, hpPerFloor:3.0, atk:4, atkPerFloor:0.7, xp:6, gold:6, shards:3, kind:"wraith", speed:1.2, onHitEffect:"weaken" },  // migrated from combat.js fallback
 
   barkling:     { name:"Barkling",           hp:16, hpPerFloor:2.2, atk:4, atkPerFloor:0.55, xp:4, gold:4, shards:2, kind:"barkling",     speed:1.30 },
   spore_swarm:  { name:"Spore Swarm",        hp:14, hpPerFloor:2.2, atk:4, atkPerFloor:0.60, xp:4, gold:4, shards:2, kind:"spore_swarm",  speed:1.40 },
@@ -30,11 +30,16 @@ window.Delve = window.Delve || {};
   { floors:[12,12], boss:false, countMin:10, countMax:14, weights:{ brute:8, wraith:12, barkling:15, thornling:20, vine_stalker:20, spore_swarm:15, dryad:10 } },
   { floors:[13,19], boss:false, countMin:10, countMax:14, weights:{ barkling:12, thornling:22, vine_stalker:20, dryad:18, treant:15, spore_swarm:13 } },
   { floors:[20,20], boss:true, countMin:4, countMax:4, weights:{ spore_swarm:100 } },
+  // Overflow fallback band — used by getMonsterBarand/getMonsterBand for any floor
+  // past the last defined ward. Kept deliberately: future wards override it
+  // by defining their own bands above this entry.
   { floors:[21,999], boss:false, countMin:10, countMax:14, weights:{ barkling:8, thornling:20, vine_stalker:20, dryad:22, treant:18, spore_swarm:12 } }
  ];
 
  C.spawnSafetyRadius = 4;
 
+ // Fallback boss scaling — levels.js uses these ONLY when a BOSS_DEFS entry
+ // omits a stat. Future wards may omit fields and inherit these defaults.
  C.monsterHpBase = 5; C.monsterHpPerFloor = 1.5;
  C.monsterAtkBase = 1; C.monsterAtkPerFloor = 0.5;
  C.bossHpBase = 100; C.bossHpPerFloor = 0;
@@ -47,14 +52,18 @@ window.Delve = window.Delve || {};
    title:"Guardian of the Undercroft",
    flavour:"He has watched these stones since before your grandfather was born.\nHe will not step aside.",
    hp:100, atk:9, speed:0.65, chainHitEvery:3,
-   shardBonusPct:0.10
+   shardBonusPct:0.10,
+   sprite:"boss_warden",   // key registered in content/bosssprites.js
+   accent:"#7ee0ff"        // boss intro tint — matches his pale-blue eyes
   },
   2: {
    name:"The Thorn Sovereign",
    title:"Heart of the Blackvein",
    flavour:"It was ancient before the corruption found it.\nNow it walks, and it has been waiting.",
    hp:160, atk:14, speed:0.70, chainHitEvery:2,
-   shardBonusPct:0.15
+   shardBonusPct:0.15,
+   sprite:"boss_thorn",    // FIX #27: previously fell back to boss_warden
+   accent:"#a8e84a"
   }
  };
 
@@ -64,5 +73,7 @@ window.Delve = window.Delve || {};
   guaranteedPotion:true, glow:"#ffd75e"
  };
 
+ // Kill XP — single source of truth is the roster row's `xp`.
+ // This table exists for legacy readers; kept in sync. Prefer MONSTER_ROSTER[k].xp.
  C.xpKill = { rat:1, slime:2, goblin:3, brute:5, wraith:6, barkling:4, spore_swarm:4, thornling:7, vine_stalker:8, dryad:8, treant:9, boss:30 };
 })();
