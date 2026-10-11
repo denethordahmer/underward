@@ -112,16 +112,17 @@ function sec(title){
 }
 
 var FILES = [
-  "js/config.js","js/content/monsters.js","js/content/items.js","js/content/biomes.js","js/content/traits.js",
+  "js/config.js","js/content/con-monsters.js","js/content/con-items.js","js/content/con-biomes.js","js/content/con-traits.js",
   "js/save.js","js/attrs.js","js/items.js","js/sprites.js",
   "js/state.js","js/levels.js","js/traits.js","js/combat.js",
-  "js/effects.js","js/log.js","js/render.js","js/pathfind.js","js/input.js",
-  "js/ui.js","js/progression.js","js/main.js"
+  "js/effects.js","js/sfx.js","js/log.js","js/render.js","js/pathfind.js","js/input.js",
+  "js/ui.js","js/progression.js","js/main.js","js/onboarding.js"
 ];
 
 var ownership = {};
 var dupes = {};
 var errors = [];
+var floorFailures = 0;
 
 // ── 1. Load each file, track ownership ──
 var s1 = sec("1. Script loading &amp; ownership");
@@ -185,8 +186,8 @@ var missing = REQUIRED.filter(function(k){ return typeof window.Delve[k] !== "fu
 if (!missing.length) s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED.length + ' required functions present.</div>';
 else s3.innerHTML = '<div class="fail">Missing:</div><div class="missing">' + missing.join(", ") + '</div>';
 
-// ── 4. Floor generation checks ──
-var s4 = sec("4. Floor generation (50 trials)");
+// ── 4. Floor generation checks (floors 1-20, both biomes) ──
+var s4 = sec("4. Floor generation (50 trials, floors 1-20)");
 try {
   if (typeof window.Delve.newRun !== "function") throw new Error("newRun missing — cannot seed a run");
   window.Delve.newRun();   // seeds Delve.G once
@@ -195,7 +196,13 @@ try {
 
   var trials = 50, fails = [];
   for (var t = 0; t < trials; t++) {
-    G.floor = (t % 10) + 1;
+    G.floor = (t % 20) + 1;
+    var ward = Delve.getWard(G.floor);
+    if (!ward) fails.push("trial " + t + ": no ward for floor " + G.floor);
+    var biomeIdx = (ward && ward.biome !== undefined) ? ward.biome : -1;
+    if (biomeIdx < 0 || !Delve.CONFIG.BIOMES[biomeIdx]) {
+      fails.push("trial " + t + ": biome " + biomeIdx + " missing for floor " + G.floor);
+    }
     Delve.genFloor();
     var w = G.grid[0].length, h = G.grid.length;
     if (G.px < 0 || G.py < 0 || G.px >= w || G.py >= h) fails.push("trial " + t + ": player outside map");
@@ -206,13 +213,15 @@ try {
     });
     if (fails.length > 25) break;
   }
-  if (!fails.length) s4.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly.</div>';
+  floorFailures = fails.length;
+  if (!fails.length) s4.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly across both biomes.</div>';
   else {
     s4.innerHTML = '<div class="fail">' + fails.length + ' problem(s):</div><ul style="margin-left:18px">';
     fails.slice(0, 25).forEach(function(f){ s4.innerHTML += "<li>" + f + "</li>"; });
     s4.innerHTML += "</ul>";
   }
 } catch (err) {
+  floorFailures = 1;
   s4.innerHTML = '<div class="fail">Floor checks aborted: ' + err.message + '</div>';
 }
 
@@ -221,7 +230,8 @@ var s5 = sec("5. Summary");
 if (errors.length) s5.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
 if (missing.length) s5.innerHTML += '<div class="fail">Missing functions: ' + missing.length + '</div>';
 if (dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.length + '</div>';
-if (!errors.length && !missing.length && !dupKeys.length) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
+if (floorFailures) s5.innerHTML += '<div class="fail">Floor generation issues: ' + floorFailures + '</div>';
+if (!errors.length && !missing.length && !dupKeys.length && !floorFailures) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
 
 // ── 6. Ownership registry ──
 var s6 = sec("6. Ownership registry");
