@@ -694,10 +694,12 @@ window.Delve = window.Delve || {};
   }).join("");
  }
 
- Delve.showVictory = function(shards){
+ Delve.showVictory = function(shards, canContinue){
   hideAll();
   $("victoryShards").textContent = shards || 0;
   $("victorySummary").innerHTML = summaryRows().replace(/death-row/g,"victory-row").replace(/dr-label/g,"vr-label").replace(/dr-value/g,"vr-value");
+  const contBtn = $("victoryContinue");
+  if(contBtn) contBtn.style.display = (canContinue === false) ? "none" : "";
   $("victoryScreen").style.display = "flex";
  };
 
@@ -705,7 +707,7 @@ window.Delve = window.Delve || {};
   hideAll();
   $("levelupScreen").style.display = "none";
   const title = $("deathScreen").querySelector("h1");
-  if(kind === "victory"){ Delve.showVictory((extra&&extra.shards)||0); return; }
+  if(kind === "victory"){ Delve.showVictory((extra&&extra.shards)||0, (extra&&extra.canContinue!==false)); return; }
   if(kind === "retreat"){
    title.textContent = "ESCAPED";
    $("deathInfo").textContent = "You climbed back to the surface.";
@@ -759,7 +761,7 @@ window.Delve = window.Delve || {};
   });
   $("dbgXP").addEventListener("click", function(){ if(!need()) return; Delve.addXP(20); });
   $("dbgShop").addEventListener("click", function(){ if(!need()) return; Delve.openShop(); });
-  $("dbgVictory").addEventListener("click", function(){ if(!need()) return; Delve.showVictory(Math.floor(Delve.G.gold/10)); });
+  $("dbgVictory").addEventListener("click", function(){ if(!need()) return; Delve.showVictory(Math.floor(Delve.G.gold/10), true); });
   $("dbgDeath").addEventListener("click", function(){ if(!need()) return; Delve.die(); });
   $("dbgDump").addEventListener("click", function(){
    console.log("RUN STATS", Delve.G && Delve.G.runStats);
