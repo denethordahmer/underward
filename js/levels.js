@@ -145,6 +145,88 @@ window.Delve = window.Delve || {};
   if(Delve.logSystem) Delve.logSystem("A knot of vines guards a sealed chest.");
  }
 
+ // ── Boss floor: bespoke arena layout ─────────────────────────
+ // A vertical three-part structure: a small entry chamber at the bottom where
+ // the player spawns, a short narrow corridor leading north, and a large arena
+ // chamber holding the boss. No monsters, no barrels, no chests, no stairs —
+ // defeating the boss is the only exit, handled by the victory screen.
+ //
+ // Geometry is driven by the ward so future wards can vary it. Add an optional
+ // `bossArena` block to a WARDS entry in con-biomes.js to override any of:
+ //   { bossW, bossH, entryW, entryH, corridorW, pad }
+ // Defaults scale with the ward's dungeonSize, so they work unmodified.
+ Delve.genBossFloor = function(G, ward){
+  const t = Delve.T;
+  const cfg = C();
+  const w = G.gridW, h = G.gridH;
+  const tune = (ward && ward.bossArena) || {};
+
+  const carve = function(x, y, cw, ch){
+   for(let yy = y; yy < y + ch; yy++){
+    if(yy < 1 || yy > h - 2) continue;
+    for(let xx = x; xx < x + cw; xx++){
+     if(xx < 1 || xx > w - 2) continue;
+     G.grid[yy][xx] = t.FLOOR;
+    }
+   }
+  };
+  const centred = function(span, used){ return Math.round((span - used) / 2); };
+
+  const pad = tune.pad || 2;
+  const maxW = w - pad * 2;
+  const maxH = h - pad * 2;
+
+  const bossW  = Math.min(maxW, tune.bossW  || Math.floor(w * 0.62));
+  const bossH  = Math.min(maxH, tune.bossH  || Math.floor(h * 0.40));
+  const entryW = Math.min(maxW, tune.entryW || Math.floor(w * 0.34));
+  const entryH = Math.min(maxH, tune.entryH || Math.floor(h * 0.22));
+  const corrW  = Math.min(maxW, tune.corridorW || 3);
+
+  const bossX  = centred(w, bossW);
+  const bossY  = pad;
+  const entryX = centred(w, entryW);
+  const entryY = h - pad - entryH;
+  const corrX  = centred(w, corrW);
+  const corrTop = bossY + bossH;
+  const corrH  = Math.max(1, entryY - corrTop);
+
+  // carve south→north so the three pieces meet without gaps
+  carve(entryX, entryY, entryW, entryH);
+  carve(corrX,  corrTop, corrW, corrH);
+  carve(bossX,  bossY,  bossW,  bossH);
+
+  // player spawns in the entry chamber, facing the corridor
+  G.px = entryX + Math.floor(entryW / 2);
+  G.py = entryY + Math.floor(entryH / 2);
+  G.lastDir = "up";
+
+  // boss holds the centre of the arena
+  const bx = bossX + Math.floor(bossW / 2);
+  const by = bossY + Math.floor(bossH / 2);
+  const bossDef = cfg.BOSS_DEFS[Math.ceil(G.floor / 10)] || cfg.BOSS_DEFS[1] || {};
+  G.boss = {
+   id:"boss", isBoss:true, x:bx, y:by,
+   name:bossDef.name || "The Warden", kind:bossDef.sprite || "boss_warden",
+   maxHp:bossDef.hp || cfg.bossHpBase, hp:bossDef.hp || cfg.bossHpBase,
+   atk:bossDef.atk || cfg.bossAtkBase,
+   speed:bossDef.speed || cfg.bossSpeed,
+   chainHitEvery:bossDef.chainHitEvery || 3, chainHitCount:0,
+   effects:[], elite:false, hasActed:false
+  };
+  G.grid[by][bx] = t.BOSS;
+
+  G.stairs = null;
+  G.shop = { x:-1, y:-1 };
+  G.floorType = "boss";
+  // Exposed so future ward-specific dressing (torches, braziers, banners) can
+  // place props relative to the arena without re-deriving the geometry.
+  G.bossArena = {
+   bossX:bossX, bossY:bossY, bossW:bossW, bossH:bossH,
+   entryX:entryX, entryY:entryY, entryW:entryW, entryH:entryH,
+   corrX:corrX, corrTop:corrTop, corrW:corrW, corrH:corrH, bossCx:bx, bossCy:by
+  };
+ };
+
  Delve.genFloor = function(){
   const G = Delve.G;
   if(!G) return;
@@ -156,8 +238,12 @@ window.Delve = window.Delve || {};
   G.barrels = [];
   G.chests = [];
   G.boss = null;
+  G.bossArena = null;
   G.shop = { x:-1, y:-1 };
   G.stairs = null;
+  // FIX: floorData used to persist across floors, so a secret room found on
+  // floor 9 could leave a phantom false-wall pulse on floor 10.
+  G.floorData = {};
   const cfg = C();
   const ward = Delve.getWard(G.floor);
 
@@ -169,6 +255,15 @@ window.Delve = window.Delve || {};
    const row = [];
    for(let x = 0; x !== G.gridW; x++) row.push(T().WALL);
    G.grid.push(row);
+  }
+
+  // ── Boss floors: bespoke arena, then bail out ──
+  // Handled before room generation so the arena is the whole floor, with no
+  // stray rooms, corridors, monsters, barrels or chests left over.
+  if(G.floor % 10 === 0){
+   Delve.genBossFloor(G, ward);
+   if(Delve.showBossIntro) Delve.showBossIntro(G.floor);
+   return;
   }
 
   // rooms: store both top-left and center for later use
@@ -210,36 +305,6 @@ window.Delve = window.Delve || {};
   // player spawn: center of first room
   G.px = rooms[0].cx; G.py = rooms[0].cy;
   G.lastDir = "right";
-
-  // boss floors: arena, boss + guards, no shop or stairs
-  if(G.floor % 10 === 0){
-   const bossRoom = rooms[rooms.length-1];
-   if(bossRoom){
-    const bossDef = cfg.BOSS_DEFS[Math.ceil(G.floor/10)] || cfg.BOSS_DEFS[1] || {};
-    G.boss = {
-     id:"boss", isBoss:true, x:bossRoom.cx, y:bossRoom.cy,
-     name:bossDef.name || "The Warden", kind:bossDef.sprite || "boss_warden",
-     maxHp:bossDef.hp || cfg.bossHpBase, hp:bossDef.hp || cfg.bossHpBase,
-     atk:bossDef.atk || cfg.bossAtkBase,
-     speed:bossDef.speed || cfg.bossSpeed,
-     chainHitEvery:bossDef.chainHitEvery || 3, chainHitCount:0,
-     effects:[], elite:false, hasActed:false
-    };
-    G.grid[bossRoom.cy][bossRoom.cx] = T().BOSS;
-   }
-   const band = Delve.getMonsterBand(G.floor);
-   const guards = band.countMin || 4;
-   for(let i = 0; i !== guards; i++){
-    const r = rooms[Delve.rng(0, Math.max(0, rooms.length-2))];
-    if(!r) continue;
-    // FIX #43: exclude the boss arena by coordinates, not array position —
-    // failed placeRoom attempts meant the last array slot wasn't always the arena.
-    if(bossRoom && r.cx === bossRoom.cx && r.cy === bossRoom.cy) continue;
-    spawnMonster(G, r.cx, r.cy, band);
-   }
-   if(Delve.showBossIntro) Delve.showBossIntro(G.floor);
-   return;
-  }
 
   // stairs: farthest room from the player
   let stairRoom = rooms[1] || rooms[0];
@@ -353,7 +418,6 @@ window.Delve = window.Delve || {};
     }
     G.grid[w.y][w.x] = T().CHEST;
     G.chests.push({ x:w.x, y:w.y, open:false, secret:true });
-    G.floorData = G.floorData || {};
     G.floorData.secretRoom = { falseWallX:w.x, falseWallY:w.y };
    }
   }
