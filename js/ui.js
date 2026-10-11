@@ -386,18 +386,25 @@ window.Delve = window.Delve || {};
  };
 
  Delve.showBossIntro = function(floor){
-  const f = floor || (Delve.G && Delve.G.floor) || 10;
-  const cfg = Delve.CONFIG;
-  const bossDef = cfg.BOSS_DEFS[Math.ceil(f/10)] || cfg.BOSS_DEFS[1] || {};
-  $("bossIntroName").textContent = bossDef.name || "The Warden";
-  $("bossIntroTitle").textContent = bossDef.title || "";
-  $("bossIntroFlavour").textContent = bossDef.flavour || "";
-  const ov = $("bossIntroOverlay");
-  ov.style.display = "flex";
-  clearTimeout(Delve._bossIntroT);
-  Delve._bossIntroT = setTimeout(function(){ ov.style.display = "none"; }, 3000);
- };
-
+ const f = floor || (Delve.G && Delve.G.floor) || 10;
+ const cfg = Delve.CONFIG;
+ const bossDef = cfg.BOSS_DEFS[Math.ceil(f/10)] || cfg.BOSS_DEFS[1] || {};
+ const accent = bossDef.accent || "#c98aff";
+ $("bossIntroName").textContent = bossDef.name || "The Warden";
+ $("bossIntroTitle").textContent = bossDef.title || "";
+ $("bossIntroFlavour").textContent = bossDef.flavour || "";
+ const warnEl = $("bossIntroWarning");
+ const titleEl = $("bossIntroTitle");
+ const cardEl = $("bossIntroCard");
+ if(warnEl) warnEl.style.color = accent;
+ if(titleEl) titleEl.style.color = accent;
+ if(cardEl) cardEl.style.borderColor = accent + "66";
+ const ov = $("bossIntroOverlay");
+ ov.style.display = "flex";
+ clearTimeout(Delve._bossIntroT);
+ Delve._bossIntroT = setTimeout(function(){ ov.style.display = "none"; }, 3000);
+};
+ 
  // ── HUB ──────────────────────────────────────────────────────
  Delve.refreshHub = function(){
   $("hubShards").textContent = Delve.save.shards;
