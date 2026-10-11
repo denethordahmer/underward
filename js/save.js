@@ -17,12 +17,12 @@ window.Delve = window.Delve || {};
       bestFloor: 1,
       lvls: makeDefaultLevels(),
       unlocks: {},
-      nodes: {},            // progression tree purchases (v3.1)
-      inventoryCap: 16,     // bag capacity from Field Pack / Deep Pack
-      abilities: [],        // hub-purchased ability ids
-      abilityRanks: {},     // ability id -> rank count
-      runTraits: [],        // run-observed trait names (for traitReq gating)
-      runTraitsSeen: [],    // run-observed trait ids
+      nodes: {},
+      inventoryCap: 16,
+      abilities: [],
+      abilityRanks: {},
+      runTraits: [],
+      runTraitsSeen: [],
       seenTutorial: false,
       lastUpdated: Date.now()
     };
@@ -36,9 +36,7 @@ window.Delve = window.Delve || {};
   function sanitizeLevels(raw){
     const levels = makeDefaultLevels();
     const src = raw && typeof raw === "object" ? raw : {};
-    for(const key of ATTR_IDS){
-      levels[key] = sanitizeNumber(src[key], 0);
-    }
+    for(const key of ATTR_IDS) levels[key] = sanitizeNumber(src[key], 0);
     return levels;
   }
 
@@ -70,7 +68,7 @@ window.Delve = window.Delve || {};
     const base = makeDefaultSave();
     const src = raw && typeof raw === "object" ? raw : {};
 
-    base.version = sanitizeNumber(src.version, 3);
+    base.version = 3;
     base.shards = sanitizeNumber(src.shards, 0);
     base.bestFloor = sanitizeNumber(src.bestFloor, 1);
     base.lastUpdated = sanitizeNumber(src.lastUpdated, Date.now());
@@ -79,34 +77,19 @@ window.Delve = window.Delve || {};
     if(src.lvls && typeof src.lvls === "object"){
       base.lvls = sanitizeLevels(src.lvls);
     } else {
-      // pre-v3 flat fields
       if(typeof src.hpLvl === "number") base.lvls.con = src.hpLvl;
       if(typeof src.atkLvl === "number") base.lvls.str = src.atkLvl;
     }
 
-    if(src.unlocks && typeof src.unlocks === "object"){
-      base.unlocks = sanitizeBoolMap(src.unlocks);
-    }
-
-    // ── progression fields (added v3.1; previously dropped by whitelist) ──
-    if(src.nodes && typeof src.nodes === "object"){
-      base.nodes = sanitizeBoolMap(src.nodes);
-    }
+    if(src.unlocks && typeof src.unlocks === "object") base.unlocks = sanitizeBoolMap(src.unlocks);
+    if(src.nodes && typeof src.nodes === "object") base.nodes = sanitizeBoolMap(src.nodes);
     if(typeof src.inventoryCap === "number" && Number.isFinite(src.inventoryCap)){
       base.inventoryCap = Math.max(1, Math.round(src.inventoryCap));
     }
-    if(Array.isArray(src.abilities)){
-      base.abilities = sanitizeStringArray(src.abilities);
-    }
-    if(src.abilityRanks && typeof src.abilityRanks === "object"){
-      base.abilityRanks = sanitizeAbilityRanks(src.abilityRanks);
-    }
-    if(Array.isArray(src.runTraits)){
-      base.runTraits = sanitizeStringArray(src.runTraits);
-    }
-    if(Array.isArray(src.runTraitsSeen)){
-      base.runTraitsSeen = sanitizeStringArray(src.runTraitsSeen);
-    }
+    if(Array.isArray(src.abilities)) base.abilities = sanitizeStringArray(src.abilities);
+    if(src.abilityRanks && typeof src.abilityRanks === "object") base.abilityRanks = sanitizeAbilityRanks(src.abilityRanks);
+    if(Array.isArray(src.runTraits)) base.runTraits = sanitizeStringArray(src.runTraits);
+    if(Array.isArray(src.runTraitsSeen)) base.runTraitsSeen = sanitizeStringArray(src.runTraitsSeen);
 
     return base;
   }
@@ -119,17 +102,16 @@ window.Delve = window.Delve || {};
 
   function readSaveFromStorage(storageKey){
     try {
-      const raw = localStorage.getItem(storageKey);
-      const parsed = safelyParseJSON(raw);
+      const parsed = safelyParseJSON(localStorage.getItem(storageKey));
       if(parsed && typeof parsed === "object") return migrateSave(parsed);
     } catch(_err) {}
     return null;
   }
 
+  // IMPORTANT: this whitelist must mirror makeDefaultSave()/migrateSave().
+  // Any new persisted field must be added in all three places.
   function writeSaveToStorage(storageKey, saveData){
     try {
-      // IMPORTANT: this whitelist must mirror makeDefaultSave()/migrateSave().
-      // Any new persisted field must be added in all three places.
       const safeSave = {
         version: 3,
         shards: sanitizeNumber(saveData.shards, 0),
@@ -152,45 +134,49 @@ window.Delve = window.Delve || {};
     }
   }
 
+  // Put `data` into Delve.save WITHOUT replacing the object, so any module
+  // holding a reference (const S = Delve.save) stays valid.
+  function adopt(data){
+    if(Delve.save && typeof Delve.save === "object"){
+      for(const k of Object.keys(Delve.save)) delete Delve.save[k];
+      Object.assign(Delve.save, data);
+    } else {
+      Delve.save = data;
+    }
+    return Delve.save;
+  }
+
   Delve.createDefaultSave = function(){ return makeDefaultSave(); };
 
   Delve.resetSave = function(options){
     const silent = !!(options && options.silent);
-    const next = makeDefaultSave();
-    Delve.save = next;
-    writeSaveToStorage(SAVE_KEY, next);
-    if(!silent && Delve.flash){ Delve.flash("Saved progress reset"); }
-    return next;
+    adopt(makeDefaultSave());
+    writeSaveToStorage(SAVE_KEY, Delve.save);
+    if(!silent && Delve.flash) Delve.flash("Saved progress reset");
+    return Delve.save;
   };
 
   Delve.loadSave = function(){
     let loaded = readSaveFromStorage(SAVE_KEY);
-
     if(!loaded){
       for(const key of LEGACY_KEYS){
         loaded = readSaveFromStorage(key);
         if(loaded) break;
       }
     }
-
-    if(!loaded){
-      loaded = makeDefaultSave();
-    }
-
-    writeSaveToStorage(SAVE_KEY, loaded);
-    Delve.save = loaded;
+    if(!loaded) loaded = makeDefaultSave();
+    adopt(loaded);
+    writeSaveToStorage(SAVE_KEY, Delve.save);
     return Delve.save;
   };
 
-  Delve.save = Delve.persist = function(){
-    if(!Delve.save || typeof Delve.save !== "object"){
-      Delve.save = makeDefaultSave();
-    }
+  // Persist the current Delve.save. Delve.save stays the DATA object.
+  Delve.persist = function(){
+    if(!Delve.save || typeof Delve.save !== "object") adopt(makeDefaultSave());
     Delve.save.version = 3;
     Delve.save.lastUpdated = Date.now();
-    const saved = writeSaveToStorage(SAVE_KEY, Delve.save);
-    if(saved) Delve.save = saved;
+    writeSaveToStorage(SAVE_KEY, Delve.save);
   };
 
-  Delve.save = Delve.loadSave();
+  Delve.loadSave();
 })();
