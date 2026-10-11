@@ -13,8 +13,8 @@ window.Delve = window.Delve || {};
 
  function hideAll(){
   ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
-   "stairsPrompt","bossIntroOverlay","retreatMenu","itemCardOverlay","logWindow"].forEach(function(id){
-    const el = $(id); if(el) el.style.display = "none";
+   "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","introOverlay"].forEach(function(id){
+   const el = $(id); if(el) el.style.display = "none";
   });
  }
 
@@ -33,7 +33,7 @@ window.Delve = window.Delve || {};
   return G.equip;
  };
 
- // ── HUD update ───────────────────────────────────────────────
+ // ── HUD update ────────────────────────────────────────────────
  Delve.updateHUD = function(){
   const G = Delve.G; if(!G) return;
   $("hudHp").textContent = G.hp + "/" + Delve.maxHp();
@@ -80,8 +80,6 @@ window.Delve = window.Delve || {};
   const tier = function(item){
    return item ? (Delve.TIERS.colors[item.tier] || "#cfd8e0") : "#1a2532";
   };
-
-  // ── draw order: back pieces, body, front pieces ──
 
   // cloak (behind everything)
   if(eq.cloak){
@@ -170,13 +168,8 @@ window.Delve = window.Delve || {};
  }
 
  // ── INVENTORY ────────────────────────────────────────────────
- Delve.openInventory = function(){
-  const G = Delve.G; if(!G) return;
-  dibb1();
- };
-
- function dibb1(){ /* placeholder to keep structure if drawn later */ }
-
+ // FIX #28: the stub openInventory + dibb1 placeholder are deleted —
+ // one definition only.
  Delve.openInventory = function(){
   const G = Delve.G;
   if(!G) return;
@@ -482,7 +475,7 @@ window.Delve = window.Delve || {};
   G.abilities.forEach(function(ab){
    const btn = document.createElement("button");
    btn.className = "ability-btn";
-   const afford = (G.energy || 0) >= (ab.cost || 0);
+   const afford = (G.energy || 0) >= displayCost(ab);
    btn.disabled = !afford;
    if(G.targetingAbility && G.targetingAbility.id === ab.id){
     btn.style.borderColor = "#ffd75e";
@@ -491,17 +484,24 @@ window.Delve = window.Delve || {};
    const n = document.createElement("span");
    n.className = "ability-name"; n.textContent = ab.name;
    const c = document.createElement("span");
-   c.className = "ability-cost"; c.textContent = "⚡ " + ab.cost;
+   c.className = "ability-cost";
+   // 8c: show the real energy cost (second_nature node = 20% off).
+   c.textContent = "⚡ " + displayCost(ab);
    btn.appendChild(n); btn.appendChild(c);
    btn.addEventListener("click", function(){ activateAbility(ab); });
    bar.appendChild(btn);
   });
  };
 
+ function displayCost(ab){
+  return (Delve.hasProgression && Delve.hasProgression("second_nature"))
+   ? Math.max(1, Math.round((ab.cost || 0) * 0.8)) : ab.cost;
+ }
+
  function activateAbility(ab){
   const G = Delve.G;
   if(!G || G.dead || G.runEnded) return;
-  if((G.energy || 0) < ab.cost){ Delve.flash("Not enough Energy"); return; }
+  if((G.energy || 0) < displayCost(ab)){ Delve.flash("Not enough Energy"); return; }
   if(ab.target === "self"){
    G.targetingAbility = null;
    if(Delve.castAbility(ab, G.px, G.py) !== false){
@@ -817,9 +817,8 @@ window.Delve = window.Delve || {};
   $("hud").style.display = "flex";
   const G = Delve.G;
   G.victoryDone = false;
-  G.floor++;
   G.secondWindUsed = false;
-  Delve.genFloor();
+  Delve.descend();  // FIX #31: heal + bestFloor + stats + log, same as stairs flow
   Delve.updateHUD();
   Delve.draw();
   Delve.showFloorCard(G.floor);
