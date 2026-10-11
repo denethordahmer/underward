@@ -36,7 +36,7 @@ window.Delve = window.Delve || {};
   w.scrollTop = w.scrollHeight;
  };
 
- // ── Game event shorthands ────────────────────────────────────
+ // ── Game event shorthands ──────────────────────────────────────
  Delve.logSystem     = function(msg){ appendToStrip(msg, ""); };
  Delve.logKill        = function(name, gold, shards, isBoss){
   const kind = isBoss ? "BOSS DEFEATED" : "slain";
@@ -57,5 +57,6 @@ window.Delve = window.Delve || {};
  Delve.logTrait      = function(name, id){ appendToStrip("Learned trait: " + name, "good"); };
  Delve.logFloor      = function(floor){ appendToStrip("── Descended to Floor " + floor + " ──", "floor"); };
  Delve.logDeath      = function(){ appendToStrip("☠ You have died.", "death"); };
+ Delve.logXP         = function(xp, level){ appendToStrip("★ Reached Level " + level + "!", "good"); };  // FIX #21: was called everywhere, never defined
 
 })();
