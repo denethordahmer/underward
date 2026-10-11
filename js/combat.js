@@ -231,7 +231,10 @@ window.Delve = window.Delve || {};
    if(Delve.sfx) Delve.sfx("hit");
   }
 
-  if(weakened) dmg = Math.max(1, Math.round(dmg * 0.7));
+  if(weakened){
+   const wpct = (C().STATUS_EFFECTS.weaken && C().STATUS_EFFECTS.weaken.pct) || 0.30;
+   dmg = Math.max(1, Math.round(dmg * (1 - wpct)));
+  }
   if(Delve.logPlayerAtk) Delve.logPlayerAtk(m.name || m.kind || "enemy", dmg, isCrit);
   Delve.recordStat("damageDealt", dmg);
   m.hp -= dmg;
@@ -525,4 +528,136 @@ window.Delve = window.Delve || {};
    const mult = Delve.goldMult ? Delve.goldMult() : 1;
    G.gold += Math.round(rewards.gold * mult);
    Delve.recordStat("goldEarned", Math.round(rewards.gold * mult));
-   G.st
+   G.stairs = { x: m.x, y: m.y };
+   g[m.y][m.x] = T().STAIR;
+   const bossName = m.name || "The Warden";
+   Delve.flash(bossName.toUpperCase() + " FALLS!");
+   Delve.addShake(6);
+   if(Delve.sfx) Delve.sfx("kill");
+   if(Delve.logSystem) Delve.logSystem(bossName + " has fallen.");
+   if(!G.bossesBeaten) G.bossesBeaten = [];
+   const wardIdx = Math.ceil(G.floor / 10);
+   if(G.bossesBeaten.indexOf(wardIdx) < 0) G.bossesBeaten.push(wardIdx);
+   // drop a guaranteed boss item (legendary-leaning)
+   if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { guaranteed:true, minTier:3, name:m.name, elite:false, boss:true });
+   Delve.triggerVictory(wardIdx);
+  } else {
+   G.monsters = G.monsters.filter(x => x !== m);
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   G.goldPiles = G.goldPiles || [];
+   G.goldPiles.push({ x: m.x, y: m.y, amount: Math.round(rewards.gold * mult) });
+   g[m.y][m.x] = T().GOLD;
+   Delve.addShake(2);
+   if(Delve.sfx) Delve.sfx("kill");
+   if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { name:m.name, elite:!!m.elite });
+   if(m.elite && C().elite.guaranteedPotion && Delve.dropPotion){
+    Delve.dropPotion(m.x, m.y, 2, { kind:"monster", name:m.name, elite:true });
+   }
+  }
+
+  // shards: small-int + elite multiplier
+  Delve.save.shards += rewards.shards;
+  G.runShards += rewards.shards;
+  Delve.recordStat("shardsEarned", rewards.shards);
+
+  // floor-clear bonus: granted if this emptied the floor
+  if(!m.isBoss && G.monsters.length === 0 && !G.floorCleared){
+   G.floorCleared = true;
+   const bonus = Delve.floorClearBonus ? Delve.floorClearBonus() : 0;
+   if(bonus > 0){
+    Delve.save.shards += bonus;
+    G.runShards += bonus;
+    Delve.recordStat("shardsEarned", bonus);
+    Delve.addFloater("+" + bonus + "◇ floor cleared", G.px, G.py, "#7ee0ff");
+    if(Delve.logSystem) Delve.logSystem("Floor cleared! +" + bonus + " shards");
+   }
+  }
+
+  Delve.persist();
+
+  if(Delve.logKill) Delve.logKill(m.name || m.kind || "enemy", rewards.gold, rewards.shards, m.isBoss);
+
+  if(buffs.healOnKill){
+   G.hp = Math.min(Delve.maxHp(), G.hp + buffs.healOnKill);
+   Delve.addFloater("+" + buffs.healOnKill, G.px, G.py, "#7ee08a");
+   if(Delve.logHeal) Delve.logHeal(buffs.healOnKill, "Life Steal");
+  }
+  if(Delve.addXP) Delve.addXP(rewards.xp);
+  G.energy = Math.min(100, (G.energy || 0) + C().energyPerKill + (tb().extraEnergyPerKill || 0));
+ };
+
+ // ── Victory ──────────────────────────────────────────────────
+ Delve.triggerVictory = function(wardIdx){
+  const G = Delve.G;
+  const idx = wardIdx || Math.ceil(G.floor / 10);
+  if(!G._victoriesProcessed) G._victoriesProcessed = [];
+  if(G._victoriesProcessed.indexOf(idx) >= 0) return;
+  G._victoriesProcessed.push(idx);
+
+  G.inCombat = false;
+  if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
+
+  const gained = Delve.convertGold();
+  const bonus = Delve._applyBossBonus(idx);
+  const totalBanked = gained + bonus;
+
+  Delve.recordStat("victories", 1);
+  if(Delve.sfx) Delve.sfx("victory");
+
+  // canContinue: offer "Descend deeper" only if there's content past this ward.
+  // Ward 2 = floors 11-20. Nothing past 20 yet, so ward 2 forces the exit.
+  const canContinue = (idx === 1);
+
+  if(Delve.showVictory) Delve.showVictory(totalBanked, canContinue);
+  else Delve.flash("WARD CLEARED! +" + totalBanked + " shards");
+
+  Delve.updateHUD();
+  Delve.draw();
+ };
+
+ // ── Collect gold pile ────────────────────────────────────────
+ Delve.collectGold = function(tx, ty){
+  const G = Delve.G;
+  if(!G.goldPiles) return;
+  const idx = G.goldPiles.findIndex(p => p.x === tx && p.y === ty);
+  if(idx < 0) return;
+  const pile = G.goldPiles.splice(idx,1)[0];
+  G.gold += pile.amount;
+  Delve.recordStat("goldEarned", pile.amount);
+  if(G.grid[ty] && G.grid[ty][tx] === T().GOLD) G.grid[ty][tx] = T().FLOOR;
+  if(Delve.logSystem) Delve.logSystem("+" + pile.amount + " gold");
+  Delve.updateHUD();
+ };
+
+ // ── Descend ──────────────────────────────────────────────────
+ Delve.descend = function(){
+  const G = Delve.G, cfg = C();
+  G.hp = Math.min(Delve.maxHp(), G.hp + Math.round(Delve.maxHp() * cfg.healOnDescendPct));
+  G.floor++;
+  if(G.floor > Delve.save.bestFloor){ Delve.save.bestFloor = G.floor; Delve.persist(); }
+  G.secondWindUsed = false;
+  G.floorCleared = false;
+  Delve.recordStat("floorsDescended", 1);
+  if(Delve.logFloor) Delve.logFloor(G.floor);
+  Delve.genFloor();
+  Delve.updateHUD();
+  if(Delve.showFloorCard) Delve.showFloorCard(G.floor);
+ };
+
+ // ── Die ──────────────────────────────────────────────────────
+ Delve.die = function(){
+  const G = Delve.G;
+  if(G.dead || G.runEnded) return;
+  G.dead = true;
+  G.inCombat = false;
+  if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
+  if(Delve.sfx) Delve.sfx("death");
+  if(Delve.logDeath) Delve.logDeath();
+  Delve.endRun("death", {});
+ };
+
+ Delve.promptStairs = function(){
+  if(Delve.showStairsPrompt) Delve.showStairsPrompt();
+  else Delve.descend();
+ };
+})();
