@@ -22,7 +22,7 @@ window.Delve = window.Delve || {};
  // ── Boss shard bonus ─────────────────────────────────────────
  // Applied once per boss, at the moment of the victory screen.
  // Bonus is bossDef.shardBonusPct × current runShards.
- Delve._applyBossBonus = function(wardIdx){
+ Delve.applyBossBonus = Delve._applyBossBonus = function(wardIdx){
   const G = Delve.G;
   if(!G._bonusesApplied) G._bonusesApplied = [];
   if(G._bonusesApplied.indexOf(wardIdx) >= 0) return 0;
