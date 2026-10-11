@@ -37,17 +37,11 @@ Delve.pickWeighted = function(weights){
  return Object.keys(weights)[0];
 };
 
-// ── Shop floor helper ─────────────────────────────────────────
-Delve.isShopFloor = function(floor){
- const s = Delve.CONFIG.shop;
- return floor > 0 && (floor % 10 === s.offset);
-};
-
-// ── Shop heal cost ────────────────────────────────────────────
-Delve.healCost = function(floor){
- const e = Delve.CONFIG.economy;
- return Math.round(e.healCostA + e.healCostB * Math.log(floor + 1));
-};
+// ── Shop floor helper & heal cost ─────────────────────────────
+// MOVED: Delve.isShopFloor and Delve.healCost now live in js/items.js,
+// alongside makeShopStock / shopHealCost — all shop-domain logic in one place.
+// They load earlier (items.js is position 9, this file is 12) and every caller
+// reads them at call time, so no load-order constraint is affected.
 
 // ── Run-stat recorder ─────────────────────────────────────────
 Delve.recordStat = function(key, amount){
