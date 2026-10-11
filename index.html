@@ -597,13 +597,21 @@ body{
   <div id="pauseMenu">
     <div id="pauseCard">
       <h3>⚙ Paused</h3>
-      <div class="pause-section">
-        <div class="pause-label">SOUND</div>
-        <div class="pause-row">
-          <button id="muteBtn">🔊</button>
-          <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.55">
+              <div class="pause-section">
+          <div class="pause-label">SOUND</div>
+          <div class="pause-row">
+            <button id="muteBtn">🔊</button>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.55" aria-label="Sound effects volume">
+          </div>
+          <div class="pause-row">
+            <span class="pause-slider-label">🎵 Music</span>
+            <input type="range" id="musicSlider" min="0" max="1" step="0.05" value="0.30" aria-label="Music volume">
+          </div>
+          <div class="pause-row">
+            <span class="pause-slider-label">📳 Haptics</span>
+            <button id="hapticsBtn" class="pause-toggle">ON</button>
+          </div>
         </div>
-      </div>
       <hr class="pause-divider">
       <button id="pauseRetreatBtn">🏃 Flee to surface</button>
       <div class="pause-retreat-note">Gold converts to shards at 10:1. Run ends.</div>
