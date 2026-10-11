@@ -43,10 +43,27 @@ window.Delve = window.Delve || {};
   return died;
  };
 
- // ── Advance player-side effects by one swing cycle ───────────
+ // ── Advance player-side effects by one turn ──────────────────
+ // Applies per-turn damage (poison, bleed, burn) then decrements.
+ // Calls Delve.die() if HP reaches 0. Weaken has no perTurn and
+ // therefore ticks its duration without dealing damage.
  Delve.tickPlayerEffects = function(){
   const G = Delve.G;
   if(!G.effects) G.effects = [];
+  if(!G.effects.length) return G.effects;
+
+  for(const e of G.effects){
+   const d = def(e.id);
+   if(!d || !d.perTurn) continue;
+   G.hp -= d.perTurn;
+   if(Delve.addFloater) Delve.addFloater(d.name + " -" + d.perTurn, G.px, G.py - 0.3, d.color);
+   if(Delve.logSystem) Delve.logSystem(d.name + " ticks for " + d.perTurn + " HP.");
+   if(G.hp <= 0){
+    if(Delve.die) Delve.die();
+    return G.effects;
+   }
+  }
+
   G.effects = G.effects
    .map(e => ({ id: e.id, turns: e.turns - 1 }))
    .filter(e => e.turns > 0);
