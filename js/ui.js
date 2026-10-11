@@ -2,12 +2,14 @@ window.Delve = window.Delve || {};
 (function(){
 
  // ── ui.js ────────────────────────────────────────────────────
- // Owns: HUD updates, inventory/item-card screens, shop screen UI,
- //       screen orchestration (hub/run/end), the debug panel, and ALL
+ // Owns: HUD updates, inventory/item-card screens, shop screen UI, the
+ //       level-up screen markup, screen orchestration (hub/run/end), and ALL
  //       DOM event wiring.
  // Does NOT own canvas drawing. The paper doll and minimap moved to
- // render.js; shop stock/pricing moved to items.js. Call sites below
- // reach them via Delve.drawPaperDoll / Delve.makeShopStock / Delve.shopHealCost.
+ // render.js; shop stock/pricing moved to items.js; the ?debug=1 panel moved
+ // to debug.js; the level-up CHOICE logic stays in traits.js.
+ // Call sites below reach them via Delve.drawPaperDoll / Delve.makeShopStock /
+ // Delve.shopHealCost / Delve.showLevelUpChoices.
 
  // Safe element lookup: if an id is missing from index.html, return an inert
  // stand-in instead of null. One missing element can no longer crash the rest

@@ -10,6 +10,9 @@ matters and you're unsure, open the file — this doc is a map, not the territor
 
 **Verified green:** 2026-10-12 (full `test.html` pass, all 12 sections).
 
+**Reorganised:** lifecycle.js + debug.js extracted, misfiled functions relocated,
+world dressing split into decor.js. See §11.1 for what moved and what was left alone.
+
 ---
 
 ## 0. First five minutes (for a fresh model)
@@ -82,7 +85,7 @@ These shape every decision. Do not propose solutions that break them.
 
 ## 3. File map
 
-27 scripts. This is the `index.html` load order (§5 has the constraints).
+29 scripts. This is the `index.html` load order (§5 has the constraints).
 
 ### 3.1 Content — data only, safe to edit blind
 
@@ -156,59 +159,86 @@ Runs a build-all at load; boss sprites come from the registry, so
 `con-bosssprites.js` calls `rebuildSprites()` after registering. `test.html` §5 verifies
 every `BOSS_DEFS.sprite` is registered and built.
 
-### 3.3 Engine — state & world
+### 3.3 Engine — state, lifecycle & world
 
 **`js/state.js`**
-`Delve.T` (tile enum), `Delve.G` (run state), `rng`, `rngF`, `clamp`, `flash`, `mdist`,
-`getWard`, `getMonsterBand`, `pickWeighted`, `recordStat`, `newRun`.
-Notes: tile enum + RNG + math utils + ward/band lookup + run construction.
+`Delve.T` (tile enum), `Delve.G = null` (run state), `rng`, `rngF`, `clamp`, `flash`,
+`mdist`, `getWard`, `getMonsterBand`, `pickWeighted`, `recordStat`.
+Notes: tile enum + RNG + math utils + ward/band lookup + run stats. **`newRun` moved
+out to `js/lifecycle.js`** — state.js is now pure declarations and helpers, no
+lifecycle. It's short (53 lines) and is the natural first stop when reading the code.
 ⚠️ **GOTCHA:** `Delve.T` is a **plain object**, but many files alias it as a
 **function** (`const T = () => Delve.T`). Both styles exist and are not
 interchangeable — mixing them caused a live bug (§8).
 
+**`js/lifecycle.js`**
+The run's start→end story, gathered from three files into one place:
+`newRun` (was `state.js`), `endRun`, `retreat`, `die`, `triggerVictory` (were
+`combat.js`; `endRun`/`die`/`retreat` also moved together because they call each
+other).
+Why: starting a run, descending, dying, retreating and winning were smeared across
+`state.js` / `combat.js` / `rewards.js` / `ui.js`, so no single file answered "what
+happens when a run ends?". It now reads top to bottom.
+**Load order is free relative to `state.js`,** but it must precede nothing in
+particular: every caller (`ui.startRun`, `movement.descend`, `combat`) resolves
+`Delve.newRun` / `Delve.die` at call time. It's placed right after `state.js` because
+it constructs `Delve.G`, which `state.js` declares as `null`.
+
 **`js/levels.js`**
-`Delve.genFloor`, **`Delve.genBossFloor`**, `Delve.openChest`, plus internal helpers
-(`placeRoom`, `spawnMonster`, `spawnMonsterKind`, `applySwarmFloor`,
-`applyClusteredLootFloor`, `ensureBlackveinPlan`, `specialRooms`).
-Single source of level generation. Boss floors branch out early (§6.6).
+`Delve.genFloor`, **`Delve.genBossFloor`**, plus internal helpers (`placeRoom`,
+`spawnMonster`, `spawnMonsterKind`, `applySwarmFloor`, `applyClusteredLootFloor`,
+`ensureBlackveinPlan`, `specialRooms`, private `prob`).
+Single source of level **generation** only. Boss floors branch out early (§6.6).
 `genFloor` resets `G.floorData = {}` each floor — needed so a secret room found on one
 floor can't leave a phantom false-wall on the next.
+**`openChest` moved to `js/rewards.js`** — it's a loot grant, not generation.
 
 ### 3.4 Engine — progression, combat, movement, economy
 
 **`js/traits.js`**
 `XP_CURVE`, `addXP`, `addAbility`, `castAbility`, `injectHubAbilities`, `traitBuffs`,
-`traits`, `hasUnbroken`, `secondWindHealOverride`.
+`traits`, `hasUnbroken`, `secondWindHealOverride`, plus `showLevelUpChoices` (picks
+which three options to offer) and the private ability helpers (`abilityDef`,
+`abilityData`, `abilityRanks`, `abilityCost`).
 Notes: `addAbility` silently drops the oldest ability past `levelMaxAbilities` —
 intentional, UI surfacing deferred. **A new ability id needs a new `case` in
-`castAbility`.**
+`castAbility`.** The level-up screen markup moved to `ui.js`
+(`Delve.renderLevelUpChoices`) — this file decides *what*, ui.js draws it.
+**Open question (§11):** this file still carries the whole ability system alongside
+traits. It is the last concentration of unrelated concerns; see §11.
 
 **`js/combat.js`**
 - Combat loop: `startCombat`, `endCombat`, internal `playerSwing`, `monsterSwing`
 - Ambient attacks: `enemiesTurn`, internal `ambientMob`
 - Kill resolution: `killMonster`
-- Run lifecycle: `endRun`, `retreat`, `die`, `triggerVictory`
 - Exported for other files: `Delve.rowFor`, `Delve.onHitEffectFor`
 Notes: `enemiesTurn`/`ambientMob` stay here deliberately — they share
 `ON_HIT_STATUS_CHANCE` and `onHitEffectFor` with `monsterSwing`. Boss-kill branch
 restores the arena tile to `FLOOR` and cancels stairs (§6.6).
+**Run lifecycle moved out to `js/lifecycle.js`** — combat.js now *calls*
+`Delve.die` / `Delve.triggerVictory` rather than defining them.
 
 **`js/movement.js`**
-`tryAct`, `tryActOnStep`, `smashBarrel`, `tryRest`, `collectGold`, `descend`,
-`promptStairs`.
-Handles tile interaction and traversal. Contains the shared shop-tap intercept at the
-top of both `tryAct` and `tryActOnStep`. Every entry point guards `Delve.G` before use.
-Never owns the combat loop or the economy. `test.html` §8 is the direct guard on this file.
+`tryAct`, `tryActOnStep`, `tryRest`, `descend`, `promptStairs`.
+Handles tile interaction and traversal only. Contains the shared shop-tap intercept at
+the top of both `tryAct` and `tryActOnStep`. Every entry point guards `Delve.G` before
+use. Never owns the combat loop or the economy. `test.html` §8 is the direct guard on
+this file.
+**`smashBarrel` and `collectGold` moved to `js/rewards.js`** — this file still *calls*
+them when you step onto a barrel or a gold pile.
 
 **`js/rewards.js`**
 `convertGold`, `applyBossBonus` / `_applyBossBonus`, `monsterStats`, `killRewards`,
-`floorClearBonus`, `makeElite`.
+`floorClearBonus`, `makeElite`, plus the **world pickups**: `openChest` (was
+`levels.js`), `smashBarrel` and `collectGold` (were `movement.js`), and `prob`.
+Why: all of these are "the run gives you something" — the file is the run economy.
 Consumes `Delve.rowFor` from `combat.js` at call time. `monsterStats` has no internal
 caller — kept as public API.
 
 **`js/effects.js`**
 `applyEffect`, `applyPlayerEffect`, `tickMonsterEffects`, `tickPlayerEffects`,
-`playerWeakened`, `statusColor`.
+`playerWeakened`, `statusColor`, `statusName` (was a private in `items.js` — status
+naming belongs with status handling).
 
 ### 3.5 Engine — presentation & plumbing
 
@@ -285,14 +315,15 @@ on approach.
 - HUD: `updateHUD`, `renderAbilityBar`
 - Inventory: `openInventory`, `showItemCard`, `isSlotUnlocked`, `equipSlots`
 - Shop screen: `openShop`, `buildShop`
+- Level-up screen markup: `renderLevelUpChoices` (was in `traits.js`)
 - Screen orchestration: `showHub`, `hideHub`, `startRun`, `showEndScreen`, `showVictory`,
   `showFloorCard`, `showBossIntro`, `showStairsPrompt`, `refreshHub`, `buildHub`
-- Debug panel: `initDebug`
 - **All DOM event wiring (~25 listeners)**
 Screens + DOM + wiring only. No canvas drawing, no item-pool or shop-economy logic.
+**The `?debug=1` panel moved to `js/debug.js`.**
 Uses a **guarded `$()`** that returns an inert stub instead of `null` for missing ids,
 recording misses in `Delve.missingEls` — so one missing element can't kill the rest of
-the file. Still the largest file (~600 lines), but no longer multi-purpose.
+the file.
 
 **`js/progression.js`**
 `hasProgression`, `markRunTrait`, `_hooks` registration, `renderTabs`, `renderTree`,
@@ -306,6 +337,18 @@ the file. Still the largest file (~600 lines), but no longer multi-purpose.
 Runs `resize()` then `showHub()` at load. Last script on the page.
 
 ### 3.6 Page shell & dev tooling
+
+**`js/debug.js`**
+`Delve.initDebug` plus the private `applyDebugEffect`. The `?debug=1` developer panel:
+floor jump, gold/shards, applying status effects, elite, XP, shop, victory, death,
+re-render, dump stats, reset save.
+Extracted out of `ui.js` — it is dev tooling rather than game UI and only ever runs
+behind `?debug=1`. It carries **its own private guarded `$()`**, the same contract as
+`ui.js`'s, so a missing panel element can't throw. Never owns game logic; every button
+calls into the normal game API.
+`index.html` calls it at load time via `if(/[?&]debug=1/.test(location.search))`, which
+is why it must load **after `ui.js`** (it reuses the same DOM conventions) — but nothing
+else depends on it, so its position is otherwise free.
 
 **`index.html`** — the page. Holds **two `<style>` blocks**: the main stylesheet, then
 a **shop layout fix** (§6.7). Script tags must match §5 exactly.
@@ -453,21 +496,23 @@ update both in the same order.**
 10  js/sprites.js
 11  js/content/con-bosssprites.js      ← ordering exception (needs sprites.js)
 12  js/state.js
-13  js/levels.js
-14  js/traits.js
-15  js/combat.js
-16  js/movement.js                     ← follows combat.js
-17  js/rewards.js                      ← follows combat.js (uses Delve.rowFor)
-18  js/effects.js
-19  js/sfx.js
-20  js/log.js
-21  js/render.js
-22  js/decor.js                       ← ordering exception (needs render.js)
-23  js/pathfind.js
-24  js/input.js
-25  js/ui.js
-26  js/progression.js
-27  js/main.js
+13  js/lifecycle.js
+14  js/levels.js
+15  js/traits.js
+16  js/combat.js
+17  js/movement.js                     ← follows combat.js
+18  js/rewards.js                      ← follows combat.js (uses Delve.rowFor)
+19  js/effects.js
+20  js/sfx.js
+21  js/log.js
+22  js/render.js
+23  js/decor.js                        ← ordering exception (needs render.js)
+24  js/pathfind.js
+25  js/input.js
+26  js/ui.js
+27  js/debug.js                        ← follows ui.js (same DOM conventions)
+28  js/progression.js
+29  js/main.js
 ```
 
 ### Hard constraints (violate = silent breakage)
@@ -477,8 +522,9 @@ update both in the same order.**
 2b. `render.js` **before** `decor.js` — needs `Delve._drawUtils`. `decor.js` bails out
    silently if it is missing, so a swap costs you all the props/dressing with no
    error. This is the same trap as #2; `test.html` §1 catches the order.
-3. `state.js` **before** anything using `Delve.T` or `Delve.G`: `levels`, `traits`,
-   `combat`, `movement`, `rewards`, `effects`, `render`, `pathfind`, `input`, `ui`.
+3. `state.js` **before** anything using `Delve.T` or `Delve.G`: `lifecycle`, `levels`,
+   `traits`, `combat`, `movement`, `rewards`, `effects`, `render`, `pathfind`, `input`,
+   `ui`, `debug`.
 4. `save.js` **before** `ui`, `progression`, `main` — they read `Delve.save` at load.
 5. `progression.js` **after** `ui.js`. `ui.js` calls `showHub()` at load; then
    `progression.js` registers hooks and calls `refreshHub()` again to render tabs.
@@ -490,6 +536,15 @@ update both in the same order.**
 8. `rewards.js` after `combat.js` — reads `Delve.rowFor`.
 9. `items.js` before `state.js` — now true (9 vs 12), since `isShopFloor`/`healCost`
    moved into `items.js`. Still call-time.
+10. `movement.js` ↔ `rewards.js` — no ordering constraint in either direction.
+    `movement.js` calls `smashBarrel`/`collectGold` (now in `rewards.js`) at call time,
+    and `rewards.js` never calls back into `movement.js`. Listed here only so nobody
+    "fixes" the apparent 17-before-18 ordering.
+11. `combat.js` ↔ `lifecycle.js` — **no ordering constraint.** `combat.js` only *calls*
+    `Delve.die`/`Delve.triggerVictory`, and `lifecycle.js` only *calls*
+    `Delve.genFloor`/`Delve.maxHp`/`Delve.persist`. Every edge is call-time, so
+    `lifecycle.js` could sit anywhere after `config.js`. It is placed at 13 purely for
+    readability (it constructs `Delve.G`, which `state.js` declares).
 
 ### Load-time side effects, in order
 1. `config.js` seeds `CONFIG`; `con-*` fill in content.
@@ -805,26 +860,119 @@ Tests: https://<user>.github.io/underward/test.html
    check also covers the move-prone symbols.
 5. If a section goes red, paste it — the failing section names the file.
 
+### Verifying a refactor before you upload it
+
+`test.html` proves the file set is *structurally* sound (load order, ownership, no
+duplicates, registries, generation safety). It does **not** prove a move preserved
+behaviour. Two cheap checks do:
+
+**1. Behaviour transcript (for any logic move).** Load every file in `index.html` order
+in a stubbed DOM, run a scripted sequence of game operations — `newRun`, `descend`,
+smash a barrel, collect gold, open a chest, equip, retreat, victory, die, `endRun` — and
+print a digest of observable state after each step. Run it against the old revision and
+the new one; the transcripts must be **byte-identical**. Determinism matters: freeze the
+clock (`Date.now`) and seed `Math.random`, or the digests will differ for reasons that
+have nothing to do with your change.
+
+**2. Pixel diff (for any drawing move).** Render `Delve.draw()` to a canvas with the
+same frozen clock and seeded RNG, both revisions, and diff. 0 differing pixels is the
+pass bar. (Two independent runs of the *same* code also prove your determinism is
+working.)
+
+**Neither catches everything:** the transcript only covers operations you scripted, and
+the pixel diff only covers drawing — a pure logic move shows **no** pixel difference, so
+an identical render proves nothing about it. Use both, and add a step to the transcript
+for anything you moved.
+
+**And re-check ownership explicitly.** `EXPECT_OWNER` in `test.html` asserts *which file*
+defines each move-prone symbol. After a move, that map must be updated in the same
+commit, and the per-file new-symbol detection rerun — otherwise an unchanged green suite
+just means nobody is checking that symbol any more.
+
 ---
 
 ## 11. Open work
+
+### 11.1 File organisation — what was deliberately NOT done
+
+A structural review of the file system was carried out and the **cohesive** subset was
+applied (§3.3–3.6 mark each move). These are the parts that were identified but left
+alone on purpose, with the reasoning, so a future pass doesn't re-litigate them blind.
+
+**Done in that pass:** run lifecycle → `lifecycle.js`; debug panel → `debug.js`;
+level-up DOM → `ui.js`; `playerSpeed`/`weightProfile` → `attrs.js`; `statusName` →
+`effects.js`; `openChest`/`smashBarrel`/`collectGold` → `rewards.js`.
+See `test.html` `EXPECT_OWNER` for the authoritative moved-symbol list.
+
+**Left undone — `traits.js` still owns the ability system.** `castAbility`, `addAbility`,
+`abilityDef`/`abilityData`/`abilityRanks`/`abilityCost`, plus the private combat
+primitives `monsterAt` / `adjacentTo` / `hurt`. `hurt()` is *damage → kill → endCombat*,
+i.e. the core combat transaction, living in the traits file. Extracting an `abilities.js`
+was considered and skipped because it is a *large* move (a new file, plus `hurt`/`monsterAt`
+become public surface) for a file that is currently readable. **If you do it:** move
+`castAbility`, `addAbility`, the ability helpers and `activateAbility`, and put a single
+shared `dealDamage()` in `combat.js` for `playerSwing` and abilities to both call —
+there are currently **two independent damage paths** (`combat.playerSwing` and
+`traits.hurt`) that each set `hitFlash`, compute crit and handle death. That duplication
+is a latent bug surface, not just untidiness.
+
+**Left undone — `ui.js` rule-vs-DOM mixing.** `equipSlots`, `isSlotUnlocked` and the
+private `isEquipped` are equipment *rules* (they read `CONFIG.SLOTS` and
+`save.unlocks`), and `buildShop`/`doShopHeal`/`displayCost` are shop *rules*. All were
+candidates for `items.js`. Skipped because they are called from `render.js` and
+`items.js` in ways that would push more symbols into the public namespace for very
+small files.
+
+**Left undone — the shop split is half-finished.** `items.js` owns shop *economics*
+(`isShopFloor`, `healCost`, `shopHealCost`, `makeShopStock`) and `ui.js` owns shop
+*behaviour*. `items.js`'s own header says *"all shop-domain logic now lives in this
+file"* — that is the stated intent, only partially executed. Either finish it or correct
+the comment; right now the comment overstates what is there.
+
+**Deliberately NOT changed (intent, not drift):**
+- `progression.js` loading after `ui.js` — a documented load-order requirement (§5.5).
+- `render.js` owning `drawPaperDoll` / `renderMinimap` — they are canvas drawing.
+- `sfx.js` at ~570 lines — audio + haptics + prefs is one "feedback" concern.
+- `items.js` owning shop pricing — see above; it's the stated intent.
+
+**Cost model for any future move** (why the applied set was kept small): every
+cross-file move (a) forces a private helper to become public surface or a namespace
+member like `Delve.decor`, (b) requires `index.html` **and** `test.html`'s `FILES[]` to
+change together, (c) needs an `EXPECT_OWNER` line, and (d) needs this document updated
+or it becomes a lying map. On a phone authoring workflow, **28 files with crisp
+boundaries beats 40 with fussy ones.** Prefer moving a *cluster* (as with lifecycle) over
+shuffling many singletons.
+
+**How to verify a move** (the method used here, worth repeating):
+1. `smoke.js`-style harness: load **every** file in `index.html` order in a stubbed DOM,
+   then run a scripted sequence of game operations, printing a **digest of observable
+   state after each step**. Diff the transcript before vs after the move. A refactor must
+   produce an *identical* transcript.
+2. For rendering changes, a seeded/frozen-clock render diffed pixel-for-pixel
+   (see §10, "verifying a refactor").
+3. The ownership assertions (`EXPECT_OWNER`) re-checked against per-file new-symbol
+   detection, so a moved symbol's new owner is *proved*, not assumed.
+Note: **pixel diffing does not verify a logic move** — it only covers drawing. Logic
+moves need the transcript.
+
+### 11.2 Other open work
 
 **Content — the main remaining work:**
 - **Per-ward boss arenas.** Shape and dress floor 10 as Upper Ruins and floor 20 as
   Blackvein, using `ward.bossArena` for geometry and `G.bossArena` for prop placement
   (braziers, banners, rubble). **No engine change needed** — the hooks exist (§6.6).
+  `js/decor.js` is the natural place for the prop placement.
 - **Delete the inert floors 10/20 boss bands** in `con-monsters.js`. Pure tidiness.
 
 **Confirmed correct but worth noting:**
 - `test.html` §3's `EXPECT_OWNER` map is a **maintenance cost**: every future function
   move needs a matching line, or §3 goes red and looks like a regression. That's
   deliberate — it's the check that catches a misfiled function — but if the friction
-  outweighs the value, trim it to the move-prone keys only.
+  outweighs the value, trim it to the move-prone keys only. It grew by 8 lines in the
+  reorganisation pass, which is exactly this cost being paid.
 
 **Optional, low priority:**
 - Move `rowFor`/`onHitEffectFor` from `combat.js` to `state.js`.
-- Extract run lifecycle (`endRun`, `retreat`, `die`, `triggerVictory`) into a
-  `lifecycle.js`.
 - Root-cause the historical "can't move" bug (§9) if it ever recurs.
 
 **Ideas discussed but not built:**

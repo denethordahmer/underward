@@ -4,9 +4,11 @@ window.Delve = window.Delve || {};
  const C = () => Delve.CONFIG;
 
  // combat.js : the auto-combat loop, monster/player swings, ambient attacks,
- // kill resolution, and run lifecycle (end/retreat/die/victory).
- // Tile movement, rest, barrels, gold pickup and descent now live in
+ // and kill resolution.
+ // Tile movement, rest, barrels, gold pickup and descent live in
  // js/movement.js. Economy lives in js/rewards.js.
+ // Run lifecycle (newRun/endRun/die/retreat/triggerVictory) moved to
+ // js/lifecycle.js — this file CALLS Delve.die and Delve.triggerVictory.
  // Exports Delve.rowFor / Delve.onHitEffectFor for rewards.js to consume.
 
  // Chance for an enemy with an on-hit status to actually apply it.

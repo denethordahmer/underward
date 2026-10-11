@@ -4,7 +4,9 @@ window.Delve = window.Delve || {};
  const C = () => Delve.CONFIG;
 
  // movement.js : tile interaction and traversal — tapping to move, step-on
- // pathfinding, rest, barrels, gold pickup, chests, and floor descent.
+ // pathfinding, rest, and floor descent. Barrels and gold piles moved to
+ // js/rewards.js; this file still CALLS Delve.smashBarrel / Delve.collectGold
+ // when you step onto one.
  // Split out of combat.js (C-006). Load AFTER js/combat.js (calls Delve.startCombat,
  // Delve.enemiesTurn); Delve.openShop lives in ui.js. All references are call-time,
  // so no load-time dependency exists in either direction.

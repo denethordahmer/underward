@@ -1,6 +1,15 @@
 window.Delve = window.Delve || {};
 (function(){
 
+ // ── traits.js ────────────────────────────────────────────────
+ // Owns: the trait catalogue helpers (traitBuffs / applyTrait / addXP),
+ //       ability definitions and Delve.castAbility, and the CHOICE half of
+ //       the level-up flow (Delve.showLevelUpChoices picks which three to
+ //       offer). ui.js renders them via Delve.renderLevelUpChoices.
+ // Does NOT own DOM — the level-up screen markup moved to js/ui.js.
+ // See architecture.md §3.5 for the open question about splitting the
+ // ability half into its own file.
+
  // ── Chosen passives live in G.traits (an ARRAY) ─────────────
  Delve.traits = function(){
  const G = Delve.G;
