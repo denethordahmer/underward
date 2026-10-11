@@ -9,6 +9,18 @@ window.Delve = window.Delve || {};
   x.drawImage(base,0,0); x.globalAlpha=0.40; x.fillStyle=col; x.fillRect(0,0,base.width,base.height); x.globalAlpha=1; return c;
  }
 
+ // ── Shared helpers exposed for satellite sprite files (bosssprites.js) ──
+ Delve._spriteUtils = { mk: mk, gx: gx, R: R, tint: tint };
+
+ // ── Boss sprite registry ──
+ // Satellite files call Delve.registerBossSprite(key, builderFn). buildAll()
+ // consumes this registry after laying down the base sprites. Adding a new
+ // boss sprite never requires editing this file.
+ Delve._bossSpriteBuilders = Delve._bossSpriteBuilders || {};
+ Delve.registerBossSprite = function(key, builderFn){
+  Delve._bossSpriteBuilders[key] = builderFn;
+ };
+
  // ============================ CHARACTERS ============================
  function buildShadow(){ const c=mk(24,7),x=gx(c); x.globalAlpha=0.35;x.fillStyle="#000"; R(x,8,0,8,1);R(x,6,1,12,1);R(x,4,2,16,1);R(x,3,3,18,1);R(x,2,4,20,1);R(x,2,5,20,1);R(x,2,6,20,1); x.globalAlpha=1; return c; }
 
@@ -47,16 +59,6 @@ window.Delve = window.Delve || {};
   R(x,6,13,12,2,"#4a3b66");R(x,7,15,10,2,"#4a3b66");R(x,8,17,8,2,"#4a3b66");R(x,9,19,6,2,"#4a3b66");R(x,10,21,4,2,"#4a3b66");
   R(x,6,8,12,6,"#3a2d52");R(x,4,7,16,3,"#4a3b66");R(x,8,1,8,7,"#4a3b66");R(x,9,0,6,1,"#5c4a80");R(x,9,4,6,6,"#120e1e");R(x,10,6,2,2,"#7ee0ff");R(x,13,6,2,2,"#7ee0ff");
   x.globalAlpha=0.22;R(x,9,5,8,4,"#7ee0ff");x.globalAlpha=1;
-  return c;
- }
- function buildBoss(){
-  const c=mk(28,28),x=gx(c);
-  R(x,2,7,6,6,"#343a43");R(x,19,7,6,6,"#343a43");R(x,3,7,4,2,"#4a525e");R(x,21,7,4,2,"#4a525e");R(x,2,12,2,1,"#4a525e");R(x,24,12,2,1,"#4a525e");
-  R(x,10,2,8,3,"#2c313a");R(x,9,5,10,5,"#23262d");R(x,12,5,1,5,"#14161b");R(x,15,5,1,3,"#14161b");R(x,11,8,3,1,"#14161b");R(x,11,7,2,1,"#ff4a3d");R(x,15,7,2,1,"#ff4a3d");
-  x.globalAlpha=0.6;R(x,11,7,2,1,"#ff6a5a");R(x,15,7,2,1,"#ff6a5a");x.globalAlpha=0.25;R(x,10,6,4,3,"#ff4a3d");R(x,14,6,4,3,"#ff4a3d");x.globalAlpha=1;
-  R(x,8,11,12,10,"#1f2329");R(x,8,11,12,2,"#2c313a");R(x,8,11,2,10,"#2c313a");R(x,18,11,2,10,"#2c313a");R(x,13,14,2,4,"#14161b");R(x,12,15,4,1,"#343a43");R(x,5,13,3,7,"#23262d");R(x,20,13,3,7,"#23262d");
-  R(x,6,20,1,1,"#5a616c");R(x,6,21,1,1,"#575d68");R(x,7,22,1,1,"#4d525c");R(x,7,23,1,1,"#575d68");R(x,6,24,1,1,"#4d525c");R(x,21,20,1,1,"#5a616c");R(x,21,21,1,1,"#575d68");R(x,20,22,1,1,"#4d525c");R(x,20,23,1,1,"#575d68");R(x,21,24,1,1,"#4d525c");
-  R(x,10,21,3,6,"#171a20");R(x,16,21,3,6,"#171a20");R(x,10,26,3,1,"#2c313a");R(x,16,26,3,1,"#2c313a");
   return c;
  }
  function buildRat(){
@@ -215,18 +217,19 @@ window.Delve = window.Delve || {};
  }
  function buildBarrel(){ const c=mk(24,24),x=gx(c); R(x,6,7,12,12,"#6d4a2f");R(x,6,7,2,12,"#5a3c24");R(x,16,7,2,12,"#5a3c24");R(x,8,8,1,10,"#8a5f3d");R(x,12,8,1,10,"#8a5f3d");R(x,15,8,1,10,"#8a5f3d");R(x,5,6,14,2,"#3f3f45");R(x,5,18,14,2,"#3f3f45");R(x,5,12,14,2,"#3f3f45");R(x,8,7,1,11,"#9a7048"); return c; }
 
+ // ── Assemble everything into Delve.SPR ─────────────────────
  function buildAll(){
-  const shadow=buildShadow(), soldier=buildSoldier(), goblin=buildGoblin(), brute=buildBrute(), wraith=buildWraith(), boss=buildBoss(), rat=buildRat(), slime=buildSlime(), merchant=buildMerchant();
+  const shadow=buildShadow(), soldier=buildSoldier(), goblin=buildGoblin(), brute=buildBrute(), wraith=buildWraith(), rat=buildRat(), slime=buildSlime(), merchant=buildMerchant();
   const barkling=buildBarkling(), thornling=buildThornling(), treant=buildTreant(), vineStalker=buildVineStalker(), dryad=buildDryad(), sporeSwarm=buildSporeSwarm();
   const goblinGold=tint(goblin,"#ffd75e"), bruteGold=tint(brute,"#ffd75e"), ratGold=tint(rat,"#ffd75e"), slimeGold=tint(slime,"#ffd75e"), wraithGold=tint(wraith,"#ffd75e");
   const barklingGold=tint(barkling,"#ffd75e"), thornlingGold=tint(thornling,"#ffd75e"), treantGold=tint(treant,"#ffd75e"), vineStalkerGold=tint(vineStalker,"#ffd75e"), dryadGold=tint(dryad,"#ffd75e"), sporeSwarmGold=tint(sporeSwarm,"#ffd75e");
+
   Delve.SPR = {
    shadow: shadow,
    soldier: { idle: soldier, hurt: tint(soldier,"#ff5c5c") },
    goblin: { idle: goblin, hurt: tint(goblin,"#ff5c5c"), elite: goblinGold },
    brute: { idle: brute, hurt: tint(brute,"#ff5c5c"), elite: bruteGold },
    wraith: { idle: wraith, hurt: tint(wraith,"#ff5c5c"), elite: wraithGold },
-   boss: { idle: boss, hurt: tint(boss,"#ff5c5c") },
    rat: { idle: rat, hurt: tint(rat,"#ff5c5c"), elite: ratGold },
    slime: { idle: slime, hurt: tint(slime,"#ff5c5c"), elite: slimeGold },
    barkling: { idle: barkling, hurt: tint(barkling,"#ff5c5c"), elite: barklingGold },
@@ -245,6 +248,17 @@ window.Delve = window.Delve || {};
     shopkeeper: merchant
    }
   };
+
+  // Boss sprites — one per registry entry
+  for(const key in Delve._bossSpriteBuilders){
+   const build = Delve._bossSpriteBuilders[key];
+   const idle = build();
+   Delve.SPR[key] = { idle: idle, hurt: tint(idle, "#ff5c5c") };
+  }
+
+  // Backwards-compat: old levels.js may still set kind:"boss" before the
+  // next patch. Alias so bosses don't render as pink placeholder circles.
+  if(!Delve.SPR.boss && Delve.SPR.boss_warden) Delve.SPR.boss = Delve.SPR.boss_warden;
  }
 
  buildAll();
