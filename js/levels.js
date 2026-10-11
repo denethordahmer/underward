@@ -32,10 +32,124 @@ window.Delve = window.Delve || {};
   return false;
  }
 
+ // ── Blackvein floor plan: rolled once per run ──
+ // Picks 2-3 clustered loot floors and a random set of swarm floors from 11-19.
+ function ensureBlackveinPlan(G){
+  if(G._bvPlan) return G._bvPlan;
+  const pool = [11,12,13,14,15,16,17,18,19];
+  const clustered = [];
+  const clusterCount = Delve.rng(2, 3);
+  for(let i=0; i<clusterCount && pool.length; i++){
+   const idx = Math.floor(Math.random() * pool.length);
+   clustered.push(pool.splice(idx, 1)[0]);
+  }
+  const swarm = [];
+  for(let i=0; i<pool.length; i++){
+   if(Math.random() < 0.25) swarm.push(pool[i]);
+  }
+  G._bvPlan = { clustered: clustered, swarm: swarm };
+  return G._bvPlan;
+ }
+
+ // Kind-specific spawner used by swarm/cluster floors. Skips the standard
+ // safety-radius check so enemies can pack tightly around a chest.
+ function spawnMonsterKind(G, x, y, kind){
+  if(!G.grid[y] || G.grid[y][x] !== T().FLOOR) return null;
+  const row = C().MONSTER_ROSTER[kind];
+  if(!row) return null;
+  const m = {
+   id:"m"+Date.now()+"_"+Math.floor(Math.random()*99999),
+   kind: row.kind, name: row.name,
+   x:x, y:y,
+   maxHp: row.hp + Math.floor((G.floor-1) * row.hpPerFloor),
+   atk: row.atk + Math.floor(G.floor * row.atkPerFloor),
+   speed: row.speed,
+   xp: row.xp, shards: row.shards, gold: row.gold,
+   effects: [], elite: false, hasActed: false
+  };
+  m.hp = m.maxHp;
+  G.monsters.push(m);
+  G.grid[y][x] = T().MONSTER;
+  return m;
+ }
+
+ // Candidate rooms for a special floor: skip spawn room, stairs, shop.
+ function specialRooms(G, rooms){
+  return rooms.slice(1).filter(function(r){
+   if(G.stairs && r.cx === G.stairs.x && r.cy === G.stairs.y) return false;
+   if(G.shop && G.shop.x >= 0 && r.cx === G.shop.x && r.cy === G.shop.y) return false;
+   return true;
+  });
+ }
+
+ // Swarm floor: clear the spread-out spawns, fill one chamber with a tight
+ // pack of one enemy kind, drop a high-value chest at its centre.
+ function applySwarmFloor(G, rooms){
+  const usable = specialRooms(G, rooms);
+  if(!usable.length) return;
+
+  G.monsters.forEach(function(m){
+   if(G.grid[m.y] && G.grid[m.y][m.x] === T().MONSTER) G.grid[m.y][m.x] = T().FLOOR;
+  });
+  G.monsters = [];
+
+  const room = usable[Math.floor(Math.random() * usable.length)];
+  const kind = "spore_swarm";
+  const count = Delve.rng(18, 26);
+  let placed = 0, attempts = 400;
+  while(placed < count && attempts-- > 0){
+   const ox = room.x + Delve.rng(0, room.w - 1);
+   const oy = room.y + Delve.rng(0, room.h - 1);
+   if(spawnMonsterKind(G, ox, oy, kind)) placed++;
+  }
+
+  const cx = room.cx, cy = room.cy;
+  if(G.grid[cy] && (G.grid[cy][cx] === T().FLOOR || G.grid[cy][cx] === T().MONSTER || G.grid[cy][cx] === T().CHEST)){
+   G.monsters = G.monsters.filter(function(m){ return !(m.x === cx && m.y === cy); });
+   G.chests = G.chests.filter(function(c){ return !(c.x === cx && c.y === cy); });
+   G.grid[cy][cx] = T().CHEST;
+   G.chests.push({ x:cx, y:cy, open:false, highValue:true, swarm:true });
+  }
+
+  G.floorType = "swarm";
+  if(Delve.logSystem) Delve.logSystem("The air thickens — a swarm fills the chamber.");
+ }
+
+ // Clustered loot floor: 4-5 guards ring a high-value chest.
+ function applyClusteredLootFloor(G, rooms){
+  const usable = specialRooms(G, rooms);
+  if(!usable.length) return;
+
+  const room = usable[Math.floor(Math.random() * usable.length)];
+  const cx = room.cx, cy = room.cy;
+  if(!G.grid[cy]) return;
+  if(G.grid[cy][cx] !== T().FLOOR && G.grid[cy][cx] !== T().MONSTER && G.grid[cy][cx] !== T().CHEST) return;
+
+  G.monsters = G.monsters.filter(function(m){ return !(m.x === cx && m.y === cy); });
+  G.chests = G.chests.filter(function(c){ return !(c.x === cx && c.y === cy); });
+  G.grid[cy][cx] = T().CHEST;
+  G.chests.push({ x:cx, y:cy, open:false, highValue:true, clustered:true });
+
+  const band = Delve.getMonsterBand(G.floor);
+  const guards = Delve.rng(4, 5);
+  let placed = 0, attempts = 80;
+  while(placed < guards && attempts-- > 0){
+   const ox = cx + Delve.rng(-1, 1);
+   const oy = cy + Delve.rng(-1, 1);
+   if(ox === cx && oy === cy) continue;
+   const kind = Delve.pickWeighted(band.weights);
+   if(kind && spawnMonsterKind(G, ox, oy, kind)) placed++;
+  }
+
+  G.floorType = "clustered";
+  if(Delve.logSystem) Delve.logSystem("A knot of vines guards a sealed chest.");
+ }
+
  Delve.genFloor = function(){
   const G = Delve.G;
   if(!G) return;
   G.floorCleared = false;
+  G.floorType = null;
   G.items = G.items || [];
   G.monsters = [];
   G.goldPiles = [];
@@ -193,6 +307,16 @@ window.Delve = window.Delve || {};
    }
   }
 
+  // Blackvein special floors: swarm or clustered loot
+  if(G.floor >= 11 && G.floor <= 19){
+   const plan = ensureBlackveinPlan(G);
+   if(plan.swarm.indexOf(G.floor) >= 0){
+    applySwarmFloor(G, rooms);
+   } else if(plan.clustered.indexOf(G.floor) >= 0){
+    applyClusteredLootFloor(G, rooms);
+   }
+  }
+
   // elite: one elite per floor at the configured chance
   const minF = cfg.elite.minFloor || 3, maxF = cfg.elite.maxFloor || 9;
   if(geq(G.floor, minF) && leq(G.floor, maxF)){
@@ -264,6 +388,27 @@ window.Delve = window.Delve || {};
   G.grid[y][x] = T().FLOOR;
   if(Delve.logSystem) Delve.logSystem("You open a chest.");
   const source = chest.secret ? { kind:"secret" } : { kind:"chest" };
+
+  // high-value chest (Blackvein cluster or swarm): guaranteed tier 3+ item,
+  // tier 3 potion, and boosted gold
+  if(chest.highValue){
+   let tier = Math.max(3, Delve.rollTier(G.floor));
+   if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
+   const it = Delve.makeItem(tier);
+   it.x = x; it.y = y;
+   Delve.stampProvenance(it, source);
+   G.items.push(it);
+   Delve.dropPotion(x, y, 3, source);
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   const gold = Math.round((30 + Math.floor(Math.random()*20) + G.floor*3) * mult);
+   G.gold += gold;
+   Delve.recordStat("goldEarned", gold);
+   Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
+   Delve.updateHUD();
+   Delve.draw();
+   return;
+  }
+
   if(prob(0.45)){
    let tier = Delve.rollTier(G.floor);
    if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
