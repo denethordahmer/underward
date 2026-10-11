@@ -304,8 +304,10 @@ window.Delve = window.Delve || {};
  }
 
  // ── Kill monster ─────────────────────────────────────────────
- Delve.killMonster = function(m){
-  const G = Delve.G, g = G.grid;
+  Delve.killMonster = function(m){
+  const G = Delve.G;
+  if(!G || !m) return;
+  const g = G.grid;
   const buffs = Delve.itemBuffs();
   const rewards = Delve.killRewards(m);          // js/rewards.js
 
