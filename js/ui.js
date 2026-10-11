@@ -1,7 +1,39 @@
 window.Delve = window.Delve || {};
 (function(){
 
- const $ = id => document.getElementById(id);
+ // ── ui.js ────────────────────────────────────────────────────
+ // Owns: HUD updates, inventory/item-card screens, shop screen UI,
+ //       screen orchestration (hub/run/end), the debug panel, and ALL
+ //       DOM event wiring.
+ // Does NOT own canvas drawing. The paper doll and minimap moved to
+ // render.js; shop stock/pricing moved to items.js. Call sites below
+ // reach them via Delve.drawPaperDoll / Delve.makeShopStock / Delve.shopHealCost.
+
+ // Safe element lookup: if an id is missing from index.html, return an inert
+ // stand-in instead of null. One missing element can no longer crash the rest
+ // of this file. Missing ids are logged and listed in Delve.missingEls.
+ const _warned = {};
+ function nullEl(id){
+  const noop = function(){};
+  return {
+   id: id, style: {}, dataset: {}, children: [],
+   textContent: "", innerHTML: "", value: "", disabled: false,
+   classList: { add: noop, remove: noop, toggle: noop, contains: function(){ return false; } },
+   addEventListener: noop, appendChild: noop, removeChild: noop,
+   querySelector: function(){ return nullEl(id + ">?"); },
+   getContext: function(){ return null; }
+  };
+ }
+ const $ = function(id){
+  const el = document.getElementById(id);
+  if(el) return el;
+  if(!_warned[id]){
+   _warned[id] = 1;
+   (Delve.missingEls = Delve.missingEls || []).push(id);
+   try { console.warn("ui.js: missing element #" + id); } catch(_e){}
+  }
+  return nullEl(id);
+ };
 
  const DEATH_QUOTES = [
   "The Undercroft claims another.",
@@ -58,124 +90,15 @@ window.Delve = window.Delve || {};
    }
   }
   Delve.renderAbilityBar();
-  Delve.renderMinimap();
+  Delve.renderMinimap();     // render.js
  };
 
- // ── PAPER DOLL ───────────────────────────────────────────────
- function drawPaperDoll(){
-  const cv = $("charCanvas");
-  if(!cv) return;
-  const W = cv.width, H = cv.height;
-  const ctx = cv.getContext("2d");
-  ctx.clearRect(0,0,W,H);
-
-  const eq = Delve.equipSlots();
-  const cx = W/2;
-
-  // backdrop shadow
-  ctx.fillStyle = "rgba(0,0,0,0.30)";
-  ctx.beginPath(); ctx.ellipse(cx, H-24, 46, 10, 0, 0, Math.PI*2); ctx.fill();
-
-  // palettes
-  const skin = "#e8c39a", hair = "#5a3d2c", bodyBase = "#33507a", bodyDark = "#233a5c";
-  const tier = function(item){
-   return item ? (Delve.TIERS.colors[item.tier] || "#cfd8e0") : "#1a2532";
-  };
-
-  // cloak (behind everything)
-  if(eq.cloak){
-   ctx.fillStyle = tier(eq.cloak);
-   ctx.beginPath();
-   ctx.moveTo(cx-16, H-120);
-   ctx.lineTo(cx-42, H-36);
-   ctx.lineTo(cx+42, H-36);
-   ctx.lineTo(cx+16, H-120);
-   ctx.closePath();
-   ctx.fill();
-  }
-
-  // legs
-  ctx.fillStyle = "#4d3622";
-  ctx.fillRect(cx-15, H-80, 12, 52);
-  ctx.fillRect(cx+3, H-80, 12, 52);
-  // feet
-  if(eq.feet){ drawSwatch(ctx, cx-17, H-32, 16, 8, tier(eq.feet)); drawSwatch(ctx, cx+1, H-32, 16, 8, tier(eq.feet)); }
-  else { ctx.fillStyle = "#2b2118"; ctx.fillRect(cx-17, H-34, 16, 8); ctx.fillRect(cx+1, H-34, 16, 8); }
-
-  // torso
-  const bodyCol = eq.body ? tier(eq.body) : bodyBase;
-  ctx.fillStyle = bodyCol;
-  ctx.beginPath();
-  ctx.roundRect(cx-22, H-132, 44, 58, 8);
-  ctx.fill();
-  ctx.fillStyle = eq.body ? bodyCol : bodyDark;
-  ctx.fillRect(cx-22, H-132, 5, 58);
-  ctx.fillRect(cx+17, H-132, 5, 58);
-
-  // arms
-  ctx.fillStyle = skin;
-  ctx.fillRect(cx-36, H-128, 9, 40);
-  ctx.fillRect(cx+27, H-128, 9, 40);
-  // hands
-  if(eq.hands){ drawSwatch(ctx, cx-37, H-90, 11, 8, tier(eq.hands)); drawSwatch(ctx, cx+26, H-90, 11, 8, tier(eq.hands)); }
-  else { ctx.fillStyle = skin; ctx.fillRect(cx-37, H-90, 11, 7); ctx.fillRect(cx+26, H-90, 11, 7); }
-
-  // neck + head
-  ctx.fillStyle = skin;
-  ctx.fillRect(cx-5, H-140, 10, 8);
-  ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(cx, H-152, 20, 0, Math.PI*2); ctx.fill();
-  // hair
-  ctx.fillStyle = hair;
-  ctx.beginPath(); ctx.arc(cx, H-158, 20, Math.PI, 0); ctx.fill();
-  // face
-  ctx.fillStyle = "#1d232b";
-  ctx.fillRect(cx-8, H-156, 3, 3); ctx.fillRect(cx+5, H-156, 3, 3);
-  // head equipment
-  if(eq.head){
-   ctx.fillStyle = tier(eq.head);
-   ctx.beginPath(); ctx.arc(cx, H-156, 21, Math.PI, Math.PI*2); ctx.fill();
-   ctx.fillRect(cx-22, H-158, 44, 7);
-  }
-
-  // weapon (right hand side)
-  if(eq.weapon){
-   ctx.save();
-   ctx.translate(cx+30, H-98);
-   ctx.rotate(-0.6);
-   ctx.fillStyle = tier(eq.weapon);
-   ctx.fillRect(-3, -34, 6, 34);  // blade
-   ctx.fillStyle = "#8a5a33"; ctx.fillRect(-8, -4, 16, 5); // hilt
-   ctx.restore();
-  }
-  // offhand
-  if(eq.offhand){
-   ctx.fillStyle = tier(eq.offhand);
-   ctx.beginPath(); ctx.arc(cx-40, H-106, 13, 0, Math.PI*2); ctx.fill();
-   ctx.fillStyle = "rgba(0,0,0,0.2)";
-   ctx.beginPath(); ctx.arc(cx-40, H-106, 13, 0, Math.PI*2); ctx.stroke();
-  }
-
-  // amulet (chest)
-  if(eq.amulet){
-   ctx.fillStyle = tier(eq.amulet);
-   ctx.beginPath(); ctx.arc(cx, H-112, 5, 0, Math.PI*2); ctx.fill();
-  }
-
-  function drawSwatch(ctx2, x, y, w, h, col){
-   ctx2.fillStyle = col; ctx2.fillRect(x, y, w, h);
-   ctx2.fillStyle = "rgba(255,255,255,0.12)"; ctx2.fillRect(x, y, w, 2);
-  }
- }
-
  // ── INVENTORY ────────────────────────────────────────────────
- // FIX #28: the stub openInventory + dibb1 placeholder are deleted —
- // one definition only.
  Delve.openInventory = function(){
   const G = Delve.G;
   if(!G) return;
   const eq = Delve.equipSlots();
-  drawPaperDoll();
+  Delve.drawPaperDoll();     // render.js
 
   // Build equipment slot grid
   const rack = $("equipRack");
@@ -205,8 +128,6 @@ window.Delve = window.Delve || {};
    slot.appendChild(lbl); slot.appendChild(val);
    if(unlocked && item){
     slot.addEventListener("click", function(){ Delve.showItemCard(item, "inventory"); });
-   } else if(unlocked){
-    // tapping empty unlocked slot does nothing for now
    }
    rack.appendChild(slot);
   });
@@ -324,11 +245,8 @@ window.Delve = window.Delve || {};
     primary.textContent = equipped ? "Unequip" : "Equip";
     primary.disabled = equipped && Delve.G.inventory.length >= (Delve.inventoryCap ? Delve.inventoryCap() : Delve.CONFIG.inventorySlots);
     primary.onclick = function(){
-     if(equipped){
-      Delve.unequipItem(item);
-     } else {
-      Delve.equipItem(item);
-     }
+     if(equipped){ Delve.unequipItem(item); }
+     else { Delve.equipItem(item); }
      Delve.updateHUD(); Delve.draw(); closeItemCard(); Delve.openInventory();
     };
     secondary.textContent = equipped ? "Close" : "Discard";
@@ -380,25 +298,25 @@ window.Delve = window.Delve || {};
  };
 
  Delve.showBossIntro = function(floor){
- const f = floor || (Delve.G && Delve.G.floor) || 10;
- const cfg = Delve.CONFIG;
- const bossDef = cfg.BOSS_DEFS[Math.ceil(f/10)] || cfg.BOSS_DEFS[1] || {};
- const accent = bossDef.accent || "#c98aff";
- $("bossIntroName").textContent = bossDef.name || "The Warden";
- $("bossIntroTitle").textContent = bossDef.title || "";
- $("bossIntroFlavour").textContent = bossDef.flavour || "";
- const warnEl = $("bossIntroWarning");
- const titleEl = $("bossIntroTitle");
- const cardEl = $("bossIntroCard");
- if(warnEl) warnEl.style.color = accent;
- if(titleEl) titleEl.style.color = accent;
- if(cardEl) cardEl.style.borderColor = accent + "66";
- const ov = $("bossIntroOverlay");
- ov.style.display = "flex";
- clearTimeout(Delve._bossIntroT);
- Delve._bossIntroT = setTimeout(function(){ ov.style.display = "none"; }, 3000);
-};
- 
+  const f = floor || (Delve.G && Delve.G.floor) || 10;
+  const cfg = Delve.CONFIG;
+  const bossDef = cfg.BOSS_DEFS[Math.ceil(f/10)] || cfg.BOSS_DEFS[1] || {};
+  const accent = bossDef.accent || "#c98aff";
+  $("bossIntroName").textContent = bossDef.name || "The Warden";
+  $("bossIntroTitle").textContent = bossDef.title || "";
+  $("bossIntroFlavour").textContent = bossDef.flavour || "";
+  const warnEl = $("bossIntroWarning");
+  const titleEl = $("bossIntroTitle");
+  const cardEl = $("bossIntroCard");
+  if(warnEl) warnEl.style.color = accent;
+  if(titleEl) titleEl.style.color = accent;
+  if(cardEl) cardEl.style.borderColor = accent + "66";
+  const ov = $("bossIntroOverlay");
+  ov.style.display = "flex";
+  clearTimeout(Delve._bossIntroT);
+  Delve._bossIntroT = setTimeout(function(){ ov.style.display = "none"; }, 3000);
+ };
+
  // ── HUB ──────────────────────────────────────────────────────
  Delve.refreshHub = function(){
   $("hubShards").textContent = Delve.save.shards;
@@ -433,7 +351,7 @@ window.Delve = window.Delve || {};
     Delve.persist(); Delve.refreshHub();
    });
    row.appendChild(info); row.appendChild(btn);
-      shop.appendChild(row);
+   shop.appendChild(row);
   });
 
   (Delve._hooks && Delve._hooks.hubLoaded || []).forEach(function(fn){ fn(); });
@@ -487,7 +405,6 @@ window.Delve = window.Delve || {};
    n.className = "ability-name"; n.textContent = ab.name;
    const c = document.createElement("span");
    c.className = "ability-cost";
-   // 8c: show the real energy cost (second_nature node = 20% off).
    c.textContent = "⚡ " + displayCost(ab);
    btn.appendChild(n); btn.appendChild(c);
    btn.addEventListener("click", function(){ activateAbility(ab); });
@@ -520,98 +437,14 @@ window.Delve = window.Delve || {};
   Delve.draw();
  }
 
- // ── MINIMAP ──────────────────────────────────────────────────
- Delve.markVisited = function(x, y){
-  const G = Delve.G; if(!G || !G.grid || !G.grid.length) return;
-  if(G._visitedFloor !== G.floor){ G.visited = []; G._visitedFloor = G.floor; }
-  if(!G.visited) G.visited = [];
-  const h = G.grid.length, w = G.grid[0].length, R = 5;
-  for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
-   if(Math.abs(dx)+Math.abs(dy) > R) continue;
-   const ux=x+dx, uy=y+dy;
-   if(ux<0||uy<0||ux>=w||uy>=h) continue;
-   if(!G.visited[uy]) G.visited[uy] = [];
-   G.visited[uy][ux] = 1;
-  }
- };
-
- Delve.renderMinimap = function(){
-  const wrap = $("minimapWrap");
-  if(!wrap || getComputedStyle(wrap).display === "none") return;
-  const cv = $("minimap"); if(!cv) return;
-  const ctx = cv.getContext("2d");
-  const G = Delve.G;
-  ctx.fillStyle = "#070a0e";
-  ctx.fillRect(0,0,cv.width,cv.height);
-  if(!G || !G.grid || !G.grid.length) return;
-  const gw = G.grid[0].length, gh = G.grid.length;
-  const s = Math.min(cv.width/gw, cv.height/gh);
-  const ox = (cv.width-gw*s)/2, oy = (cv.height-gh*s)/2;
-  const vis = G.visited || [];
-  const T = Delve.T;
-  const seen = function(x,y){ return vis[y] && vis[y][x]; };
-  for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){
-   const t = G.grid[y][x];
-   if(t === T.WALL || !seen(x,y)) continue;
-   let col = "#2a333d";
-   if(t === T.STAIR) col = "#2ad0b0";
-   else if(t === T.GOLD) col = "#d9a11f";
-   else if(t === T.CHEST) col = "#c9971f";
-   else if(t === T.BARREL) col = "#7a5c3a";
-   ctx.fillStyle = col;
-   ctx.fillRect(ox+x*s, oy+y*s, s+0.5, s+0.5);
-  }
-  if(G.shop && G.shop.x >= 0 && seen(G.shop.x, G.shop.y)){
-   ctx.fillStyle = "#ffd75e";
-   ctx.fillRect(ox+G.shop.x*s, oy+G.shop.y*s, s+1, s+1);
-  }
-  const dot = function(x,y,col,r){
-   ctx.fillStyle = col;
-   ctx.beginPath();
-   ctx.arc(ox+x*s+s/2, oy+y*s+s/2, s*r, 0, Math.PI*2);
-   ctx.fill();
-  };
-  (G.monsters||[]).forEach(function(m){ if(seen(m.x,m.y)) dot(m.x,m.y,m.elite?"#c98aff":"#e05a6a",0.45); });
-  if(G.boss && seen(G.boss.x,G.boss.y)) dot(G.boss.x,G.boss.y,"#ff4a3d",0.6);
-  dot(G.px,G.py,"#ffffff",0.4);
- };
-
- // ── SHOP ─────────────────────────────────────────────────────
- function shopItemPool(type){
-  return Object.keys(Delve.itemDefs).map(function(k){ return Delve.itemDefs[k]; })
-   .filter(function(d){ return type === "consumable" ? d.slot === "consumable" : d.slot !== "consumable"; });
- }
- function makeShopStock(G){
-  const shopNum = Math.floor(G.floor/10)+1;
-  const maxTier = shopNum>=3?4:shopNum===2?3:2;
-  const stock = [];
-  let gear = shopItemPool("gear").filter(function(d){ return d.tier <= maxTier; });
-  const top = gear.filter(function(d){ return d.tier === maxTier; });
-  if(top.length && Math.random()<0.7) gear = top;
-  for(let i=0;i<(Delve.CONFIG.shop.stockGear||1) && gear.length;i++){
-   stock.push({ item: Object.assign({}, gear[Math.floor(Math.random()*gear.length)]), sold:false });
-  }
-  const cons = shopItemPool("consumable").filter(function(d){ return d.tier <= Math.min(maxTier,3); });
-  const used = {};
-  const want = Math.min(Delve.CONFIG.shop.stockConsumables||4, cons.length);
-  let guard=0;
-  while(Object.keys(used).length < want && guard++<100){
-   const pick = cons[Math.floor(Math.random()*cons.length)];
-   if(used[pick.id]) continue;
-   used[pick.id]=1;
-   stock.push({ item: Object.assign({}, pick), sold:false });
-  }
-  return stock;
- }
- function shopHealCost(G){
-  return Math.max(1, Math.round(Delve.healCost(G.floor)*(1-Delve.luckDiscount())));
- }
-
+ // ── SHOP (screen only) ───────────────────────────────────────
+ // Stock generation and pricing live in items.js
+ // (Delve.makeShopStock / Delve.shopHealCost).
  Delve.openShop = function(){
   const G = Delve.G; if(!G) return;
   hideAll();
   if(!G.shop) G.shop = { x:-1, y:-1 };
-  if(!G.shop.stock) G.shop.stock = makeShopStock(G);
+  if(!G.shop.stock) G.shop.stock = Delve.makeShopStock(G);
   $("shopScreen").style.display = "flex";
   Delve.buildShop();
  };
@@ -622,7 +455,7 @@ window.Delve = window.Delve || {};
   $("shopGreeting").textContent = Delve.luckDiscount() > 0
    ? "\"Lucky one, aren't you? Here's " + Math.round(Delve.luckDiscount()*100) + "% off.\""
    : "\"Take a look. Everything's honestly priced.\"";
-  const healCost = shopHealCost(G);
+  const healCost = Delve.shopHealCost(G);
   const hb = $("shopHealBtn");
   hb.textContent = "❤️ Restore 50% HP — " + healCost + "g";
   hb.disabled = G.gold < healCost || G.hp >= Delve.maxHp();
@@ -665,7 +498,7 @@ window.Delve = window.Delve || {};
  }
  function doShopHeal(){
   const G = Delve.G;
-  const cost = shopHealCost(G);
+  const cost = Delve.shopHealCost(G);
   if(G.gold < cost || G.hp >= Delve.maxHp()) return;
   G.gold -= cost;
   const heal = Math.round(Delve.maxHp()*Delve.CONFIG.shop.healPct);
@@ -675,15 +508,6 @@ window.Delve = window.Delve || {};
   Delve.updateHUD();
   Delve.buildShop();
  }
-
- // shopkeeper tap-to-open
- (function wrapShopTap(){
-  function atShop(tx,ty){ const G=Delve.G; return G && G.shop && G.shop.x===tx && G.shop.y===ty && !G.inCombat && !G.targetingAbility; }
-  function open(){ const G=Delve.G; G._path=null; if(G._pathTimer){clearInterval(G._pathTimer); G._pathTimer=null;} Delve.openShop(); }
-  const a1=Delve.tryAct, a2=Delve.tryActOnStep;
-  Delve.tryAct = function(tx,ty){ if(atShop(tx,ty)) open(); else a1(tx,ty); };
-  Delve.tryActOnStep = function(tx,ty){ if(atShop(tx,ty)) open(); else a2(tx,ty); };
- })();
 
  // ── VICTORY / END SCREENS ────────────────────────────────────
  function summaryRows(){
@@ -745,14 +569,11 @@ window.Delve = window.Delve || {};
   };
  }
 
-  Delve.initDebug = function(){
+ Delve.initDebug = function(){
   const p = $("debugPanel"); if(!p) return;
   p.style.display = "flex";
   const need = function(){ return Delve.G && !Delve.G.runEnded; };
 
-  // ── Floor select: auto-built from WARDS ──────────────────────
-  // Never stale. Adding ward 3+ in con-biomes.js adds its floors
-  // here automatically, with shop/boss labels computed, not typed.
   (function fillFloorSelect(){
    const sel = $("dbgFloor"); if(!sel) return;
    sel.innerHTML = "";
@@ -772,7 +593,6 @@ window.Delve = window.Delve || {};
    sel.value = (Delve.G && Delve.G.floor) || 1;
   })();
 
-  // ── Floor jump ───────────────────────────────────────────────
   $("dbgGo").addEventListener("click", function(){
    if(!need()) return;
    Delve.G.floor = parseInt($("dbgFloor").value,10);
@@ -780,19 +600,16 @@ window.Delve = window.Delve || {};
    Delve.showFloorCard(Delve.G.floor);
   });
 
-  // ── Economy / HP shortcuts ──────────────────────────────────
   $("dbgGold").addEventListener("click", function(){ if(!need()) return; Delve.G.gold += 25; Delve.updateHUD(); });
   $("dbgShards").addEventListener("click", function(){ Delve.save.shards += 5; Delve.persist(); Delve.updateHUD(); });
   $("dbgHeal").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = Delve.maxHp(); Delve.updateHUD(); });
   $("dbgLowHp").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = 5; Delve.updateHUD(); });
 
-  // ── Status effects on nearest/first target ──────────────────
   $("dbgPoison").addEventListener("click", applyDebugEffect("poison"));
   $("dbgBleed").addEventListener("click", applyDebugEffect("bleed"));
   $("dbgBurn").addEventListener("click", applyDebugEffect("burn"));
   $("dbgWeaken").addEventListener("click", function(){ if(!need()) return; if(Delve.applyPlayerEffect) Delve.applyPlayerEffect("weaken"); Delve.flash("Weaken applied (you)"); });
 
-  // ── Elite promotion ──────────────────────────────────────────
   $("dbgElite").addEventListener("click", function(){
    if(!need()) return;
    const m = Delve.G.monsters.find(function(x){ return !x.elite; });
@@ -800,19 +617,14 @@ window.Delve = window.Delve || {};
    else Delve.flash("No monster to promote");
   });
 
-  // ── XP / shop / victory / death ──────────────────────────────
   $("dbgXP").addEventListener("click", function(){ if(!need()) return; Delve.addXP(20); });
   $("dbgShop").addEventListener("click", function(){ if(!need()) return; Delve.openShop(); });
   $("dbgVictory").addEventListener("click", function(){
    if(!need()) return;
-   // Real victory flow: gold→shards, boss bonus, canContinue logic.
    Delve.triggerVictory(Math.ceil(Delve.G.floor / 10));
   });
   $("dbgDeath").addEventListener("click", function(){ if(!need()) return; Delve.die(); });
 
-  // ── Recovery / inspection ───────────────────────────────────
-  // Re-render: emergency regeneration + redraw. Fixes a blank
-  // canvas in one tap (genFloor + updateHUD + draw + floor card).
   $("dbgRender").addEventListener("click", function(){
    if(!Delve.G) return;
    Delve.genFloor(); Delve.updateHUD(); Delve.draw();
@@ -836,7 +648,7 @@ window.Delve = window.Delve || {};
  $("minimapBtn").addEventListener("click", function(){
   const w = $("minimapWrap");
   w.style.display = (getComputedStyle(w).display === "none") ? "block" : "none";
-  Delve.renderMinimap();
+  Delve.renderMinimap();     // render.js
  });
 
  $("gearBtn").addEventListener("click", function(){
@@ -847,12 +659,10 @@ window.Delve = window.Delve || {};
   $("pauseMenu").style.display = "none";
   Delve.retreat();
  });
- // Mute toggle
  $("muteBtn").addEventListener("click", function(){
   const muted = Delve.sfxToggleMute ? Delve.sfxToggleMute() : false;
   $("muteBtn").textContent = muted ? "🔇" : "🔊";
  });
- // Volume slider
  $("volumeSlider").addEventListener("input", function(){
   if(Delve.sfxSetVolume) Delve.sfxSetVolume(parseFloat(this.value));
  });
@@ -866,7 +676,7 @@ window.Delve = window.Delve || {};
   const G = Delve.G;
   G.victoryDone = false;
   G.secondWindUsed = false;
-  Delve.descend();  // FIX #31: heal + bestFloor + stats + log, same as stairs flow
+  Delve.descend();
   Delve.updateHUD();
   Delve.draw();
   Delve.showFloorCard(G.floor);
