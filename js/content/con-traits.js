@@ -29,14 +29,31 @@ window.Delve = window.Delve || {};
    { id:"unbroken", name:"Unbroken", desc:"Survive one killing blow at 1 HP, once", unique:true, effects:{ unbroken:true } },
    { id:"deep_pockets", name:"Deep Pockets", desc:"+50% Gold Find for the rest of the run", unique:true, effects:{ goldMult:0.50 } }
   ],
-  abilities: [
-   { id:"cleave", name:"Cleave", cost:4, target:"adjacent", desc:"Hit target and every enemy adjacent to it" },
-   { id:"lunge", name:"Lunge", cost:5, target:"line4", desc:"Dash in a straight line up to 4 tiles and strike" },
-   { id:"stone_skin", name:"Stone Skin", cost:6, target:"self", desc:"Take 60% less damage for 2 turns" },
-   { id:"cinderbolt", name:"Cinderbolt", cost:4, target:"range5", desc:"10 damage, ignores armour, no retaliation, applies Burn" },
-   { id:"rally", name:"Rally", cost:7, target:"self", desc:"Heal 35% max HP and clear bleed" },
-   { id:"blink", name:"Blink", cost:5, target:"teleport4", desc:"Teleport to a visible empty tile within 4" },
-   { id:"whirlwind", name:"Whirlwind", cost:8, target:"self", desc:"Strike every adjacent enemy at once" }
+   abilities: [
+   // `data` carries the numbers castAbility uses; `perRank*` fields are per-rank
+   // deltas consumed via save.abilityRanks by the abilityRank shard-tree nodes.
+   // Tier 3 wires castAbility to read these; until then they're inert extra fields.
+   { id:"cleave", name:"Cleave", cost:4, target:"adjacent",
+     desc:"Hit target and every enemy adjacent to it",
+     data:{ bonusAtk:0, perRank:4 } },
+   { id:"lunge", name:"Lunge", cost:5, target:"line4",
+     desc:"Dash in a straight line up to 4 tiles and strike",
+     data:{ range:4, bonusAtk:4, perRank:4 } },
+   { id:"stone_skin", name:"Stone Skin", cost:6, target:"self",
+     desc:"Take 60% less damage for 2 turns",
+     data:{ turns:2, dmgMult:0.4, perRankTurns:1 } },
+   { id:"cinderbolt", name:"Cinderbolt", cost:4, target:"range5",
+     desc:"10 damage, ignores armour, no retaliation, applies Burn",
+     data:{ range:5, dmg:10, burnTurns:2, perRankDmg:4, perRankBurn:1 } },
+   { id:"rally", name:"Rally", cost:7, target:"self",
+     desc:"Heal 35% max HP and clear bleed",
+     data:{ healPct:0.35, perRankHeal:0.10 } },
+   { id:"blink", name:"Blink", cost:5, target:"teleport4",
+     desc:"Teleport to a visible empty tile within 4",
+     data:{ range:4, perRankRange:1 } },
+   { id:"whirlwind", name:"Whirlwind", cost:8, target:"self",
+     desc:"Strike every adjacent enemy at once",
+     data:{ bonusAtk:0, perRank:0 } }
   ]
  };
 })();
