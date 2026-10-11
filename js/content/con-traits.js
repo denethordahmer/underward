@@ -2,7 +2,7 @@ window.Delve = window.Delve || {};
 (function(){
  const C = Delve.CONFIG;
 
- // ── content/traits.js : trait + ability definitions (data only) ──
+ // ── content/con-traits.js : trait + ability definitions (data only) ──
 
  C.TRAITS = {
   passives: [
