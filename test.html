@@ -25,7 +25,7 @@
 <body>
 <div id="results">
   <h1>underward · test</h1>
-  <div class="sub">Loads every script in current index.html order, checks ownership/duplicates, then runs functional checks including a movement/rest regression test. Must be served over http (GitHub Pages), not opened from disk.</div>
+  <div class="sub">Loads every script in current index.html order, checks ownership/duplicates, then runs functional checks: movement/rest regression, null-G safety, floor generation, and content registries. Must be served over http (GitHub Pages), not opened from disk.</div>
   <div id="console"></div>
 </div>
 
@@ -124,7 +124,7 @@ function sec(title){
   return document.getElementById(id);
 }
 
-/* ── load order (mirrors index.html — 24 files) ──────────────── */
+/* ── load order (mirrors index.html — 26 files) ──────────────── */
 var FILES = [
   "js/config.js",
   "js/content/con-monsters.js",
@@ -161,6 +161,47 @@ var LEGACY_IDS = ["introOverlay"];
 var ALL_OVERLAYS = ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
   "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","pauseMenu","levelUpScreen"];
 
+// ── Expected ownership for functions that moved during the migration. ──
+// §3 alone cannot tell a misfiled function from a correctly filed one: it only
+// checks that the name exists SOMEWHERE. This map is the ownership assertion.
+// If a key here goes red, either a move was reverted or a definition was
+// duplicated into the wrong file.
+var EXPECT_OWNER = {
+  "Delve.move.tryAct":            ["tryAct", "js/movement.js"],
+  "Delve.move.tryActOnStep":      ["tryActOnStep", "js/movement.js"],
+  "Delve.move.tryRest":           ["tryRest", "js/movement.js"],
+  "Delve.move.smashBarrel":       ["smashBarrel", "js/movement.js"],
+  "Delve.move.collectGold":       ["collectGold", "js/movement.js"],
+  "Delve.move.descend":           ["descend", "js/movement.js"],
+  "Delve.move.promptStairs":      ["promptStairs", "js/movement.js"],
+  "Delve.rewards.convertGold":    ["convertGold", "js/rewards.js"],
+  "Delve.rewards.killRewards":    ["killRewards", "js/rewards.js"],
+  "Delve.rewards.floorClearBonus":["floorClearBonus", "js/rewards.js"],
+  "Delve.rewards.makeElite":      ["makeElite", "js/rewards.js"],
+  "Delve.rewards.monsterStats":   ["monsterStats", "js/rewards.js"],
+  "Delve.rewards.applyBossBonus": ["applyBossBonus", "js/rewards.js"],
+  "Delve.combat.rowFor":          ["rowFor", "js/combat.js"],
+  "Delve.combat.onHitEffectFor":  ["onHitEffectFor", "js/combat.js"],
+  "Delve.combat.startCombat":     ["startCombat", "js/combat.js"],
+  "Delve.combat.killMonster":     ["killMonster", "js/combat.js"],
+  "Delve.combat.triggerVictory":  ["triggerVictory", "js/combat.js"],
+  "Delve.combat.endRun":          ["endRun", "js/combat.js"],
+  "Delve.render.drawPaperDoll":   ["drawPaperDoll", "js/render.js"],
+  "Delve.render.markVisited":     ["markVisited", "js/render.js"],
+  "Delve.render.renderMinimap":   ["renderMinimap", "js/render.js"],
+  "Delve.items.makeShopStock":    ["makeShopStock", "js/items.js"],
+  "Delve.items.shopHealCost":     ["shopHealCost", "js/items.js"],
+  "Delve.items.isShopFloor":      ["isShopFloor", "js/items.js"],
+  "Delve.items.healCost":         ["healCost", "js/items.js"],
+  "Delve.levels.genFloor":        ["genFloor", "js/levels.js"],
+  "Delve.levels.genBossFloor":    ["genBossFloor", "js/levels.js"],
+  "Delve.levels.openChest":       ["openChest", "js/levels.js"],
+  "Delve.state.rng":              ["rng", "js/state.js"],
+  "Delve.state.mdist":            ["mdist", "js/state.js"],
+  "Delve.state.newRun":           ["newRun", "js/state.js"],
+  "Delve.state.recordStat":       ["recordStat", "js/state.js"]
+};
+
 var ownership = {};
 var dupes = {};
 var errors = [];
@@ -170,6 +211,7 @@ var bossSpriteFailures = 0;
 var floorFailures = 0;
 var movementFailures = 0;
 var domFailures = 0;
+var ownershipFailures = 0;
 var missing = [];
 
 /* ── 0. Load every file IN ORDER with per-file diff ───────────── */
@@ -208,6 +250,10 @@ FILES.forEach(function(file){
   }
 });
 
+s0.insertAdjacentHTML("beforeend",
+  '<div style="color:#9fb3c5;font-size:13px;margin-top:6px">loaded ' + FILES.length +
+  ' files · ' + Object.keys(ownership).length + ' Delve.* symbols</div>');
+
 if (typeof window.Delve.draw === "function") window.Delve.draw = function(){};
 
 /* ── 1. index.html script tag parity (duplicate-aware) ────────── */
@@ -224,12 +270,21 @@ try {
   if (!idxText){
     s1.innerHTML = '<div class="warn">Could not read index.html (serve over http). Parity not verified.</div>';
   } else {
-    // strip HTML comments so a commented-out script tag cannot count
+    // Strip HTML comments so a commented-out script tag cannot count, then read
+    // only real <script src="..."> attributes. Any path prefix (e.g.
+    // "/underward/js/config.js") is normalised down to "js/config.js".
     var stripped = idxText.replace(/<!--[\s\S]*?-->/g, "");
-    var raw = stripped.match(/js\/[A-Za-z0-9_\-.\/]+\.js/g) || [];
+    var refs = [];
+    var scriptRe = /<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi;
+    var sm;
+    while ((sm = scriptRe.exec(stripped)) !== null){
+      var src = sm[1].split("?")[0];
+      var at = src.indexOf("js/");
+      if (at >= 0) refs.push(src.slice(at));
+    }
 
     var seen = {}, live = [], repeated = [];
-    raw.forEach(function(f){
+    refs.forEach(function(f){
       if (seen[f]) repeated.push(f);
       else { seen[f] = 1; live.push(f); }
     });
@@ -242,7 +297,7 @@ try {
     }
 
     var head = '<div style="color:#9fb3c5;font-size:13px;margin-bottom:6px">' +
-      'references found: ' + raw.length + ' · unique: ' + live.length +
+      'script tags found: ' + refs.length + ' · unique: ' + live.length +
       ' · expected: ' + FILES.length + '</div>';
 
     if (repeated.length){
@@ -285,23 +340,23 @@ else {
   s2.innerHTML += '</table>';
 }
 
-/* ── 3. Required functions AND required objects ──────────────── */
-var s3 = sec("3. Required functions &amp; objects");
+/* ── 3. Required functions, objects & OWNERSHIP ──────────────── */
+var s3 = sec("3. Required functions, objects &amp; ownership");
 var REQUIRED_FN = [
-  "newRun","genFloor","openChest","maxHp","atk","dmgRed","dodge","crit",
+  "newRun","genFloor","genBossFloor","openChest","maxHp","atk","dmgRed","dodge","crit",
   "luckPts","agiPts","touPts","strPts","baseAtk","baseLuck",
   "equipItem","unequipItem","useConsumable","itemStatLines","itemBuffs",
   "makeItem","rollTier","pickupItem","playerSpeed","wardOf",
   "killRewards","floorClearBonus","makeElite","startCombat","endCombat",
-  "tryAct","tryActOnStep","smashBarrel",
-  "triggerVictory","tryRest","descend","die","retreat","convertGold",
-  "applyBossBonus","recordStat","addFloater","updateHUD","renderMinimap",
-  "refreshHub","openInventory","openShop","buildShop",
+  "tryAct","tryActOnStep","smashBarrel","collectGold",
+  "triggerVictory","tryRest","descend","promptStairs","die","retreat","convertGold",
+  "applyBossBonus","recordStat","addFloater","updateHUD","renderMinimap","drawPaperDoll",
+  "refreshHub","openInventory","openShop","buildShop","makeShopStock","shopHealCost",
   "applyEffect","applyPlayerEffect","tickPlayerEffects","statusColor",
   "registerBossSprite","rebuildSprites","castAbility","addXP","addAbility",
   "logXP","logKill","logSystem","logFloor","hasProgression","markRunTrait",
-  "injectHubAbilities","persist","isShopFloor","getWard","getMonsterBand",
-  "findPath","stepPath","uiBlocked"
+  "injectHubAbilities","persist","isShopFloor","healCost","getWard","getMonsterBand",
+  "findPath","stepPath","uiBlocked","rowFor","onHitEffectFor","markVisited"
 ];
 // Non-function globals. `save` lives here, NOT in REQUIRED_FN — Delve.save is
 // the DATA object, so a typeof==="function" check could never pass.
@@ -313,13 +368,25 @@ var missingFn = REQUIRED_FN.filter(function(k){ return typeof window.Delve[k] !=
 var missingObj = REQUIRED_OBJ.filter(function(k){ return !window.Delve[k]; });
 missing = missingFn.concat(missingObj);
 
-if (!missing.length){
+// Ownership assertion — the check §3 could not make before.
+var ownerBad = [];
+Object.keys(EXPECT_OWNER).forEach(function(label){
+  var key = EXPECT_OWNER[label][0], want = EXPECT_OWNER[label][1];
+  var got = ownership[key];
+  if (got !== want) ownerBad.push(label + " → " + (got || "NOT DEFINED") + " (expected " + want + ")");
+});
+ownershipFailures = ownerBad.length;
+
+if (!missing.length && !ownerBad.length){
   s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED_FN.length + ' required functions and ' +
-    REQUIRED_OBJ.length + ' required objects present.</div>';
+    REQUIRED_OBJ.length + ' required objects present; all ' + Object.keys(EXPECT_OWNER).length +
+    ' checked symbols are owned by the expected file.</div>';
 } else {
   s3.innerHTML = '';
   if (missingFn.length)  s3.innerHTML += '<div class="fail">Missing functions:</div><div class="missing">' + missingFn.join(", ") + '</div>';
   if (missingObj.length) s3.innerHTML += '<div class="fail">Missing objects:</div><div class="missing">' + missingObj.join(", ") + '</div>';
+  if (ownerBad.length)   s3.innerHTML += '<div class="fail">Wrong owner (' + ownerBad.length + '):</div><ul style="margin-left:18px">' +
+    ownerBad.map(function(b){ return "<li>" + b + "</li>"; }).join("") + '</ul>';
 }
 
 /* ── 4. Content registries (all con- files) ───────────────────── */
@@ -399,20 +466,34 @@ try {
   var need = ["version","shards","bestFloor","lvls","unlocks","nodes","inventoryCap",
               "abilities","abilityRanks","runTraits","runTraitsSeen","seenTutorial"];
   var absent = need.filter(function(k){ return !(k in s); });
+
+  // Locate the save key rather than assuming it, so a rename cannot produce a
+  // misleading failure here.
+  var saveKey = null;
+  for (var lk in localStorage){
+    if (/underward/i.test(lk) && /save/i.test(lk)){ saveKey = lk; break; }
+  }
+
   s.nodes = s.nodes || {};
   s.nodes.__probe = 1;
   window.Delve.persist();
-  var reread = JSON.parse(localStorage.getItem("underward_save_v3") || "null");
+  var reread = null;
+  if (saveKey){
+    try { reread = JSON.parse(localStorage.getItem(saveKey) || "null"); } catch(_e){ reread = null; }
+  }
   var persisted = !!(reread && reread.nodes && reread.nodes.__probe);
   delete s.nodes.__probe;
   window.Delve.persist();
+
   if (!absent.length && persisted){
-    s6.innerHTML = '<div class="pass">✓ Save schema complete; purchases survive persist() round-trip.</div>';
+    s6.innerHTML = '<div class="pass">✓ Save schema complete; purchases survive persist() round-trip' +
+      (saveKey ? ' <span style="color:#9fb3c5">(key ' + saveKey + ')</span>' : '') + '.</div>';
   } else {
     extraFailures += absent.length + (persisted ? 0 : 1);
     s6.innerHTML = '<div class="fail">Save problems:</div>';
     if (absent.length)    s6.innerHTML += '<div class="missing">Missing fields: ' + absent.join(", ") + '</div>';
-    if (!persisted)       s6.innerHTML += '<div class="missing">Node purchases do NOT survive persist() — whitelist still dropping them.</div>';
+    if (!persisted)       s6.innerHTML += '<div class="missing">Node purchases do NOT survive persist() — whitelist still dropping them' +
+      (saveKey ? '' : ', or no underward save key found in localStorage') + '.</div>';
   }
 } catch (err){
   extraFailures++;
@@ -452,12 +533,16 @@ try {
           if (window.Delve.mdist(m.x, m.y, G.boss.x, G.boss.y) <= 1)
             fails.push("trial " + t + ": guard inside boss arena");
         });
+        // boss floors must contain nothing but the arena
+        if ((G.monsters || []).length) fails.push("trial " + t + ": boss floor has " + G.monsters.length + " monster(s)");
+        if ((G.barrels || []).length)  fails.push("trial " + t + ": boss floor has barrels");
+        if (G.stairs)                  fails.push("trial " + t + ": boss floor has stairs");
       }
     }
     if (fails.length > 25) break;
   }
   floorFailures = fails.length;
-  if (!fails.length) s7.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly across both wards (incl. boss arena exclusion).</div>';
+  if (!fails.length) s7.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly across both wards (incl. boss arena exclusion, empty boss floors).</div>';
   else {
     s7.innerHTML = '<div class="fail">' + fails.length + ' problem(s):</div><ul style="margin-left:18px">';
     fails.slice(0, 25).forEach(function(f){ s7.innerHTML += "<li>" + f + "</li>"; });
@@ -468,8 +553,8 @@ try {
   s7.innerHTML = '<div class="fail">Floor checks aborted: ' + err.message + '</div>';
 }
 
-/* ── 8. Movement, rest &amp; pathfinding (regression test) ────── */
-var s8 = sec("8. Movement, rest &amp; pathfinding");
+/* ── 8. Movement, rest, pathfinding &amp; null-G safety ───────── */
+var s8 = sec("8. Movement, rest, pathfinding &amp; null-G safety");
 try {
   var G8 = window.Delve.G;
   if (!G8) throw new Error("no run — section 7 did not produce G");
@@ -560,6 +645,38 @@ try {
   else mfails.push("uiBlocked wrong (shown=" + blockedWhenShown + ", hidden=" + blockedWhenHidden +
     " — blockers: " + ((window.Delve._lastBlockers || []).join("+") || "none") + ")");
 
+  // --- 8e: null-G safety (step 8 hygiene sweep) --------------------
+  // Every entry point that reads Delve.G must bail on a null G rather than
+  // dereference it. This is the regression test for the hygiene sweep.
+  var savedG = window.Delve.G;
+  var nullCases = [
+    ["tryAct",       function(){ window.Delve.tryAct(0,0); }],
+    ["tryActOnStep", function(){ window.Delve.tryActOnStep(0,0); }],
+    ["tryRest",      function(){ window.Delve.tryRest(); }],
+    ["collectGold",  function(){ window.Delve.collectGold(0,0); }],
+    ["descend",      function(){ window.Delve.descend(); }],
+    ["smashBarrel",  function(){ window.Delve.smashBarrel(0,0); }],
+    ["openChest",    function(){ window.Delve.openChest(0,0); }],
+    ["promptStairs", function(){ window.Delve.promptStairs(); }],
+    ["killMonster",  function(){ window.Delve.killMonster({ kind:"goblin", x:0, y:0 }); }]
+  ];
+  window.Delve.G = null;
+  var nullBad = [];
+  try {
+    nullCases.forEach(function(pair){
+      try { pair[1](); }
+      catch(e){ nullBad.push(pair[0] + " threw on null G: " + e.message); }
+    });
+  } finally {
+    window.Delve.G = savedG;
+  }
+  if (!nullBad.length){
+    notes.push("null-G safety: all " + nullCases.length + " entry points bail cleanly");
+  } else {
+    nullBad.forEach(function(b){ mfails.push(b); });
+  }
+  if (window.Delve.G !== savedG) mfails.push("Delve.G was not restored after the null-G test");
+
   movementFailures = mfails.length;
   if (!mfails.length){
     s8.innerHTML = '<div class="pass">✓ Tap chain intact.</div><ul style="margin-left:18px">' +
@@ -599,7 +716,7 @@ try {
       legacy.join(", ") + '</div>';
   }
   if (!misses.length){
-    html += '<div style="color:#7f94a8;font-size:13px;margin-top:6px">Delve.missingEls is empty.</div>';
+    html += '<div style="color:#7f94a8;font-size:13px;margin-top:6px">Delve.missingEls is empty — no dead id lookups.</div>';
   }
   s9.innerHTML = html;
 } catch (err){
@@ -640,19 +757,21 @@ try {
 /* ── 11. Summary ──────────────────────────────────────────────── */
 var s11 = sec("11. Summary");
 var total = errors.length + missing.length + dupKeys.length + bossSpriteFailures +
-            floorFailures + extraFailures + parityFailures + movementFailures + domFailures;
+            floorFailures + extraFailures + parityFailures + movementFailures +
+            domFailures + ownershipFailures;
 if (!total){
   s11.innerHTML = '<div class="pass">✓ ALL GREEN — load order matches index.html, no duplicates, ' +
-    'tap chain intact, save round-trips, floors generate, tier rolls healthy.</div>';
+    'ownership correct, null-G safe, tap chain intact, save round-trips, floors generate, tier rolls healthy.</div>';
 } else {
   s11.innerHTML = '';
   if (errors.length)         s11.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
   if (parityFailures)        s11.innerHTML += '<div class="fail">index.html parity: FAILED</div>';
   if (missing.length)        s11.innerHTML += '<div class="fail">Missing globals: ' + missing.length + '</div>';
+  if (ownershipFailures)     s11.innerHTML += '<div class="fail">Wrong-owner symbols: ' + ownershipFailures + '</div>';
   if (dupKeys.length)        s11.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.length + '</div>';
   if (bossSpriteFailures)    s11.innerHTML += '<div class="fail">Boss sprite issues: ' + bossSpriteFailures + '</div>';
   if (floorFailures)         s11.innerHTML += '<div class="fail">Floor generation issues: ' + floorFailures + '</div>';
-  if (movementFailures)      s11.innerHTML += '<div class="fail">Movement/tap chain issues: ' + movementFailures + '</div>';
+  if (movementFailures)      s11.innerHTML += '<div class="fail">Movement / null-G issues: ' + movementFailures + '</div>';
   if (domFailures)           s11.innerHTML += '<div class="fail">Missing DOM elements: ' + domFailures + '</div>';
   if (extraFailures)         s11.innerHTML += '<div class="fail">Other issues: ' + extraFailures + '</div>';
 }
