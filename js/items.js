@@ -438,8 +438,22 @@ window.Delve = window.Delve || {};
   return stock;
  };
 
- Delve.shopHealCost = function(G){
+  Delve.shopHealCost = function(G){
   return Math.max(1, Math.round(Delve.healCost(G.floor)*(1-Delve.luckDiscount())));
+ };
+
+ // ── Shop floor helper ─────────────────────────────────────────
+ // MOVED from state.js — all shop-domain logic now lives in this file.
+ Delve.isShopFloor = function(floor){
+  const s = Delve.CONFIG.shop;
+  return floor > 0 && (floor % 10 === s.offset);
+ };
+
+ // ── Shop heal cost ────────────────────────────────────────────
+ // MOVED from state.js. Called by Delve.shopHealCost above.
+ Delve.healCost = function(floor){
+  const e = Delve.CONFIG.economy;
+  return Math.round(e.healCostA + e.healCostB * Math.log(floor + 1));
  };
 
 })();
