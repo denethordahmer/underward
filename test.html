@@ -50,7 +50,7 @@
   <div id="logWindow"><div id="logWindowHeader"><button id="logWindowClose"></button></div><div id="logWindowContent"></div></div>
 
   <div id="floorCard"><div id="floorCardInner"><span id="floorCardNum"></span><span id="floorCardName"></span></div></div>
-  <div id="bossIntroOverlay"><div id="bossIntroCard"><span id="bossIntroName"></span><span id="bossIntroTitle"></span><span id="bossIntroFlavour"></span></div></div>
+  <div id="bossIntroOverlay"><div id="bossIntroCard"><span id="bossIntroWarning"></span><span id="bossIntroName"></span><span id="bossIntroTitle"></span><span id="bossIntroFlavour"></span></div></div>
 
   <div id="stairsPrompt"><div id="stairsCard"><button id="stairsYes"></button><button id="stairsNo"></button></div></div>
 
@@ -117,7 +117,7 @@ function sec(title){
 
 var FILES = [
   "js/config.js","js/content/con-monsters.js","js/content/con-items.js","js/content/con-biomes.js","js/content/con-traits.js",
-  "js/save.js","js/attrs.js","js/items.js","js/sprites.js",
+  "js/save.js","js/attrs.js","js/items.js","js/sprites.js","js/bosssprites.js",
   "js/state.js","js/levels.js","js/traits.js","js/combat.js",
   "js/effects.js","js/sfx.js","js/log.js","js/render.js","js/pathfind.js","js/input.js",
   "js/ui.js","js/progression.js","js/main.js","js/onboarding.js"
@@ -127,6 +127,7 @@ var ownership = {};
 var dupes = {};
 var errors = [];
 var floorFailures = 0;
+var bossSpriteFailures = 0;
 
 var s1 = sec("1. Script loading &amp; ownership");
 FILES.forEach(function(file){
@@ -180,11 +181,37 @@ var REQUIRED = [
   "equipItem","unequipItem","useConsumable","itemStatLines","itemBuffs","makeItem","rollTier",
   "killRewards","floorClearBonus","makeElite","startCombat","triggerVictory","tryRest","descend",
   "die","retreat","convertGold","recordStat","addFloater","draw","updateHUD","renderMinimap",
-  "refreshHub","openInventory","openShop","buildShop","applyEffect","applyPlayerEffect"
+  "refreshHub","openInventory","openShop","buildShop","applyEffect","applyPlayerEffect",
+  "registerBossSprite"
 ];
 var missing = REQUIRED.filter(function(k){ return typeof window.Delve[k] !== "function"; });
 if (!missing.length) s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED.length + ' required functions present.</div>';
 else s3.innerHTML = '<div class="fail">Missing:</div><div class="missing">' + missing.join(", ") + '</div>';
+
+var s3b = sec("3b. Boss sprite registry");
+try {
+  var registered = window.Delve._bossSpriteBuilders || {};
+  var expectedKeys = [];
+  var bossDefs = (window.Delve.CONFIG && window.Delve.CONFIG.BOSS_DEFS) || {};
+  for (var bk in bossDefs) {
+    if (bossDefs[bk] && bossDefs[bk].sprite) expectedKeys.push(bossDefs[bk].sprite);
+  }
+  var missingBuilders = expectedKeys.filter(function(k){ return typeof registered[k] !== "function"; });
+  var missingSprites = expectedKeys.filter(function(k){ return !(window.Delve.SPR && window.Delve.SPR[k] && window.Delve.SPR[k].idle); });
+  if (!expectedKeys.length) {
+    s3b.innerHTML = '<div class="warn">No BOSS_DEFS.sprite entries to verify.</div>';
+  } else if (!missingBuilders.length && !missingSprites.length) {
+    s3b.innerHTML = '<div class="pass">✓ ' + expectedKeys.length + ' boss sprite(s) registered and built: ' + expectedKeys.join(", ") + '</div>';
+  } else {
+    bossSpriteFailures = missingBuilders.length + missingSprites.length;
+    s3b.innerHTML = '<div class="fail">Problems with boss sprites:</div>';
+    if (missingBuilders.length) s3b.innerHTML += '<div class="missing">No builder registered: ' + missingBuilders.join(", ") + '</div>';
+    if (missingSprites.length) s3b.innerHTML += '<div class="missing">No sprite built: ' + missingSprites.join(", ") + '</div>';
+  }
+} catch (err) {
+  bossSpriteFailures = 1;
+  s3b.innerHTML = '<div class="fail">Boss sprite check aborted: ' + err.message + '</div>';
+}
 
 var s4 = sec("4. Floor generation (50 trials, floors 1-20)");
 try {
@@ -228,8 +255,9 @@ var s5 = sec("5. Summary");
 if (errors.length) s5.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
 if (missing.length) s5.innerHTML += '<div class="fail">Missing functions: ' + missing.length + '</div>';
 if (dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.length + '</div>';
+if (bossSpriteFailures) s5.innerHTML += '<div class="fail">Boss sprite issues: ' + bossSpriteFailures + '</div>';
 if (floorFailures) s5.innerHTML += '<div class="fail">Floor generation issues: ' + floorFailures + '</div>';
-if (!errors.length && !missing.length && !dupKeys.length && !floorFailures) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
+if (!errors.length && !missing.length && !dupKeys.length && !bossSpriteFailures && !floorFailures) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
 
 var s6 = sec("6. Ownership registry");
 var keys = Object.keys(ownership).sort();
