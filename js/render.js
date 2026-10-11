@@ -154,7 +154,7 @@ window.Delve = window.Delve || {};
   const base = ((gx+gy)%2===0) ? b.floor : b.floor2;
   const slabCol = n3 < 0.05
    ? blendHex(base, "#0a0e12", 0.30)
-   : blendHex(base, n >= 0.5 ? "#ffffff" : "#000000", Math.abs(n-0.5)*0.16);
+   : blendHex(base, n >= 0.5 ? "#ffffff" : "#000000", Math.abs(n-0.5)*0.09);
 
   // seam: a mid-tone grout, not a near-black grid line. Tile edges still read,
   // but the map stops looking like squares ruled onto a board.
@@ -171,6 +171,18 @@ window.Delve = window.Delve || {};
   grd.addColorStop(0.55, slabCol);
   grd.addColorStop(1, blendHex(slabCol, "#000000", 0.09));
   ctx.fillStyle = grd; ctx.fillRect(sx+g, sy+g, iw, ih);
+
+  // Low-frequency blotching. Sampled with bilinear interpolation on a 3-tile
+  // period, so it is *continuous across tile borders* — soft patches of worn,
+  // lighter/darker stone that ignore the grid entirely. This is the single
+  // biggest thing that stops the floor reading as a uniform grid of squares.
+  const bfx=(gx+0.5)/3, bfy=(gy+0.5)/3;
+  const bx0=Math.floor(bfx), by0=Math.floor(bfy), btx=bfx-bx0, bty=bfy-by0;
+  const s00=uhash(bx0,by0,701), s10=uhash(bx0+1,by0,701), s01=uhash(bx0,by0+1,701), s11=uhash(bx0+1,by0+1,701);
+  const blot=(s00*(1-btx)+s10*btx)*(1-bty)+(s01*(1-btx)+s11*btx)*bty;
+  const boff=(blot-0.5)*0.13;
+  ctx.fillStyle = boff>=0 ? "rgba(255,255,255,"+boff.toFixed(3)+")" : "rgba(0,0,0,"+(-boff).toFixed(3)+")";
+  ctx.fillRect(sx+g, sy+g, iw, ih);
 
   // a whisper of top-left light and bottom-right shade — kept low on purpose so
   // the floor reads as one continuous surface, not a field of little cubes
@@ -879,8 +891,8 @@ window.Delve = window.Delve || {};
    if(tileAt(gx,gy)!==T.FLOOR) continue;
    if(G && G.shop && G.shop.x===gx && G.shop.y===gy) continue;
    // uhash is uniform, so these thresholds are the actual densities
-   if(uhash(gx,gy,401) < 0.030) list.push({ x:gx, y:gy, sx:x*ts, sy:y*ts, k:uhash(gx,gy,402) });
-   if(uhash(gx,gy,405) < 0.030 && tileAt(gx,gy-1)===T.WALL) list.push({ x:gx, y:gy, sx:x*ts, sy:y*ts, web:true });
+   if(uhash(gx,gy,401) < 0.040) list.push({ x:gx, y:gy, sx:x*ts, sy:y*ts, k:uhash(gx,gy,402) });
+   if(uhash(gx,gy,405) < 0.040 && tileAt(gx,gy-1)===T.WALL) list.push({ x:gx, y:gy, sx:x*ts, sy:y*ts, web:true });
   }
   list.sort(function(a,b){ return a.y-b.y; });
   for(let i=0;i<list.length;i++){
