@@ -45,8 +45,7 @@ window.Delve = window.Delve || {};
 
  function hideAll(){
   ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
-   "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","introOverlay",
-   "pauseMenu"].forEach(function(id){
+   "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","pauseMenu"].forEach(function(id){
    const el = $(id); if(el) el.style.display = "none";
   });
  }
