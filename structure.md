@@ -2,186 +2,331 @@
 
 Generated from test.html's ownership registry. Regenerate after any file change.
 
-## Load order (index.html)
+## Load order (index.html — 25 files)
 
-1. js/config.js            — pure config/mechanics data
-2. js/content/con-monsters.js  — monster data
-3. js/content/con-items.js     — item catalogue data
-4. js/content/con-biomes.js    — wards + biome visual data
-5. js/content/con-traits.js    — trait/ability data
-6. js/save.js
-7. js/attrs.js
-8. js/items.js             — item logic (no catalogue)
-9. js/sprites.js
-10. js/state.js
-11. js/levels.js
-12. js/traits.js           — trait/ability logic
-13. js/combat.js
-14. js/effects.js
-15. js/log.js
-16. js/render.js
-17. js/pathfind.js
-18. js/input.js
-19. js/ui.js
-20. js/progression.js
-21. js/main.js
+ 1. js/config.js                  — pure config/mechanics data
+ 2. js/content/con-monsters.js    — monster data
+ 3. js/content/con-items.js       — item catalogue data
+ 4. js/content/con-biomes.js      — wards + biome visual data
+ 5. js/content/con-traits.js      — trait/ability data
+ 6. js/content/con-progression.js — progression tree data
+ 7. js/save.js
+ 8. js/attrs.js
+ 9. js/items.js                   — item logic (no catalogue)
+10. js/sprites.js
+11. js/content/con-bosssprites.js — boss sprite builders (needs #10 _spriteUtils)
+12. js/state.js
+13. js/levels.js
+14. js/traits.js                  — trait/ability logic
+15. js/combat.js
+16. js/effects.js
+17. js/sfx.js
+18. js/log.js
+19. js/render.js
+20. js/pathfind.js
+21. js/input.js
+22. js/ui.js                      — ⚠ shop wrapper redefines tryAct (Tier 4 debt)
+23. js/progression.js
+24. js/main.js
+25. js/onboarding.js              — ⚠ wraps showHub (Tier 4 debt)
 
-Content files (2–5) load immediately after config, BEFORE any logic that reads them.
-Deleting a content file's data from config.js and re-adding via content file is the established pattern.
+Content block (2–6) order-independent within itself; must precede readers.
 
 ---
 
 ## Content vs Engine
 
-CONTENT (append-only data, never contains logic):
-- js/content/con-monsters.js  → MONSTER_ROSTER, MONSTER_BANDS, BOSS_DEFS, elite, xpKill, spawnSafetyRadius, monster/boss scaling constants
-- js/content/con-items.js      → TIERS, SLOT_DEFS, itemDefs, potionDefs (the full item catalogue)
-- js/content/con-biomes.js     → WARDS, BIOMES
-- js/content/con-traits.js     → TRAITS (passives, uniques, abilities)
+CONTENT (pure data, no logic — append-only, plug-and-play):
+- js/content/con-monsters.js   → CONFIG.MONSTER_ROSTER, MONSTER_BANDS, BOSS_DEFS, elite,
+                                  xpKill, spawnSafetyRadius, monster/boss scaling constants
+- js/content/con-items.js      → Delve.TIERS, SLOT_DEFS, itemDefs, potionDefs
+                                  (deliberate deviation: writes to Delve.* not CONFIG)
+- js/content/con-biomes.js     → CONFIG.WARDS (gen tuning), CONFIG.BIOMES (palettes)
+- js/content/con-traits.js     → CONFIG.TRAITS
+- js/content/con-progression.js→ CONFIG.PROGRESSION (TREES + NODES)
+- js/content/con-bosssprites.js→ registers boss sprite builders via Delve.registerBossSprite()
 
-ENGINE (logic, locked once working — change only by small patch):
-everything else.
+ENGINE (logic — change only by targeted patch):
+all remaining files.
 
-Rule: content files WRITE into Delve.CONFIG / registries. Engine files READ from them. Engine files never redefine another file's function.
-
----
-
-## Function ownership (from registry)
-
-### js/config.js
-CONFIG (the whole config object).
-
-### js/content/con-monsters.js
-(no functions — sets CONFIG.MONSTER_ROSTER, MONSTER_BANDS, BOSS_DEFS, elite, xpKill, spawnSafetyRadius, monster/boss scaling)
-
-### js/content/con-items.js
-(no functions — sets CONFIG-independent registries: TIERS, SLOT_DEFS, itemDefs, potionDefs)
-
-### js/content/con-biomes.js
-(no functions — sets CONFIG.WARDS, CONFIG.BIOMES)
-
-### js/content/con-traits.js
-(no functions — sets CONFIG.TRAITS)
-
-### js/save.js
-loadSave, persist, save, VERSION(implied)
-
-### js/attrs.js
-agiPts, atk, attrCost, attrLevel, attrLvl, attrValue, baseAtk, baseLuck, baseMaxHp, bossBonus, crit, dmgRed, dodge, dropChance, firstStrikeBonus, flatRed, goldMult, hasBulwark, hasOverkill, hasSecondWind, hitCap, luckDiscount, luckPts, maxHp, touPts, traitHealPerFloor
-
-### js/items.js (logic)
-dropPotion, equipArmour, equipItem, equipWeapon, inventoryCap, itemBuffs, itemPrice, itemStatLines, itemsByTier, makeItem, pickupItem, playerSpeed, rollKillDrop, rollTier, stampProvenance, unequipItem, useConsumable, wardOf, weaponStatus
-
-### js/sprites.js
-SPR, rebuildSprites
-
-### js/state.js
-T, G, clamp, flash, genFloor(no — see levels), getMonsterBand, getWard, healCost, isShopFloor, mdist, newRun, pickWeighted, recordStat, rng, rngF
-
-### js/levels.js
-genFloor, openChest, plus internal-only special-floor helpers: ensureBlackveinPlan, spawnMonsterKind, specialRooms, applySwarmFloor, applyClusteredLootFloor (not exposed on Delve.*)
-
-### js/traits.js (logic)
-XP_CURVE, addAbility, addXP, castAbility, hasUnbroken, secondWindHealOverride, traitBuffs, traits
-
-### js/combat.js
-_applyBossBonus, collectGold, convertGold, descend, die, endCombat, endRun, enemiesTurn, floorClearBonus, killMonster, killRewards, makeElite, monsterStats, promptStairs, retreat, smashBarrel, startCombat, triggerVictory, tryAct, tryActOnStep, tryRest
-
-### js/effects.js
-applyEffect, applyPlayerEffect, playerWeakened, statusColor, tickMonsterEffects, tickPlayerEffects
-
-### js/log.js
-clearLog, flushLogWindow, log, logConsumable, logDeath, logDodge, logEnemyAtk, logEquip, logFloor, logHeal, logKill, logPickup, logPlayerAtk, logSecondWind, logSystem, logTrait
-
-### js/render.js
-addFloater, addShake, draw
-
-### js/pathfind.js
-findPath, stepPath
-
-### js/input.js
-(present at load; no persistent Delve.* functions beyond event wiring — tap handling)
-
-### js/ui.js
-buildHub, buildShop, equipSlots, hideHub, initDebug, isSlotUnlocked, markVisited, openInventory, openShop, refreshHub, renderAbilityBar, renderMinimap, showBossIntro, showEndScreen, showFloorCard, showHub, showItemCard, showStairsPrompt, showVictory, startRun, updateHUD
-
-### js/progression.js
-_hooks, hasProgression, markRunTrait, (plus internal: renderTabs, renderTree, renderPanels, injectRunStart — registered into _hooks)
-
-### js/main.js
-H, W, camX, camY, canvas, computeView, ctx, resize, ts, viewH, viewW
+Rule: content files WRITE into Delve.CONFIG / registries.
+      Engine files READ from them.
+      Engine files never redefine another file's function.
 
 ---
 
-## Hooks (replaces the old overrides)
+## Biomes
+
+Ward 1 — "Upper Ruins" / The Undercroft (floors 1–10)
+  Boss floor: 10 — The Warden
+  Palette: dark grey-blue stone, damp, overgrown
+  Sprite key: boss_warden
+
+Ward 2 — "The Blackvein" / Corrupted Forest (floors 11–20)
+  Boss floor: 20 — The Thorn Sovereign (or similar — name TBC)
+  Palette: dark greens, blacks, sickly yellows, deep purples
+  Sprite key: boss_thorn
+  Enemies: Thornlings, Corrupted Treants, Vine Stalkers, Spore Swarms
+  Biome 1 enemies phase out on floors 11–12 as Biome 2 phases in
+
+After floor 10 boss: player chooses Leave (small shard bonus) or Continue to Biome 2.
+After floor 20 boss: run ends.
+
+---
+
+## Hooks system
 
 Delve._hooks = { hubLoaded:[], runStart:[] }
 
-- js/state.js → newRun() calls Delve._hooks.runStart
-- js/ui.js → refreshHub() calls Delve._hooks.hubLoaded
-- js/progression.js → registers injectRunStart into runStart, renderTabs/renderPanels into hubLoaded
+- js/state.js    → newRun() fires Delve._hooks.runStart
+- js/ui.js       → refreshHub() fires Delve._hooks.hubLoaded
+- js/progression.js → registers injectRunStart into runStart,
+                       renderTabs/renderPanels into hubLoaded
 
-No file redefines another file's function. Script order no longer matters.
+No file redefines another file's function via hooks.
 
 ---
 
-## Biome System
+## Function ownership (full registry)
 
-Two wards exist as of the Blackvein release:
-
-| Ward | Floors | Biome index | Boss (floor) |
-|------|--------|-------------|--------------|
-| 1 — Upper Ruins  | 1–10  | 0 | The Warden (10) |
-| 2 — The Blackvein | 11–20 | 1 | The Thorn Sovereign (20) |
-
-Each ward entry in `C.WARDS` sets `biome:<index>` pointing at a matching entry in `C.BIOMES` for visuals. A future biome needs one new entry in each array plus matching bands, roster additions, and a boss def.
-
-### Boss shard bonus
-
-Applied once per boss at victory, in `combat.js` → `_applyBossBonus(wardIdx)`. Percentage is read from `BOSS_DEFS[wardIdx].shardBonusPct` and multiplied against the current run's `runShards`. Bonuses are cumulative across wards within a single run.
-
-| Ward | Boss | Bonus |
-|------|------|-------|
-| 1 | The Warden | 10% |
-| 2 | The Thorn Sovereign | 15% |
-
-### Leave-vs-continue flow
-
-After a boss kill, `killMonster` → `triggerVictory(wardIdx)`. Victory converts gold to shards, applies the boss bonus, and calls `showVictory(totalBanked, canContinue)`. `canContinue` is `true` for ward 1 only — the player may descend into the next biome. For ward 2, `canContinue` is `false` and the "Descend deeper" button is hidden. Update the `canContinue` line in `triggerVictory` when content is added past the current terminal ward.
-
-### Blackvein enemy roster (in con-monsters.js)
-
-| Kind | HP | Speed | On-hit |
-|------|----|-------|--------|
-| spore_swarm  | 14 | 1.40 | — |
-| barkling     | 16 | 1.30 | — |
-| thornling    | 24 | 1.35 | bleed  |
-| vine_stalker | 28 | 1.15 | poison |
-| dryad        | 34 | 0.95 | weaken |
-| treant       | 48 | 0.55 | weaken |
-
-On-hit status chance is 15%, set by `ON_HIT_STATUS_CHANCE` in `combat.js`. Status reads from `MONSTER_ROSTER[kind].onHitEffect`.
-
-### Blackvein special floors (in levels.js)
-
-Two special floor types are rolled once per run, from floors 11–19:
-
-- **Swarm floor** — 18–26 spore swarms packed into one chamber. Standard monsters cleared; a high-value chest spawns at the room centre.
-- **Clustered loot floor** — 4–5 guards ring a high-value chest in a normal room. Standard floor monsters remain.
-
-Clustered floors: 2–3 per run. Swarm floors: 25% chance per remaining floor. Chest rewards for high-value chests (item tier 3+, tier-3 potion, boosted gold) are handled in `openChest`.
-
-### Elite spawn range
-
-`C.elite.minFloor = 3`, `C.elite.maxFloor = 99999`. Elites may spawn on any floor from 3 onward. Chance is flat 10% across all biomes.
+Key                      | Defined in
+-------------------------|---------------------------
+CONFIG                   | js/config.js
+G                        | js/state.js
+H                        | js/main.js
+SLOT_DEFS                | js/content/con-items.js
+SPR                      | js/sprites.js
+T                        | js/state.js
+TIERS                    | js/content/con-items.js
+W                        | js/main.js
+XP_CURVE                 | js/traits.js
+_applyBossBonus          | js/combat.js
+applyBossBonus           | js/combat.js  (alias — same fn)
+_bossSpriteBuilders      | js/sprites.js
+_hooks                   | js/progression.js
+_spriteUtils             | js/sprites.js
+addAbility               | js/traits.js
+addFloater               | js/render.js
+addShake                 | js/render.js
+addXP                    | js/traits.js
+agiPts                   | js/attrs.js
+applyEffect              | js/effects.js
+applyPlayerEffect        | js/effects.js
+atk                      | js/attrs.js
+attrCost                 | js/attrs.js
+attrLevel                | js/attrs.js
+attrLvl                  | js/attrs.js
+attrValue                | js/attrs.js
+baseAtk                  | js/attrs.js
+baseLuck                 | js/attrs.js
+baseMaxHp                | js/attrs.js
+bossBonus                | js/attrs.js
+buildHub                 | js/ui.js
+buildShop                | js/ui.js
+camX                     | js/main.js
+camY                     | js/main.js
+canvas                   | js/main.js
+castAbility              | js/traits.js
+clamp                    | js/state.js
+clearLog                 | js/log.js
+collectGold              | js/combat.js
+computeView              | js/main.js
+convertGold              | js/combat.js
+createDefaultSave        | js/save.js
+crit                     | js/attrs.js
+ctx                      | js/main.js
+descend                  | js/combat.js
+die                      | js/combat.js
+dmgRed                   | js/attrs.js
+dodge                    | js/attrs.js
+draw                     | js/render.js
+dropChance               | js/attrs.js
+dropPotion               | js/items.js
+endCombat                | js/combat.js
+endRun                   | js/combat.js
+enemiesTurn              | js/combat.js
+equipArmour              | js/items.js
+equipItem                | js/items.js
+equipSlots               | js/ui.js
+equipWeapon              | js/items.js
+findPath                 | js/pathfind.js
+firstStrikeBonus         | js/attrs.js
+flash                    | js/state.js
+flatRed                  | js/attrs.js
+floorClearBonus          | js/combat.js
+flushLogWindow           | js/log.js
+genFloor                 | js/levels.js
+getMonsterBand           | js/state.js
+getWard                  | js/state.js
+goldMult                 | js/attrs.js
+hasBulwark               | js/attrs.js
+hasOverkill              | js/attrs.js
+hasProgression           | js/progression.js
+hasSecondWind            | js/attrs.js
+hasUnbroken              | js/traits.js
+healCost                 | js/state.js
+hideHub                  | js/ui.js
+hideIntro                | js/onboarding.js
+hitCap                   | js/attrs.js
+initDebug                | js/ui.js
+injectHubAbilities       | js/traits.js
+inventoryCap             | js/items.js
+isShopFloor              | js/state.js
+isSlotUnlocked           | js/ui.js
+itemBuffs                | js/items.js
+itemDefs                 | js/content/con-items.js
+itemPrice                | js/items.js
+itemStatLines            | js/items.js
+itemsByTier              | js/items.js
+killMonster              | js/combat.js
+killRewards              | js/combat.js
+loadSave                 | js/save.js
+log                      | js/log.js
+logConsumable            | js/log.js
+logDeath                 | js/log.js
+logDodge                 | js/log.js
+logEnemyAtk              | js/log.js
+logEquip                 | js/log.js
+logFloor                 | js/log.js
+logHeal                  | js/log.js
+logKill                  | js/log.js
+logPickup                | js/log.js
+logPlayerAtk             | js/log.js
+logSecondWind            | js/log.js
+logSystem                | js/log.js
+logTrait                 | js/log.js
+logXP                    | js/log.js
+luckDiscount             | js/attrs.js
+luckPts                  | js/attrs.js
+makeElite                | js/combat.js
+makeItem                 | js/items.js
+markRunTrait             | js/progression.js
+markVisited              | js/ui.js
+maxHp                    | js/attrs.js
+mdist                    | js/state.js
+monsterStats             | js/combat.js
+newRun                   | js/state.js
+openChest                | js/levels.js
+openInventory            | js/ui.js
+openShop                 | js/ui.js
+persist                  | js/save.js
+pickWeighted             | js/state.js
+pickupItem               | js/items.js
+playerSpeed              | js/items.js
+playerWeakened           | js/effects.js
+potionDefs               | js/content/con-items.js
+promptStairs             | js/combat.js
+rebuildSprites           | js/sprites.js
+recordStat               | js/state.js
+refreshHub               | js/ui.js
+registerBossSprite       | js/sprites.js
+renderAbilityBar         | js/ui.js
+renderMinimap            | js/ui.js
+resetSave                | js/save.js
+resize                   | js/main.js
+retreat                  | js/combat.js
+rng                      | js/state.js
+rngF                     | js/state.js
+rollKillDrop             | js/items.js
+rollTier                 | js/items.js
+save                     | js/save.js  (alias for persist)
+secondWindHealOverride   | js/traits.js
+sfx                      | js/sfx.js
+sfxGetVolume             | js/sfx.js
+sfxMuted                 | js/sfx.js
+sfxSetVolume             | js/sfx.js
+sfxToggleMute            | js/sfx.js
+showBossIntro            | js/ui.js
+showEndScreen            | js/ui.js
+showFloorCard            | js/ui.js
+showHub                  | js/ui.js
+showIntro                | js/onboarding.js
+showItemCard             | js/ui.js
+showStairsPrompt         | js/ui.js
+showVictory              | js/ui.js
+smashBarrel              | js/combat.js
+stampProvenance          | js/items.js
+startCombat              | js/combat.js
+startRun                 | js/ui.js
+statusColor              | js/effects.js
+stepPath                 | js/pathfind.js
+strPts                   | js/attrs.js
+tickMonsterEffects       | js/effects.js
+tickPlayerEffects        | js/effects.js
+touPts                   | js/attrs.js
+traitBuffs               | js/traits.js
+traitHealPerFloor        | js/attrs.js
+traits                   | js/traits.js
+triggerVictory           | js/combat.js
+tryAct                   | js/combat.js
+tryActOnStep             | js/combat.js
+tryRest                  | js/combat.js
+ts                       | js/main.js
+uiBlocked                | js/input.js
+unequipItem              | js/items.js
+updateHUD                | js/ui.js
+useConsumable            | js/items.js
+viewH                    | js/main.js
+viewW                    | js/main.js
+wardOf                   | js/items.js
+weaponStatus             | js/items.js
 
 ---
 
 ## Adding content going forward
 
-New monster:  edit js/content/con-monsters.js (add MONSTER_ROSTER row + a band weight)
-New item:     edit js/content/con-items.js (add one L(...) line)
-New biome:    edit js/content/con-biomes.js (add WARDS entry + BIOMES entry)
-New trait:    edit js/content/con-traits.js (add entry to TRAITS)
+New monster:    edit js/content/con-monsters.js  (add MONSTER_ROSTER row + band weight)
+New item:       edit js/content/con-items.js      (add one entry to itemDefs)
+New biome:      edit js/content/con-biomes.js     (add WARDS entry + BIOMES palette entry)
+New trait:      edit js/content/con-traits.js     (add entry to TRAITS)
+New tree node:  edit js/content/con-progression.js (add node to NODES)
+New boss:       edit js/content/con-monsters.js   (BOSS_DEFS entry)
+              + edit js/content/con-bosssprites.js (registerBossSprite call)
+New ward:       con-biomes.js + con-monsters.js band entry
+                — zero engine file edits required if ward follows existing pattern
 
-None of these touch engine files.
+None of these require touching engine files.
+
+---
+
+## Known Tier 2–4 debt (non-breaking, future cleanup)
+
+Tier 2 — content splits pending:
+  - Ability numbers still hardcoded in traits.js (Lunge +4, Cinderbolt 10 etc)
+    → move to con-traits.js data block (makes balance table-driven)
+  - con-bosssprites.js candidate for renaming to match con-* convention fully
+
+Tier 3 — logic patches pending:
+  - traits.js: read save.abilityRanks, save.abilities (hub purchases enter runs),
+    save.nodes modifiers; call markRunTrait in applyTrait (fixes Cleave III chain)
+  - items.js: useConsumable — implement reveal/revealFloor/escape/floorHeal gates
+  - combat.js: skipNext delete-or-implement; chain-hit defence policy
+  - ui.js: victoryContinue → route through descend(); delete openInventory stub + dibb1
+  - log.js: logXP confirmed present (added v3.1)
+  - levels.js: boss-arena guard exclusion; swarm-elite intent confirmation
+
+Tier 4 — pattern debt:
+  - tryAct wrapper in ui.js → convert to hooks
+  - showHub wrap in onboarding.js → convert to hooks
+  - CONFIG.SLOTS vs Delve.SLOT_DEFS unification (pick one home)
+  - Loot weight functions + ward gates out of config.js
+
+---
+
+## Known bugs fixed (v3.1 + current session)
+
+  #37  save.js         — whitelist now includes nodes/inventoryCap/abilities/
+                         abilityRanks/runTraits/runTraitsSeen; purchases persist
+  #1   attrs.js        — strPts() added
+  #18  attrs.js        — duplicate attrCost removed
+  #27  con-monsters.js — sprite keys added to BOSS_DEFS
+  #30  con-monsters.js — accent colours added to BOSS_DEFS
+  #35  render.js       — drawMob uses m.maxHp not phantom Delve.bossHp()
+  wraith migration     — onHitEffect:"weaken" in con-monsters.js
+  levels.js            — duplicate corrupted block removed (syntax error)
+  combat.js            — applyBossBonus exposed as public alias
+  save.js              — Delve.save exposed as function alias for persist
+  input.js             — uiBlocked exposed as Delve.uiBlocked
+  ui.js                — hideAll() now includes introOverlay + pauseMenu;
+                         startRun() calls hideIntro() before hideAll()
+                         (fixes: tapping did nothing after first run started)
