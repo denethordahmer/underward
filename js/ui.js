@@ -743,33 +743,79 @@ window.Delve = window.Delve || {};
   };
  }
 
- Delve.initDebug = function(){
+  Delve.initDebug = function(){
   const p = $("debugPanel"); if(!p) return;
   p.style.display = "flex";
   const need = function(){ return Delve.G && !Delve.G.runEnded; };
+
+  // ── Floor select: auto-built from WARDS ──────────────────────
+  // Never stale. Adding ward 3+ in con-biomes.js adds its floors
+  // here automatically, with shop/boss labels computed, not typed.
+  (function fillFloorSelect(){
+   const sel = $("dbgFloor"); if(!sel) return;
+   sel.innerHTML = "";
+   (Delve.CONFIG.WARDS || []).forEach(function(w){
+    const lo = w.floors[0], hi = w.floors[1];
+    for(let f = lo; f <= hi; f++){
+     const o = document.createElement("option");
+     o.value = f;
+     let label = "Floor " + f;
+     if(f % 10 === 0) label += " (boss — " + w.name + ")";
+     else if(Delve.isShopFloor && Delve.isShopFloor(f)) label += " (shop)";
+     if(f >= 11 && f <= 19) label += " (swarm/cluster pool)";
+     o.textContent = label;
+     sel.appendChild(o);
+    }
+   });
+   sel.value = (Delve.G && Delve.G.floor) || 1;
+  })();
+
+  // ── Floor jump ───────────────────────────────────────────────
   $("dbgGo").addEventListener("click", function(){
    if(!need()) return;
    Delve.G.floor = parseInt($("dbgFloor").value,10);
    Delve.genFloor(); Delve.updateHUD(); Delve.draw();
    Delve.showFloorCard(Delve.G.floor);
   });
+
+  // ── Economy / HP shortcuts ──────────────────────────────────
   $("dbgGold").addEventListener("click", function(){ if(!need()) return; Delve.G.gold += 25; Delve.updateHUD(); });
   $("dbgShards").addEventListener("click", function(){ Delve.save.shards += 5; Delve.persist(); Delve.updateHUD(); });
   $("dbgHeal").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = Delve.maxHp(); Delve.updateHUD(); });
   $("dbgLowHp").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = 5; Delve.updateHUD(); });
+
+  // ── Status effects on nearest/first target ──────────────────
   $("dbgPoison").addEventListener("click", applyDebugEffect("poison"));
   $("dbgBleed").addEventListener("click", applyDebugEffect("bleed"));
+  $("dbgBurn").addEventListener("click", applyDebugEffect("burn"));
   $("dbgWeaken").addEventListener("click", function(){ if(!need()) return; if(Delve.applyPlayerEffect) Delve.applyPlayerEffect("weaken"); Delve.flash("Weaken applied (you)"); });
+
+  // ── Elite promotion ──────────────────────────────────────────
   $("dbgElite").addEventListener("click", function(){
    if(!need()) return;
    const m = Delve.G.monsters.find(function(x){ return !x.elite; });
    if(m){ Delve.makeElite(m); Delve.draw(); Delve.flash("Elite created"); }
    else Delve.flash("No monster to promote");
   });
+
+  // ── XP / shop / victory / death ──────────────────────────────
   $("dbgXP").addEventListener("click", function(){ if(!need()) return; Delve.addXP(20); });
   $("dbgShop").addEventListener("click", function(){ if(!need()) return; Delve.openShop(); });
-  $("dbgVictory").addEventListener("click", function(){ if(!need()) return; Delve.showVictory(Math.floor(Delve.G.gold/10), true); });
+  $("dbgVictory").addEventListener("click", function(){
+   if(!need()) return;
+   // Real victory flow: gold→shards, boss bonus, canContinue logic.
+   Delve.triggerVictory(Math.ceil(Delve.G.floor / 10));
+  });
   $("dbgDeath").addEventListener("click", function(){ if(!need()) return; Delve.die(); });
+
+  // ── Recovery / inspection ───────────────────────────────────
+  // Re-render: emergency regeneration + redraw. Fixes a blank
+  // canvas in one tap (genFloor + updateHUD + draw + floor card).
+  $("dbgRender").addEventListener("click", function(){
+   if(!Delve.G) return;
+   Delve.genFloor(); Delve.updateHUD(); Delve.draw();
+   Delve.showFloorCard(Delve.G.floor);
+  });
   $("dbgDump").addEventListener("click", function(){
    console.log("RUN STATS", Delve.G && Delve.G.runStats);
    console.log("SAVE", Delve.save);
