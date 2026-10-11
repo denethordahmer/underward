@@ -27,10 +27,12 @@ window.Delve = window.Delve || {};
  }
 
  // Any visible blocking overlay swallows the tap.
- Delve.uiBlocked = function uiBlocked(){
-  const blocking = ["deathScreen","levelupScreen","inventoryScreen","itemCardOverlay",
-   "stairsPrompt","shopScreen","hubScreen","victoryScreen","bossIntroOverlay",
-   "logWindow","pauseMenu","introOverlay"];
+ Delve.uiBlocked = function(){
+  // bossIntroOverlay is deliberately NOT in this list: the 3-second intro draws
+  // over the map while the player is meant to be walking up the corridor toward
+  // the arena, so taps must pass through it. Every other overlay still blocks.
+  const list = ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
+   "levelupScreen","stairsPrompt","itemCardOverlay","logWindow","introOverlay","pauseMenu"];
   const hits = [];
   for(let i=0;i<blocking.length;i++){
    const el = document.getElementById(blocking[i]);
