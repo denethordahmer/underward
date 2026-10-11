@@ -447,8 +447,9 @@ window.Delve = window.Delve || {};
  }
 
  // opening a chest: item, potion, or gold, with provenance
- Delve.openChest = function(x, y){
+  Delve.openChest = function(x, y){
   const G = Delve.G;
+  if(!G) return;
   const chest = G.chests.find(function(c){ return c.x===x && c.y===y; });
   if(!chest || chest.open) return;
   chest.open = true;
