@@ -6,34 +6,50 @@ window.Delve = window.Delve || {};
 
  const SLOT_DEFS = function(){ return Delve.SLOT_DEFS || {}; };
 
+ function statusName(id){
+  const s = Delve.CONFIG.STATUS_EFFECTS && Delve.CONFIG.STATUS_EFFECTS[id];
+  return s ? s.name : id;
+ }
+
  Delve.itemsByTier = function(tier){
   return Object.keys(Delve.itemDefs || {}).map(function(k){ return Delve.itemDefs[k]; })
    .filter(function(d){ return d.tier === tier; });
  };
 
- Delve.wardOf = function(floor){ return Math.max(1, Math.ceil(floor / 10)); };
+ Delve.wardOf = function(floor){
+  const f = Number(floor);
+  return Math.max(1, Math.ceil((isFinite(f) && f > 0 ? f : 1) / 10));
+ };
 
- // ── Tier roll ──────────────────────────────────────────────────
+ // ── Tier roll (always returns integer 1-4) ─────────────────────
  Delve.rollTier = function(floor){
-  const L = Delve.CONFIG.loot, luck = Delve.luckPts(), ward = Delve.wardOf(floor);
-  const w = {
-   common: L.weights.common(),
-   uncommon: L.weights.uncommon(luck),
-   rare: L.weights.rare(luck, ward),
-   legendary: L.weights.legendary(luck, ward)
-  };
-  const total = w.common + w.uncommon + w.rare + w.legendary;
+  if(floor === undefined && Delve.G) floor = Delve.G.floor;
+  const L = Delve.CONFIG.loot, ward = Delve.wardOf(floor);
+  let luck = 0;
+  try { luck = Number(Delve.luckPts()) || 0; } catch(_e){}
+  const num = function(v){ return (typeof v === "number" && isFinite(v) && v > 0) ? v : 0; };
+  const c = num(L.weights.common());
+  const u = num(L.weights.uncommon(luck));
+  const r = num(L.weights.rare(luck, ward));
+  const l = num(L.weights.legendary(luck, ward));
+  const total = c + u + r + l;
+  if(total <= 0) return 1;
   const roll = Math.random() * total;
-  if(roll < w.common) return 1;
-  if(roll < w.common + w.uncommon) return 2;
-  if(roll < w.common + w.uncommon + w.rare) return 3;
+  if(roll < c) return 1;
+  if(roll < c + u) return 2;
+  if(roll < c + u + r) return 3;
   return 4;
  };
 
  Delve.makeItem = function(tier){
-  const t = Math.max(1, Math.min(4, tier));
-  let pool = Delve.itemsByTier(t);
-  if(!pool.length) pool = Delve.itemsByTier(1);
+  const t = Math.max(1, Math.min(4, Math.round(Number(tier)) || 1));
+  // try requested tier, then step down, then step up
+  const order = [];
+  for(let i = t; i >= 1; i--) order.push(i);
+  for(let i = t + 1; i <= 4; i++) order.push(i);
+  let pool = [];
+  for(let i = 0; i < order.length && !pool.length; i++) pool = Delve.itemsByTier(order[i]);
+  if(!pool.length) return null;
   const d = pool[Math.floor(Math.random() * pool.length)];
   return Object.assign({}, d);
  };
@@ -42,10 +58,11 @@ window.Delve = window.Delve || {};
  Delve.stampProvenance = function(item, source){
   const G = Delve.G;
   const floor = G ? G.floor : "?";
+  source = source || {};
   let line = "";
   switch(source.kind){
    case "monster":
-    line = source.elite ? "Wrested from an Elite " + source.name + " on Floor " + floor + ". "
+    line = source.elite ? "Wrested from an Elite " + source.name + " on Floor " + floor + "."
      : "Recovered from a " + source.name + " on Floor " + floor + ".";
     break;
    case "boss":
@@ -78,6 +95,7 @@ window.Delve = window.Delve || {};
   let tier = Delve.rollTier(G.floor);
   if(opts.minTier) tier = Math.max(opts.minTier, tier);
   const item = Delve.makeItem(tier);
+  if(!item) return false;
   item.x = x; item.y = y;
   Delve.stampProvenance(item, { kind:"monster", name:opts.name || "foe", elite:!!opts.elite });
   G.items.push(item);
@@ -85,8 +103,10 @@ window.Delve = window.Delve || {};
  };
 
  Delve.dropPotion = function(x, y, tier, source){
-  let pool = (Delve.potionDefs || []).filter(function(d){ return d.tier === (tier || 2); });
-  if(!pool.length) pool = Delve.potionDefs;
+  const all = Delve.potionDefs || [];
+  let pool = all.filter(function(d){ return d.tier === (tier || 2); });
+  if(!pool.length) pool = all;
+  if(!pool.length) return null;
   const it = Object.assign({}, pool[Math.floor(Math.random() * pool.length)]);
   it.x = x; it.y = y;
   Delve.stampProvenance(it, source || { kind:"monster", name:"foe", elite:false });
@@ -176,7 +196,6 @@ window.Delve = window.Delve || {};
   if(G) speed += (G.speedBuff || 0);
   return Math.max(0.5, speed);
  };
-
  // ── Aggregate stats ───────────────────────────────────────────
  Delve.itemBuffs = function(){
   const G = Delve.G;
@@ -213,7 +232,8 @@ window.Delve = window.Delve || {};
 
  // ── Equip / unequip ───────────────────────────────────────────
  function removeFromInv(item){
-  const inv = Delve.G.inventory;
+  const inv = Delve.G && Delve.G.inventory;
+  if(!inv) return;
   const i = inv.indexOf(item);
   if(i >= 0) inv.splice(i, 1);
   else {
@@ -245,7 +265,7 @@ window.Delve = window.Delve || {};
 
  Delve.unequipItem = function(item){
   const G = Delve.G;
-  for(let i=0;i<Delve.CONFIG.SLOT_ORDER.length;i++){
+  for(let i = 0; i < Delve.CONFIG.SLOT_ORDER.length; i++){
    const key = Delve.CONFIG.SLOT_ORDER[i];
    if(G.equip[key] === item){
     G.equip[key] = null;
@@ -272,11 +292,14 @@ window.Delve = window.Delve || {};
  };
 
  // ── Use consumables ───────────────────────────────────────────
+ // Item is removed and counted exactly once, up front, so every
+ // potion type (heal, cure, atk/speed/red/luck buff) is consumed.
  Delve.useConsumable = function(item){
   const G = Delve.G;
+  removeFromInv(item);
+  Delve.recordStat("consumablesUsed", 1);
 
   if(item.cures){
-   removeFromInv(item);
    const cured = [];
    if(!G.effects) G.effects = [];
    item.cures.forEach(function(id){
@@ -284,40 +307,33 @@ window.Delve = window.Delve || {};
     G.effects = G.effects.filter(function(e){ return e.id !== id; });
     if(G.effects.length < before) cured.push(id);
    });
-   const label = cured.length ? cured.map(function(c){ return Delve.CONFIG.STATUS_EFFECTS[c].name; }).join(", ") : "nothing to cure";
+   const label = cured.length ? cured.map(statusName).join(", ") : "nothing to cure";
    Delve.flash(item.name + " — cured " + label);
-   Delve.recordStat("consumablesUsed", 1);
    if(Delve.logConsumable) Delve.logConsumable(item.name, "cured " + label);
   }
   if(item.healPct || item.healFlat){
-   const heal = item.healFlat ? item.healFlat : Math.round(Delve.maxHp() * (item.healPct||0));
+   const heal = item.healFlat ? item.healFlat : Math.round(Delve.maxHp() * (item.healPct || 0));
    if(heal > 0){
     G.hp = Math.min(Delve.maxHp(), G.hp + heal);
     Delve.flash(item.name + " — +" + heal + " HP");
     if(Delve.logHeal) Delve.logHeal(heal, item.name);
    }
-   if(!item.cures){ removeFromInv(item); Delve.recordStat("consumablesUsed", 1); }
   }
   if(item.atkBuff){
-   if(!item.cures && !item.healPct && !item.healFlat) removeFromInv(item);
    G.atkBuff = (G.atkBuff || 0) + item.atkBuff;
    Delve.flash("+" + item.atkBuff + " Attack Power for this run");
-   Delve.recordStat("consumablesUsed", 1);
   }
   if(item.speedBuff){
    G.speedBuff = (G.speedBuff || 0) + item.speedBuff;
-   Delve.flash("+" + Math.round(item.speedBuff*100) + "% Attack Speed for this run");
-   Delve.recordStat("consumablesUsed", 1);
+   Delve.flash("+" + Math.round(item.speedBuff * 100) + "% Attack Speed for this run");
   }
   if(item.redBuff){
    G.redBuff = (G.redBuff || 0) + item.redBuff;
    Delve.flash("+" + item.redBuff + " Damage Reduction for this run");
-   Delve.recordStat("consumablesUsed", 1);
   }
   if(item.luckBuff){
    G.luckBuff = (G.luckBuff || 0) + item.luckBuff;
    Delve.flash("+" + item.luckBuff + " Luck for this run");
-   Delve.recordStat("consumablesUsed", 1);
   }
 
   Delve.enemiesTurn();
@@ -334,36 +350,43 @@ window.Delve = window.Delve || {};
    if(!val) return;
    let delta = 0;
    if(eq){
-    const cur = (item.slot === "weapon" && eq.weapon) ? (eq.weapon[field]||0) :
-     (item.slot === "ring") ? Math.max(eq.ring1?eq.ring1[field]||0:0, eq.ring2?eq.ring2[field]||0:0) :
-     (eq[item.slot]) ? (eq[item.slot][field]||0) : 0;
+    const cur = (item.slot === "weapon" && eq.weapon) ? (eq.weapon[field] || 0) :
+     (item.slot === "ring") ? Math.max(eq.ring1 ? eq.ring1[field] || 0 : 0, eq.ring2 ? eq.ring2[field] || 0 : 0) :
+     (eq[item.slot]) ? (eq[item.slot][field] || 0) : 0;
     delta = val - cur;
    }
    lines.push({ label: label, value: fmt ? fmt(val) : val, delta: delta });
   }
+  const pct = function(v){ return "+" + Math.round(v * 100) + "%"; };
 
   cmp("atk", "Attack Power");
   cmp("red", "Damage Reduction");
   cmp("hp", "Maximum Health");
   cmp("luck", "Luck");
-  cmp("crit", "Critical Chance", function(v){ return "+" + Math.round(v*100) + "%"; });
-  cmp("dodge", "Dodge Chance", function(v){ return "+" + Math.round(v*100) + "%"; });
-  cmp("dropBonus", "Item Find", function(v){ return "+" + Math.round(v*100) + "%"; });
-  cmp("goldBonus", "Gold Find", function(v){ return "+" + Math.round(v*100) + "%"; });
+  cmp("crit", "Critical Chance", pct);
+  cmp("dodge", "Dodge Chance", pct);
+  cmp("dropBonus", "Item Find", pct);
+  cmp("goldBonus", "Gold Find", pct);
   cmp("shardBonus", "Bonus Shards");
   cmp("bossAtk", "Damage vs Ward Bosses");
-  cmp("speedBonus", "Attack Speed", function(v){ return "+" + Math.round(v*100) + "%"; });
+  cmp("speedBonus", "Attack Speed", pct);
   cmp("healOnKill", "Life Steal on Kill");
+
   if(item.healPct) lines.push({ label:"Restores", value: Math.round(Delve.maxHp() * item.healPct) + " Health", delta:0 });
   if(item.healFlat) lines.push({ label:"Restores", value: item.healFlat + " Health", delta:0 });
-  if(item.healPct && item.cures) lines.push({ label:"Also cures", value: item.cures.map(function(c){ return Delve.CONFIG.STATUS_EFFECTS[c].name; }).join(", "), delta:0 });
-  if(item.cures && !item.healPct && !item.healFlat) lines.push({ label:"Cures", value: item.cures.map(function(c){ return Delve.CONFIG.STATUS_EFFECTS[c].name; }).join(", "), delta:0 });
+  if(item.cures && item.cures.length){
+   const names = item.cures.map(statusName).join(", ");
+   const hasHeal = item.healPct || item.healFlat;
+   lines.push({ label: hasHeal ? "Also cures" : "Cures", value: names, delta:0 });
+  }
   if(item.atkBuff) lines.push({ label:"Grants", value:"+" + item.atkBuff + " Attack Power (run)", delta:0 });
-  if(item.speedBuff) lines.push({ label:"Grants", value:"+" + Math.round(item.speedBuff*100) + "% Attack Speed (run)", delta:0 });
+  if(item.speedBuff) lines.push({ label:"Grants", value:"+" + Math.round(item.speedBuff * 100) + "% Attack Speed (run)", delta:0 });
   if(item.redBuff) lines.push({ label:"Grants", value:"+" + item.redBuff + " Damage Reduction (run)", delta:0 });
   if(item.luckBuff) lines.push({ label:"Grants", value:"+" + item.luckBuff + " Luck (run)", delta:0 });
   if(item.status){
-   lines.push({ label:"On Hit", value: item.status === "poison" ? "Chance to Poison" : "Chance to Bleed", delta:0 });
+   const label = item.status === "poison" ? "Chance to Poison"
+    : item.status === "burn" ? "Chance to Burn" : "Chance to Bleed";
+   lines.push({ label:"On Hit", value: label, delta:0 });
   }
   if(item.style){
    const spd = Delve.CONFIG.WEAPON_SPEEDS[item.style] || 1.0;
@@ -374,7 +397,7 @@ window.Delve = window.Delve || {};
    lines.push({ label:"Weight", value: W ? W.name : item.weight, delta:0 });
    if(W && W.speed){
     const vsign = W.speed > 0 ? "+" : "";
-    lines.push({ label:"Speed Effect", value: vsign + Math.round(W.speed*100) + "%", delta:0 });
+    lines.push({ label:"Speed Effect", value: vsign + Math.round(W.speed * 100) + "%", delta:0 });
    }
   }
   return lines;
