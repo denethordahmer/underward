@@ -1,7 +1,7 @@
 window.Delve = window.Delve || {};
 (function(){
 
- // items.js : item LOGIC only. Catalogue lives in js/content/items.js.
+ // items.js : item LOGIC only. Catalogue lives in js/content/con-items.js.
  // Depends on: Delve.itemDefs, Delve.potionDefs, Delve.TIERS, Delve.SLOT_DEFS.
 
  const SLOT_DEFS = function(){ return Delve.SLOT_DEFS || {}; };
