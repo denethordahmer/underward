@@ -315,10 +315,18 @@ window.Delve = window.Delve || {};
   if(m.isBoss){
    G.boss = null;
    const mult = Delve.goldMult ? Delve.goldMult() : 1;
-   G.gold += Math.round(rewards.gold * mult);
+    G.gold += Math.round(rewards.gold * mult);
    Delve.recordStat("goldEarned", Math.round(rewards.gold * mult));
-   G.stairs = { x: m.x, y: m.y };
-   g[m.y][m.x] = T().STAIR;
+   // Boss floors no longer drop a staircase — the arena stays a clean chamber
+   // and the run continues (or ends) from the victory screen. Restore the tile
+   // to floor either way so the arena centre never becomes a blocked BOSS tile.
+   if(G.floorType === "boss"){
+    G.stairs = null;
+    g[m.y][m.x] = T().FLOOR;
+   } else {
+    G.stairs = { x: m.x, y: m.y };
+    g[m.y][m.x] = T().STAIR;
+   }
    const bossName = m.name || "The Warden";
    Delve.flash(bossName.toUpperCase() + " FALLS!");
    Delve.addShake(6);
