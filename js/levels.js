@@ -120,7 +120,7 @@ window.Delve = window.Delve || {};
   const usable = specialRooms(G, rooms);
   if(!usable.length) return;
 
-  const room = usable[Math.floor(Math.random() * usable.length)];
+  const room = usable[Math.floor(Math.random() * usable.length);
   const cx = room.cx, cy = room.cy;
   if(!G.grid[cy]) return;
   if(G.grid[cy][cx] !== T().FLOOR && G.grid[cy][cx] !== T().MONSTER && G.grid[cy][cx] !== T().CHEST) return;
@@ -232,6 +232,9 @@ window.Delve = window.Delve || {};
    for(let i = 0; i !== guards; i++){
     const r = rooms[Delve.rng(0, Math.max(0, rooms.length-2))];
     if(!r) continue;
+    // FIX #43: exclude the boss arena by coordinates, not array position —
+    // failed placeRoom attempts meant the last array slot wasn't always the arena.
+    if(bossRoom && r.cx === bossRoom.cx && r.cy === bossRoom.cy) continue;
     spawnMonster(G, r.cx, r.cy, band);
    }
    if(Delve.showBossIntro) Delve.showBossIntro(G.floor);
