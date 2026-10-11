@@ -3,6 +3,8 @@ window.Delve = window.Delve || {};
 
  // items.js : item LOGIC only. Catalogue lives in js/content/con-items.js.
  // Depends on: Delve.itemDefs, Delve.potionDefs, Delve.TIERS, Delve.SLOT_DEFS.
+ // Also owns shop STOCK GENERATION and shop HEAL PRICING (moved here from
+ // ui.js — item-pool selection is item-domain logic, not screen logic).
 
  const SLOT_DEFS = function(){ return Delve.SLOT_DEFS || {}; };
 
@@ -196,6 +198,7 @@ window.Delve = window.Delve || {};
   if(G) speed += (G.speedBuff || 0);
   return Math.max(0.5, speed);
  };
+
  // ── Aggregate stats ───────────────────────────────────────────
  Delve.itemBuffs = function(){
   const G = Delve.G;
@@ -401,6 +404,42 @@ window.Delve = window.Delve || {};
    }
   }
   return lines;
+ };
+
+ // ── Shop stock & heal pricing ─────────────────────────────────
+ // Item-pool selection is item-domain logic, so it lives here rather than
+ // in ui.js. Nothing load-time: reads itemDefs/CONFIG at call time.
+ // ui.js calls these as Delve.makeShopStock(G) / Delve.shopHealCost(G).
+ function shopItemPool(type){
+  return Object.keys(Delve.itemDefs).map(function(k){ return Delve.itemDefs[k]; })
+   .filter(function(d){ return type === "consumable" ? d.slot === "consumable" : d.slot !== "consumable"; });
+ }
+
+ Delve.makeShopStock = function(G){
+  const shopNum = Math.floor(G.floor/10)+1;
+  const maxTier = shopNum>=3?4:shopNum===2?3:2;
+  const stock = [];
+  let gear = shopItemPool("gear").filter(function(d){ return d.tier <= maxTier; });
+  const top = gear.filter(function(d){ return d.tier === maxTier; });
+  if(top.length && Math.random()<0.7) gear = top;
+  for(let i=0;i<(Delve.CONFIG.shop.stockGear||1) && gear.length;i++){
+   stock.push({ item: Object.assign({}, gear[Math.floor(Math.random()*gear.length)]), sold:false });
+  }
+  const cons = shopItemPool("consumable").filter(function(d){ return d.tier <= Math.min(maxTier,3); });
+  const used = {};
+  const want = Math.min(Delve.CONFIG.shop.stockConsumables||4, cons.length);
+  let guard=0;
+  while(Object.keys(used).length < want && guard++<100){
+   const pick = cons[Math.floor(Math.random()*cons.length)];
+   if(used[pick.id]) continue;
+   used[pick.id]=1;
+   stock.push({ item: Object.assign({}, pick), sold:false });
+  }
+  return stock;
+ };
+
+ Delve.shopHealCost = function(G){
+  return Math.max(1, Math.round(Delve.healCost(G.floor)*(1-Delve.luckDiscount())));
  };
 
 })();
