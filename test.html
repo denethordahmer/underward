@@ -29,7 +29,6 @@
   <div id="console"></div>
 </div>
 
-<!-- Fixtures: minimal DOM that the game scripts expect -->
 <div style="display:none" id="fixtures">
   <canvas id="canvas" width="800" height="600"></canvas>
   <canvas id="minimap" width="170" height="170"></canvas>
@@ -80,10 +79,16 @@
     <div id="deathSummary"></div><span id="deathShards"></span><button id="deathBtn"></button></div>
 
   <div id="retreatMenu"><button id="retreatYes"></button><button id="retreatNo"></button></div>
+
+  <div id="pauseMenu"><div id="pauseCard">
+    <button id="muteBtn"></button>
+    <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.55">
+    <button id="pauseRetreatBtn"></button>
+    <button id="pauseCloseBtn"></button>
+  </div></div>
 </div>
 
 <script>
-// ── Canvas 2D mock (no-ops everything, supports gradient + measureText) ──
 function makeCtx() {
   var gradient = { addColorStop: function(){} };
   return new Proxy(function(){}, {
@@ -99,7 +104,6 @@ function makeCtx() {
 var canvases = document.querySelectorAll("canvas");
 for (var c = 0; c < canvases.length; c++) canvases[c].getContext = function(){ return makeCtx(); };
 
-// Neutralise the render loop so the page doesn't spam a live canvas
 window.requestAnimationFrame = function(){};
 window.cancelAnimationFrame = function(){};
 
@@ -124,7 +128,6 @@ var dupes = {};
 var errors = [];
 var floorFailures = 0;
 
-// ── 1. Load each file, track ownership ──
 var s1 = sec("1. Script loading &amp; ownership");
 FILES.forEach(function(file){
   var before = {};
@@ -160,10 +163,8 @@ FILES.forEach(function(file){
   }
 });
 
-// Prevent the render.js setInterval from calling Delve.draw during checks
 if (typeof window.Delve.draw === "function") window.Delve.draw = function(){};
 
-// ── 2. Duplicates ──
 var s2 = sec("2. Duplicate definitions");
 var dupKeys = Object.keys(dupes);
 if (!dupKeys.length) s2.innerHTML = '<div class="pass">✓ No duplicates.</div>';
@@ -173,7 +174,6 @@ else {
   s2.innerHTML += '</table>';
 }
 
-// ── 3. Required functions ──
 var s3 = sec("3. Required functions");
 var REQUIRED = [
   "newRun","genFloor","maxHp","atk","dmgRed","dodge","crit","luckPts","agiPts","touPts",
@@ -186,11 +186,10 @@ var missing = REQUIRED.filter(function(k){ return typeof window.Delve[k] !== "fu
 if (!missing.length) s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED.length + ' required functions present.</div>';
 else s3.innerHTML = '<div class="fail">Missing:</div><div class="missing">' + missing.join(", ") + '</div>';
 
-// ── 4. Floor generation checks (floors 1-20, both biomes) ──
 var s4 = sec("4. Floor generation (50 trials, floors 1-20)");
 try {
   if (typeof window.Delve.newRun !== "function") throw new Error("newRun missing — cannot seed a run");
-  window.Delve.newRun();   // seeds Delve.G once
+  window.Delve.newRun();
   var G = window.Delve.G;
   if (!G) throw new Error("Delve.G still null after newRun");
 
@@ -225,7 +224,6 @@ try {
   s4.innerHTML = '<div class="fail">Floor checks aborted: ' + err.message + '</div>';
 }
 
-// ── 5. Summary ──
 var s5 = sec("5. Summary");
 if (errors.length) s5.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
 if (missing.length) s5.innerHTML += '<div class="fail">Missing functions: ' + missing.length + '</div>';
@@ -233,7 +231,6 @@ if (dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.l
 if (floorFailures) s5.innerHTML += '<div class="fail">Floor generation issues: ' + floorFailures + '</div>';
 if (!errors.length && !missing.length && !dupKeys.length && !floorFailures) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
 
-// ── 6. Ownership registry ──
 var s6 = sec("6. Ownership registry");
 var keys = Object.keys(ownership).sort();
 var table = '<table><tr><th>Function</th><th>Owned by</th></tr>';
