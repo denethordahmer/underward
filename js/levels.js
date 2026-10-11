@@ -123,9 +123,6 @@ window.Delve = window.Delve || {};
   const room = usable[Math.floor(Math.random() * usable.length)];
   const cx = room.cx, cy = room.cy;
   if(!G.grid[cy]) return;
-  const room = usable[Math.floor(Math.random() * usable.length);
-  const cx = room.cx, cy = room.cy;
-  if(!G.grid[cy]) return;
   if(G.grid[cy][cx] !== T().FLOOR && G.grid[cy][cx] !== T().MONSTER && G.grid[cy][cx] !== T().CHEST) return;
 
   G.monsters = G.monsters.filter(function(m){ return !(m.x === cx && m.y === cy); });
