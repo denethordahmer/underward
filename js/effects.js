@@ -94,4 +94,11 @@ window.Delve = window.Delve || {};
  return d ? d.color : "#ffffff";
  };
 
+ // Display name for a status id — sibling of statusColor, and the natural home
+ // for status naming generally. items.js calls it when labelling cures.
+ Delve.statusName = function(id){
+ const d = def(id);
+ return d ? d.name : id;
+ };
+
 })();

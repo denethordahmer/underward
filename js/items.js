@@ -8,11 +8,6 @@ window.Delve = window.Delve || {};
 
  const SLOT_DEFS = function(){ return Delve.SLOT_DEFS || {}; };
 
- function statusName(id){
- const s = Delve.CONFIG.STATUS_EFFECTS && Delve.CONFIG.STATUS_EFFECTS[id];
- return s ? s.name : id;
- }
-
  Delve.itemsByTier = function(tier){
  return Object.keys(Delve.itemDefs || {}).map(function(k){ return Delve.itemDefs[k]; })
  .filter(function(d){ return d.tier === tier; });
@@ -160,46 +155,6 @@ window.Delve = window.Delve || {};
  return true;
  };
 
- // ── Weight profile ────────────────────────────────────────────
- function weightProfile(item){
- const W = Delve.CONFIG.WEIGHT;
- const w = (item.weight && W[item.weight]) || W.medium;
- const scale = item.slot === "body" ? 1.0 : 0.5;
- return { speed: w.speed * scale, dodge: w.dodge * scale };
- }
-
- // ── Attack speed ──────────────────────────────────────────────
- Delve.playerSpeed = function(){
- const G = Delve.G, cfg = Delve.CONFIG, sec = cfg.secondaries;
- let speed = 1.0;
- if(G && G.equip && G.equip.weapon){
- const ws = cfg.WEAPON_SPEEDS[G.equip.weapon.style];
- if(ws) speed = ws;
- }
- speed += Delve.agiPts() * sec.speedPerAgi;
-
- let wSpeed = 0;
- const eq = G && G.equip ? G.equip : {};
- ["head","body","hands","feet"].forEach(function(s){
- if(eq[s]) wSpeed += weightProfile(eq[s]).speed;
- });
- if(wSpeed < 0){
- const mitigation = Delve.strPts() * (cfg.weightMitigation.strPerPoint || 0.01);
- wSpeed = Math.min(0, wSpeed + mitigation);
- wSpeed = Math.max(cfg.weightMitigation.speedPenaltyFloor || -0.04, wSpeed);
- }
- speed += wSpeed;
-
- if(G && G.equip){
- ["weapon","head","body","hands","feet","cloak","amulet","ring1","ring2"].forEach(function(s){
- const it = G.equip[s];
- if(it && it.speedBonus) speed += it.speedBonus;
- });
- }
- if(G) speed += (G.speedBuff || 0);
- return Math.max(0.5, speed);
- };
-
  // ── Aggregate stats ───────────────────────────────────────────
  Delve.itemBuffs = function(){
  const G = Delve.G;
@@ -226,7 +181,7 @@ window.Delve = window.Delve || {};
 
  ["head","body","hands","feet"].forEach(function(s){
  if(eq[s]){
- const wp = weightProfile(eq[s]);
+ const wp = Delve.weightProfile(eq[s]);
  b.weightSpeed += wp.speed;
  b.weightDodge += wp.dodge;
  }
@@ -313,7 +268,7 @@ window.Delve = window.Delve || {};
  G.effects = G.effects.filter(function(e){ return e.id !== id; });
  if(G.effects.length < before) cured.push(id);
  });
- const label = cured.length ? cured.map(statusName).join(", ") : "nothing to cure";
+ const label = cured.length ? cured.map(Delve.statusName).join(", ") : "nothing to cure";
  Delve.flash(item.name + " — cured " + label);
  if(Delve.logConsumable) Delve.logConsumable(item.name, "cured " + label);
  }
@@ -381,7 +336,7 @@ window.Delve = window.Delve || {};
  if(item.healPct) lines.push({ label:"Restores", value: Math.round(Delve.maxHp() * item.healPct) + " Health", delta:0 });
  if(item.healFlat) lines.push({ label:"Restores", value: item.healFlat + " Health", delta:0 });
  if(item.cures && item.cures.length){
- const names = item.cures.map(statusName).join(", ");
+ const names = item.cures.map(Delve.statusName).join(", ");
  const hasHeal = item.healPct || item.healFlat;
  lines.push({ label: hasHeal ? "Also cures" : "Cures", value: names, delta:0 });
  }

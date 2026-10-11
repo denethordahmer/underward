@@ -115,33 +115,6 @@ window.Delve = window.Delve || {};
  Delve.updateHUD();
  };
 
- // ── Smash barrel ─────────────────────────────────────────────
- Delve.smashBarrel = function(tx, ty){
- const G = Delve.G, b = C().barrel;
- if(!G || G.dead || G.runEnded) return; // C-017 guard
- let gold = 0;
- if(Math.random() < b.goldChance) gold = Delve.rng(b.goldMin, b.goldMax);
-
- if(G.grid[ty] && G.grid[ty][tx] === T().BARREL) G.grid[ty][tx] = T().FLOOR;
- G.barrels = (G.barrels || []).filter(x => !(x.x === tx && x.y === ty));
- Delve.addShake(1);
- if(Delve.sfx) Delve.sfx("barrel");
- Delve.recordStat("barrelsSmashed", 1);
-
- if(gold > 0){
- const mult = Delve.goldMult ? Delve.goldMult() : 1;
- const gained = Math.round(gold * mult);
- G.gold += gained;
- Delve.recordStat("goldEarned", gained);
- Delve.addFloater("+" + gained + "g", tx, ty, "#ffd75e");
- if(Delve.logSystem) Delve.logSystem("Barrel smashed! +" + gained + " gold");
- } else {
- Delve.addFloater("empty", tx, ty, "#9fb3c5");
- if(Delve.logSystem) Delve.logSystem("Barrel smashed — empty.");
- }
- Delve.updateHUD();
- };
-
  // ── Rest ─────────────────────────────────────────────────────
  Delve.tryRest = function(){
  const G = Delve.G, cfg = C();
@@ -159,22 +132,6 @@ window.Delve = window.Delve || {};
  Delve.updateHUD();
  Delve.draw();
  };
-
- // ── Collect gold pile ────────────────────────────────────────
- Delve.collectGold = function(tx, ty){
- const G = Delve.G;
- if(!G || !G.goldPiles) return; // C-017 guard
- const idx = G.goldPiles.findIndex(p => p.x === tx && p.y === ty);
- if(idx < 0) return;
- const pile = G.goldPiles.splice(idx,1)[0];
- G.gold += pile.amount;
- Delve.recordStat("goldEarned", pile.amount);
- if(Delve.sfx) Delve.sfx("pickup_gold");
- if(G.grid[ty] && G.grid[ty][tx] === T().GOLD) G.grid[ty][tx] = T().FLOOR;
- if(Delve.logSystem) Delve.logSystem("+" + pile.amount + " gold");
- Delve.updateHUD();
- };
-
  // ── Descend ──────────────────────────────────────────────────
  Delve.descend = function(){
  const G = Delve.G, cfg = C();

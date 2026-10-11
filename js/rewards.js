@@ -101,4 +101,105 @@ window.Delve = window.Delve || {};
  if(Delve.sfx) Delve.sfx("elite");
  return m;
  };
+  // ── Chests ───────────────────────────────────────────────────
+ // MOVED here from levels.js: a chest is a loot grant (item / potion / gold),
+ // which is this file's job. levels.js keeps pure floor GENERATION.
+ Delve.prob = function(p){ var r = Math.random(); return Math.min(r,p) === r; };
+ Delve.openChest = function(x, y){
+  const G = Delve.G;
+  if(!G) return;
+  const chest = G.chests.find(function(c){ return c.x===x && c.y===y; });
+  if(!chest || chest.open) return;
+  chest.open = true;
+  G.grid[y][x] = Delve.T.FLOOR;
+  if(Delve.sfx) Delve.sfx("chest");
+  if(Delve.logSystem) Delve.logSystem("You open a chest.");
+  const source = chest.secret ? { kind:"secret" } : { kind:"chest" };
+
+  // high-value chest (Blackvein cluster or swarm): guaranteed tier 3+ item,
+  // tier 3 potion, and boosted gold
+  if(chest.highValue){
+   let tier = Math.max(3, Delve.rollTier(G.floor));
+   if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
+   const it = Delve.makeItem(tier);
+   it.x = x; it.y = y;
+   Delve.stampProvenance(it, source);
+   G.items.push(it);
+   Delve.dropPotion(x, y, 3, source);
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   const gold = Math.round((30 + Math.floor(Math.random()*20) + G.floor*3) * mult);
+   G.gold += gold;
+   Delve.recordStat("goldEarned", gold);
+   Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
+   Delve.updateHUD();
+   Delve.draw();
+   return;
+  }
+
+  if(Delve.prob(0.45)){
+   let tier = Delve.rollTier(G.floor);
+   if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
+   const it = Delve.makeItem(tier);
+   it.x = x; it.y = y;
+   Delve.stampProvenance(it, source);
+   G.items.push(it);
+  } else if(Delve.prob(0.8)){
+   Delve.dropPotion(x, y, 2, source);
+  } else {
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   const gold = Math.round((15 + Math.floor(Math.random()*10) + G.floor*2) * mult);
+   G.gold += gold;
+   Delve.recordStat("goldEarned", gold);
+   Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
+   if(Delve.logSystem) Delve.logSystem("Chest contained " + gold + " gold.");
+  }
+  Delve.updateHUD();
+  Delve.draw();
+ };
+
+ // ── World pickups ────────────────────────────────────────────
+ // MOVED here from movement.js: barrels, gold piles and chests are loot
+ // grants, which is this file's job. movement.js keeps traversal only
+ // (tryAct / tryActOnStep / tryRest / descend / promptStairs), though it
+ // still CALLS these when you step onto a barrel or gold pile.
+ // ── Smash barrel ─────────────────────────────────────────────
+ Delve.smashBarrel = function(tx, ty){
+ const G = Delve.G, b = Delve.CONFIG.barrel;
+ if(!G || G.dead || G.runEnded) return; // C-017 guard
+ let gold = 0;
+ if(Math.random() < b.goldChance) gold = Delve.rng(b.goldMin, b.goldMax);
+
+ if(G.grid[ty] && G.grid[ty][tx] === Delve.T.BARREL) G.grid[ty][tx] = Delve.T.FLOOR;
+ G.barrels = (G.barrels || []).filter(x => !(x.x === tx && x.y === ty));
+ Delve.addShake(1);
+ if(Delve.sfx) Delve.sfx("barrel");
+ Delve.recordStat("barrelsSmashed", 1);
+
+ if(gold > 0){
+ const mult = Delve.goldMult ? Delve.goldMult() : 1;
+ const gained = Math.round(gold * mult);
+ G.gold += gained;
+ Delve.recordStat("goldEarned", gained);
+ Delve.addFloater("+" + gained + "g", tx, ty, "#ffd75e");
+ if(Delve.logSystem) Delve.logSystem("Barrel smashed! +" + gained + " gold");
+ } else {
+ Delve.addFloater("empty", tx, ty, "#9fb3c5");
+ if(Delve.logSystem) Delve.logSystem("Barrel smashed — empty.");
+ }
+ Delve.updateHUD();
+ };
+
+ Delve.collectGold = function(tx, ty){
+ const G = Delve.G;
+ if(!G || !G.goldPiles) return; // C-017 guard
+ const idx = G.goldPiles.findIndex(p => p.x === tx && p.y === ty);
+ if(idx < 0) return;
+ const pile = G.goldPiles.splice(idx,1)[0];
+ G.gold += pile.amount;
+ Delve.recordStat("goldEarned", pile.amount);
+ if(Delve.sfx) Delve.sfx("pickup_gold");
+ if(G.grid[ty] && G.grid[ty][tx] === Delve.T.GOLD) G.grid[ty][tx] = Delve.T.FLOOR;
+ if(Delve.logSystem) Delve.logSystem("+" + pile.amount + " gold");
+ Delve.updateHUD();
+ };
 })();

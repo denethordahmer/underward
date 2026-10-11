@@ -93,4 +93,48 @@ window.Delve = window.Delve || {};
  Delve.attrLvl = function(id){ return bought(id); };
  Delve.attrLevel = Delve.attrLvl;
  Delve.attrValue = function(id){ const a = C().ATTRS[id]; return a.base + a.perLevel * bought(id); };
+
+ // ── Equipment-derived stats ───────────────────────────────────
+ // MOVED here from items.js: these are derived stats (attack speed and the
+ // armour weight profile), the same family as atk/dodge/crit above.
+ // items.js's itemBuffs() reads Delve.weightProfile at call time.
+ // ── Weight profile ────────────────────────────────────────────
+ Delve.weightProfile = function(item){
+ const W = Delve.CONFIG.WEIGHT;
+ const w = (item.weight && W[item.weight]) || W.medium;
+ const scale = item.slot === "body" ? 1.0 : 0.5;
+ return { speed: w.speed * scale, dodge: w.dodge * scale };
+ }
+
+ // ── Attack speed ──────────────────────────────────────────────
+ Delve.playerSpeed = function(){
+ const G = Delve.G, cfg = Delve.CONFIG, sec = cfg.secondaries;
+ let speed = 1.0;
+ if(G && G.equip && G.equip.weapon){
+ const ws = cfg.WEAPON_SPEEDS[G.equip.weapon.style];
+ if(ws) speed = ws;
+ }
+ speed += Delve.agiPts() * sec.speedPerAgi;
+
+ let wSpeed = 0;
+ const eq = G && G.equip ? G.equip : {};
+ ["head","body","hands","feet"].forEach(function(s){
+ if(eq[s]) wSpeed += Delve.weightProfile(eq[s]).speed;
+ });
+ if(wSpeed < 0){
+ const mitigation = Delve.strPts() * (cfg.weightMitigation.strPerPoint || 0.01);
+ wSpeed = Math.min(0, wSpeed + mitigation);
+ wSpeed = Math.max(cfg.weightMitigation.speedPenaltyFloor || -0.04, wSpeed);
+ }
+ speed += wSpeed;
+
+ if(G && G.equip){
+ ["weapon","head","body","hands","feet","cloak","amulet","ring1","ring2"].forEach(function(s){
+ const it = G.equip[s];
+ if(it && it.speedBonus) speed += it.speedBonus;
+ });
+ }
+ if(G) speed += (G.speedBuff || 0);
+ return Math.max(0.5, speed);
+ };
 })();
