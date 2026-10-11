@@ -17,6 +17,7 @@ window.Delve = window.Delve || {};
       bestFloor: 1,
       lvls: makeDefaultLevels(),
       unlocks: {},
+      seenTutorial: false,
       lastUpdated: Date.now()
     };
   }
@@ -52,6 +53,7 @@ window.Delve = window.Delve || {};
     base.shards = sanitizeNumber(src.shards, 0);
     base.bestFloor = sanitizeNumber(src.bestFloor, 1);
     base.lastUpdated = sanitizeNumber(src.lastUpdated, Date.now());
+    base.seenTutorial = !!src.seenTutorial;
 
     if(src.lvls && typeof src.lvls === "object"){
       base.lvls = sanitizeLevels(src.lvls);
@@ -92,6 +94,7 @@ window.Delve = window.Delve || {};
         bestFloor: sanitizeNumber(saveData.bestFloor, 1),
         lvls: sanitizeLevels(saveData.lvls),
         unlocks: sanitizeUnlocks(saveData.unlocks),
+        seenTutorial: !!saveData.seenTutorial,
         lastUpdated: Date.now()
       };
       localStorage.setItem(storageKey, JSON.stringify(safeSave));
