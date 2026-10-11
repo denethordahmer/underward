@@ -3,7 +3,7 @@ window.Delve = window.Delve || {};
  const canvas = document.getElementById("canvas");
 
  // Any visible blocking overlay swallows the tap.
- function uiBlocked(){
+ Delve.uiBlocked = function uiBlocked(){
   const blocking = ["deathScreen","levelupScreen","inventoryScreen","itemCardOverlay",
    "stairsPrompt","shopScreen","hubScreen","victoryScreen","bossIntroOverlay",
    "logWindow","pauseMenu","introOverlay"];  // FIX #16: was only 5 screens — shop/log/pause/hub/victory could be tapped through
