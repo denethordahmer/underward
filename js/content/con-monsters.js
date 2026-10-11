@@ -2,7 +2,7 @@ window.Delve = window.Delve || {};
 (function(){
  const C = Delve.CONFIG;
 
- // ── content/monsters.js : monster roster, bands, bosses, elites, xp ──
+ // ── content/con-monsters.js : monster roster, bands, bosses, elites, xp ──
 
  C.MONSTER_ROSTER = {
   rat: { name:"Rotten Rat", hp:8, hpPerFloor:1.2, atk:2, atkPerFloor:0.4, xp:1, gold:1, shards:1, kind:"rat", speed:1.5 },
