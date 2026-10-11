@@ -454,6 +454,7 @@ window.Delve = window.Delve || {};
   if(!chest || chest.open) return;
   chest.open = true;
   G.grid[y][x] = T().FLOOR;
+  if(Delve.sfx) Delve.sfx("chest");
   if(Delve.logSystem) Delve.logSystem("You open a chest.");
   const source = chest.secret ? { kind:"secret" } : { kind:"chest" };
 
