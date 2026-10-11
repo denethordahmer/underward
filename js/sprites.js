@@ -76,6 +76,130 @@ window.Delve = window.Delve || {};
   return c;
  }
 
+ // ============================ BLACKVEIN ENEMIES ============================
+ function buildBarkling(){
+  const c=mk(24,24),x=gx(c);
+  R(x,7,19,2,4,"#3a2a18");R(x,10,20,2,3,"#3a2a18");
+  R(x,12,20,2,3,"#3a2a18");R(x,15,19,2,4,"#3a2a18");
+  R(x,7,11,10,9,"#5a3a20");
+  R(x,7,11,10,2,"#7a5a30");
+  R(x,7,18,10,2,"#3a2a18");
+  R(x,9,13,1,6,"#3a2014");
+  R(x,11,13,1,6,"#3a2014");
+  R(x,14,13,1,6,"#3a2014");
+  R(x,8,8,2,3,"#5a3a20");
+  R(x,14,8,2,3,"#5a3a20");
+  R(x,9,14,2,2,"#c8d84a");
+  R(x,13,14,2,2,"#c8d84a");
+  R(x,9,14,1,1,"#eaffa8");
+  R(x,13,14,1,1,"#eaffa8");
+  R(x,10,17,4,1,"#1c1008");
+  return c;
+ }
+
+ function buildThornling(){
+  const c=mk(24,24),x=gx(c);
+  R(x,8,19,2,4,"#2a3524");R(x,14,19,2,4,"#2a3524");
+  R(x,7,12,10,8,"#3a4a20");
+  R(x,7,12,10,2,"#4a5c28");
+  R(x,7,18,10,2,"#1c2414");
+  R(x,4,13,3,1,"#c8d84a");R(x,17,13,3,1,"#c8d84a");
+  R(x,5,15,2,1,"#a8b83a");R(x,17,15,2,1,"#a8b83a");
+  R(x,8,8,8,5,"#3a4a20");
+  R(x,8,8,8,1,"#4a5c28");
+  R(x,9,10,2,2,"#ff4a3d");R(x,13,10,2,2,"#ff4a3d");
+  R(x,10,11,1,1,"#ffaa5a");R(x,14,11,1,1,"#ffaa5a");
+  R(x,9,4,1,4,"#c8d84a");R(x,14,4,1,4,"#c8d84a");
+  R(x,8,3,3,1,"#c8d84a");R(x,13,3,3,1,"#c8d84a");
+  R(x,10,12,4,1,"#141c10");
+  return c;
+ }
+
+ function buildTreant(){
+  const c=mk(24,24),x=gx(c);
+  R(x,7,20,10,3,"#3d2e1c");
+  R(x,6,22,12,2,"#2a1f12");
+  R(x,8,8,8,14,"#5a3a24");
+  R(x,8,8,1,14,"#7a5a3a");
+  R(x,15,8,1,14,"#3a2014");
+  R(x,9,8,6,1,"#7a5a3a");
+  R(x,10,10,1,10,"#3a2014");
+  R(x,13,10,1,10,"#3a2014");
+  R(x,11,12,2,1,"#2a1f12");
+  R(x,11,16,2,1,"#2a1f12");
+  R(x,7,11,3,2,"#5a7a2a");
+  R(x,14,14,3,2,"#5a7a2a");
+  R(x,3,12,5,2,"#5a3a24");R(x,2,10,2,3,"#5a3a24");
+  R(x,16,12,5,2,"#5a3a24");R(x,20,10,2,3,"#5a3a24");
+  R(x,8,4,8,5,"#5a3a24");
+  R(x,8,4,8,1,"#7a5a3a");
+  R(x,9,6,2,2,"#a855f7");R(x,13,6,2,2,"#a855f7");
+  R(x,9,6,1,1,"#e0a8ff");R(x,13,6,1,1,"#e0a8ff");
+  R(x,10,8,4,1,"#1a0f08");
+  return c;
+ }
+
+ function buildVineStalker(){
+  const c=mk(24,24),x=gx(c);
+  R(x,9,20,2,3,"#3a2048");R(x,13,20,2,3,"#3a2048");
+  R(x,8,10,8,10,"#4a3a20");
+  R(x,7,14,10,4,"#3a2a18");
+  R(x,8,10,8,1,"#5a4a28");
+  R(x,3,12,5,1,"#4a3058");
+  R(x,3,13,4,1,"#4a3058");
+  R(x,16,12,5,1,"#4a3058");
+  R(x,17,13,4,1,"#4a3058");
+  R(x,8,6,8,5,"#4a3a20");
+  R(x,9,8,2,2,"#c8d84a");R(x,13,8,2,2,"#c8d84a");
+  R(x,10,9,1,1,"#eaffa8");R(x,14,9,1,1,"#eaffa8");
+  R(x,11,20,1,2,"#a855f7");R(x,13,21,1,1,"#a855f7");
+  return c;
+ }
+
+ function buildDryad(){
+  const c=mk(24,24),x=gx(c);
+  R(x,9,20,2,4,"#3a2014");
+  R(x,13,20,2,4,"#3a2014");
+  R(x,9,9,6,12,"#4a3020");
+  R(x,9,9,1,12,"#6a4a30");
+  R(x,14,9,1,12,"#2a1a0a");
+  R(x,9,13,6,2,"#3a2014");
+  R(x,9,17,6,2,"#3a2014");
+  R(x,8,4,8,6,"#4a3020");
+  R(x,8,4,8,1,"#6a4a30");
+  R(x,9,6,2,2,"#a855f7");
+  R(x,13,6,2,2,"#a855f7");
+  R(x,9,6,1,1,"#e0a8ff");
+  R(x,13,6,1,1,"#e0a8ff");
+  R(x,10,9,4,1,"#1a0a08");
+  R(x,3,10,6,2,"#4a3020");
+  R(x,2,12,2,4,"#5a4a28");
+  R(x,4,13,1,3,"#5a4a28");
+  R(x,15,10,6,2,"#4a3020");
+  R(x,20,12,2,4,"#5a4a28");
+  R(x,18,13,1,3,"#5a4a28");
+  return c;
+ }
+
+ function buildSporeSwarm(){
+  const c=mk(24,24),x=gx(c);
+  R(x,10,9,4,8,"#e0d8b8");
+  R(x,7,5,10,4,"#4a6a2a");
+  R(x,7,5,10,1,"#6a8a3a");
+  R(x,9,4,6,1,"#4a6a2a");
+  R(x,9,6,2,1,"#c8d84a");R(x,14,6,2,1,"#c8d84a");
+  R(x,3,14,2,6,"#e0d8b8");
+  R(x,1,11,6,3,"#4a6a2a");
+  R(x,2,12,1,1,"#c8d84a");R(x,5,12,1,1,"#c8d84a");
+  R(x,19,15,2,5,"#e0d8b8");
+  R(x,17,12,6,3,"#4a6a2a");
+  R(x,18,13,1,1,"#c8d84a");R(x,21,13,1,1,"#c8d84a");
+  R(x,6,2,1,1,"#a855f7");
+  R(x,17,3,1,1,"#a855f7");
+  R(x,11,1,1,1,"#a855f7");
+  return c;
+ }
+
  // ============================ FLOOR ART ============================
  function buildGoldPile(){ const c=mk(24,24),x=gx(c); R(x,8,11,8,3,"#d9a11f");R(x,7,12,10,3,"#f0c14d");R(x,6,15,12,3,"#d9a11f");R(x,7,18,10,2,"#b8860b");R(x,8,12,2,1,"#fff2a8");R(x,14,14,1,2,"#fff2a8");R(x,12,16,2,1,"#fff2a8"); return c; }
  function buildItemPile(){ const c=mk(24,24),x=gx(c); R(x,7,14,10,6,"#6d5b45");R(x,7,14,10,1,"#88725c");R(x,9,15,1,4,"#4f3f30");R(x,15,15,1,4,"#4f3f30");R(x,12,17,2,2,"#9ad9ff"); return c; }
@@ -93,7 +217,9 @@ window.Delve = window.Delve || {};
 
  function buildAll(){
   const shadow=buildShadow(), soldier=buildSoldier(), goblin=buildGoblin(), brute=buildBrute(), wraith=buildWraith(), boss=buildBoss(), rat=buildRat(), slime=buildSlime(), merchant=buildMerchant();
+  const barkling=buildBarkling(), thornling=buildThornling(), treant=buildTreant(), vineStalker=buildVineStalker(), dryad=buildDryad(), sporeSwarm=buildSporeSwarm();
   const goblinGold=tint(goblin,"#ffd75e"), bruteGold=tint(brute,"#ffd75e"), ratGold=tint(rat,"#ffd75e"), slimeGold=tint(slime,"#ffd75e"), wraithGold=tint(wraith,"#ffd75e");
+  const barklingGold=tint(barkling,"#ffd75e"), thornlingGold=tint(thornling,"#ffd75e"), treantGold=tint(treant,"#ffd75e"), vineStalkerGold=tint(vineStalker,"#ffd75e"), dryadGold=tint(dryad,"#ffd75e"), sporeSwarmGold=tint(sporeSwarm,"#ffd75e");
   Delve.SPR = {
    shadow: shadow,
    soldier: { idle: soldier, hurt: tint(soldier,"#ff5c5c") },
@@ -103,6 +229,12 @@ window.Delve = window.Delve || {};
    boss: { idle: boss, hurt: tint(boss,"#ff5c5c") },
    rat: { idle: rat, hurt: tint(rat,"#ff5c5c"), elite: ratGold },
    slime: { idle: slime, hurt: tint(slime,"#ff5c5c"), elite: slimeGold },
+   barkling: { idle: barkling, hurt: tint(barkling,"#ff5c5c"), elite: barklingGold },
+   thornling: { idle: thornling, hurt: tint(thornling,"#ff5c5c"), elite: thornlingGold },
+   treant: { idle: treant, hurt: tint(treant,"#ff5c5c"), elite: treantGold },
+   vine_stalker: { idle: vineStalker, hurt: tint(vineStalker,"#ff5c5c"), elite: vineStalkerGold },
+   dryad: { idle: dryad, hurt: tint(dryad,"#ff5c5c"), elite: dryadGold },
+   spore_swarm: { idle: sporeSwarm, hurt: tint(sporeSwarm,"#ff5c5c"), elite: sporeSwarmGold },
    world: {
     goldPile: buildGoldPile(),
     itemPile: buildItemPile(),
