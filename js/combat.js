@@ -39,7 +39,7 @@ window.Delve = window.Delve || {};
   return bonus;
  };
 
- // ── Monster roster / rewards (moved from monsters.js) ────────
+ // ── Monster roster / rewards ────────────────────────────────
  Delve.monsterStats = function(type, floor){
   const cfg = Delve.CONFIG;
   const row = cfg.MONSTER_ROSTER[type] || cfg.MONSTER_ROSTER.goblin;
@@ -63,12 +63,11 @@ window.Delve = window.Delve || {};
  }
 
  // Returns the status id an enemy applies on a successful hit, or null.
- // Reads onHitEffect from the roster row, with wraith's legacy weaken kept.
+ // Reads onHitEffect from the roster row (wraith carries it since Tier 1).
  function onHitEffectFor(m){
   if(!m) return null;
   const row = rowFor(m.kind);
   if(row && row.onHitEffect) return row.onHitEffect;
-  if(m.kind === "wraith") return "weaken";
   return null;
  }
 
@@ -224,17 +223,18 @@ window.Delve = window.Delve || {};
   if(Math.random() < Delve.crit()){
    dmg = Math.round(dmg * sec.critMult);
    isCrit = true;
-   Delve.addFloater("CRIT " + dmg, m.x, m.y, "#ff9d3d");
    if(Delve.sfx) Delve.sfx("crit");
-  } else {
-   Delve.addFloater("-" + dmg, m.x, m.y, "#ffd75e");
-   if(Delve.sfx) Delve.sfx("hit");
   }
 
+  // FIX #23: weaken applied BEFORE display — floater, log, and stats
+  // all show the real damage dealt.
   if(weakened){
    const wpct = (C().STATUS_EFFECTS.weaken && C().STATUS_EFFECTS.weaken.pct) || 0.30;
    dmg = Math.max(1, Math.round(dmg * (1 - wpct)));
   }
+
+  Delve.addFloater(isCrit ? ("CRIT " + dmg) : ("-" + dmg), m.x, m.y, isCrit ? "#ff9d3d" : "#ffd75e");
+  if(!isCrit && Delve.sfx) Delve.sfx("hit");
   if(Delve.logPlayerAtk) Delve.logPlayerAtk(m.name || m.kind || "enemy", dmg, isCrit);
   Delve.recordStat("damageDealt", dmg);
   m.hp -= dmg;
@@ -284,7 +284,7 @@ window.Delve = window.Delve || {};
   }
 
   m.hasActed = true;
-  if(m.skipNext){ m.skipNext = false; return; }
+  // #20: skipNext was never set anywhere in the codebase — dead check removed.
 
   if(m.isBoss && m.chainHitEvery){
    m.chainHitCount = (m.chainHitCount || 0) + 1;
@@ -317,8 +317,7 @@ window.Delve = window.Delve || {};
   if(Delve.logEnemyAtk) Delve.logEnemyAtk(m.name || m.kind || "enemy", hit);
 
   // On-hit status: any enemy with an onHitEffect in the roster applies it
-  // on a successful hit, at ON_HIT_STATUS_CHANCE. Wraith keeps weaken via
-  // the fallback in onHitEffectFor().
+  // on a successful hit, at ON_HIT_STATUS_CHANCE.
   const effectId = onHitEffectFor(m);
   if(effectId && Delve.applyPlayerEffect && Math.random() < ON_HIT_STATUS_CHANCE){
    Delve.applyPlayerEffect(effectId);
@@ -434,7 +433,7 @@ window.Delve = window.Delve || {};
   let gold = 0;
   if(Math.random() < b.goldChance) gold = Delve.rng(b.goldMin, b.goldMax);
 
-  if(G.grid[ty] && G.grid[ty][tx] === T().BARREL) G.grid[ty][tx] = T().FLOOR;
+  if(G.grid[ty] && G.grid[ty][tx] === T().BARREL) G.grid[ty][tx] = T.FLOOR;
   G.barrels = (G.barrels || []).filter(x => !(x.x === tx && x.y === ty));
   Delve.addShake(1);
   Delve.recordStat("barrelsSmashed", 1);
@@ -485,7 +484,7 @@ window.Delve = window.Delve || {};
 
  function ambientMob(m){
   const G = Delve.G;
-  if(m.skipNext){ m.skipNext = false; return; }
+  // #20: skipNext was never set anywhere — dead check removed.
   if(Delve.mdist(G.px, G.py, m.x, m.y) === 1){
    m.hasActed = true;
    if(Math.random() < Delve.dodge()){
@@ -633,6 +632,13 @@ window.Delve = window.Delve || {};
  Delve.descend = function(){
   const G = Delve.G, cfg = C();
   G.hp = Math.min(Delve.maxHp(), G.hp + Math.round(Delve.maxHp() * cfg.healOnDescendPct));
+  // Hearty Stew / floorHeal: consume one charge on descend.
+  if(G.floorHealLeft > 0){
+   G.floorHealLeft--;
+   G.hp = Math.min(Delve.maxHp(), G.hp + 3);
+   Delve.addFloater("+3 stew", G.px, G.py, "#ffd75e");
+   if(Delve.logSystem) Delve.logSystem("The stew warms you. +3 HP.");
+  }
   G.floor++;
   if(G.floor > Delve.save.bestFloor){ Delve.save.bestFloor = G.floor; Delve.persist(); }
   G.secondWindUsed = false;
@@ -644,7 +650,7 @@ window.Delve = window.Delve || {};
   if(Delve.showFloorCard) Delve.showFloorCard(G.floor);
  };
 
- // ── Die ──────────────────────────────────────────────────────
+ // ── Die ────────────────────────────────────────────────────────
  Delve.die = function(){
   const G = Delve.G;
   if(G.dead || G.runEnded) return;
