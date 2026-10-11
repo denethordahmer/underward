@@ -182,7 +182,7 @@ window.Delve = window.Delve || {};
     return Delve.save;
   };
 
-  Delve.persist = function(){
+  Delve.save = Delve.persist = function(){
     if(!Delve.save || typeof Delve.save !== "object"){
       Delve.save = makeDefaultSave();
     }
