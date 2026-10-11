@@ -565,3 +565,13 @@ Shape and dress floor 10 as Upper Ruins and floor 20 as Blackvein, using `ward.b
 
 **C-016 — OPEN — Content: delete the inert boss bands.**
 The floors 10 and 20 `boss:true` entries in `CONFIG.MONSTER_BANDS` (`con-monsters.js`) are no longer read by anything, since `genBossFloor` spawns no monsters (#C-008). Harmless either way.
+**C-016 — OPEN — Content: delete the inert boss bands.**
+The floors 10 and 20 `boss:true` entries in `CONFIG.MONSTER_BANDS`
+(`con-monsters.js`) are no longer read by anything...
+
+**C-017 — Step 8: hygiene sweep. Closes C-014.**
+Guarded `G` before use in `movement.js` (`smashBarrel`, `tryRest`,
+`collectGold`, `descend`), `combat.js` (`killMonster`), `levels.js`
+(`openChest`). Removed the dead `Delve.hideIntro()` call from `ui.js`.
+`test.html` rebuilt: §3 now asserts ownership, §8e tests null-`G` safety.
+
