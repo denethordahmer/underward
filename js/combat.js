@@ -2,58 +2,18 @@ window.Delve = window.Delve || {};
 (function(){
  const T = () => Delve.T;
  const C = () => Delve.CONFIG;
- const eco = () => Delve.CONFIG.economy;
+
+ // combat.js : the auto-combat loop, tile movement, and run lifecycle.
+ // Economy (gold→shards, boss bonus, kill rewards, floor bonus, elites,
+ // monster stat lookup) now lives in js/rewards.js — load that AFTER this.
+ // Depends on: Delve.rowFor (defined here, exported below).
 
  // Chance for an enemy with an on-hit status to actually apply it.
  const ON_HIT_STATUS_CHANCE = 0.15;
 
- // ── Gold → shards conversion (successful run ends) ──────────
- Delve.convertGold = function(rate){
-  const G = Delve.G;
-  const r = rate || eco().goldToShardRate;
-  const shards = Math.floor(G.gold / r);
-  G.gold -= shards * r;
-  G.runShards += shards;
-  Delve.save.shards += shards;
-  Delve.persist();
-  return shards;
- };
-
- // ── Boss shard bonus ─────────────────────────────────────────
- // Applied once per boss, at the moment of the victory screen.
- // Bonus is bossDef.shardBonusPct × current runShards.
- Delve.applyBossBonus = Delve._applyBossBonus = function(wardIdx){
-  const G = Delve.G;
-  if(!G._bonusesApplied) G._bonusesApplied = [];
-  if(G._bonusesApplied.indexOf(wardIdx) >= 0) return 0;
-  G._bonusesApplied.push(wardIdx);
-  const def = C().BOSS_DEFS[wardIdx];
-  if(!def || !def.shardBonusPct) return 0;
-  const bonus = Math.round((G.runShards || 0) * def.shardBonusPct);
-  if(bonus > 0){
-   Delve.save.shards += bonus;
-   G.runShards += bonus;
-   Delve.recordStat("shardsEarned", bonus);
-   if(Delve.logSystem) Delve.logSystem(def.name + " bonus: +" + bonus + " shards");
-  }
-  return bonus;
- };
-
- // ── Monster roster / rewards ────────────────────────────────
- Delve.monsterStats = function(type, floor){
-  const cfg = Delve.CONFIG;
-  const row = cfg.MONSTER_ROSTER[type] || cfg.MONSTER_ROSTER.goblin;
-  return {
-   name: row.name,
-   kind: row.kind,
-   hp: Math.round(row.hp + row.hpPerFloor * (floor - 1)),
-   atk: Math.max(1, Math.round(row.atk + row.atkPerFloor * floor)),
-   xp: row.xp,
-   shards: row.shards,
-   gold: row.gold
-  };
- };
-
+ // ── Shared monster-data lookups ──────────────────────────────
+ // Exported so js/rewards.js can resolve a monster's roster row
+ // without duplicating the search.
  function rowFor(kind){
   const cfg = Delve.CONFIG;
   for(const key in cfg.MONSTER_ROSTER){
@@ -61,6 +21,7 @@ window.Delve = window.Delve || {};
   }
   return cfg.MONSTER_ROSTER.goblin;
  }
+ Delve.rowFor = rowFor;
 
  // Returns the status id an enemy applies on a successful hit, or null.
  // Reads onHitEffect from the roster row (wraith carries it since Tier 1).
@@ -70,51 +31,7 @@ window.Delve = window.Delve || {};
   if(row && row.onHitEffect) return row.onHitEffect;
   return null;
  }
-
- Delve.killRewards = function(m){
-  const G = Delve.G, cfg = Delve.CONFIG, eco = cfg.economy;
-  const floor = G.floor;
-  const luckMult = 1 + Delve.luckPts() * (eco.goldLuckMult || 0.05);
-
-  let gold, shards, xp;
-
-  if(m.isBoss){
-   gold = cfg.goldBossBase || 80;
-   shards = eco.bossShards || 40;
-   xp = (cfg.xpKill && cfg.xpKill.boss) || 30;
-  } else {
-   const row = rowFor(m.kind);
-   gold = row.gold + (eco.goldCurveK || 3.0) * Math.log(floor + 1);
-   shards = row.shards;
-   xp = row.xp;
-  }
-
-  if(m.elite){
-   const r = cfg.elite.rewardMult || 3;
-   gold *= r; shards *= r; xp *= r;
-  }
-
-  return {
-   gold: Math.round(gold * luckMult),
-   shards: Math.round(shards),
-   xp: Math.round(xp)
-  };
- };
-
- Delve.floorClearBonus = function(){
-  const G = Delve.G, eco = Delve.CONFIG.economy;
-  return (eco.floorClearBonus || 0) + (eco.floorClearBonusPerFloor || 0) * G.floor;
- };
-
- Delve.makeElite = function(m){
-  const e = Delve.CONFIG.elite;
-  m.elite = true;
-  m.maxHp = Math.round(m.maxHp * e.hpMult);
-  m.hp = m.maxHp;
-  m.atk = Math.max(1, Math.round(m.atk * e.atkMult));
-  m.name = "Elite " + m.name;
-  return m;
- };
+ Delve.onHitEffectFor = onHitEffectFor;
 
  // ── End a run (death / retreat / victory) ────────────────────
  Delve.endRun = function(kind, extra){
@@ -135,7 +52,7 @@ window.Delve = window.Delve || {};
   const G = Delve.G;
   if(!G || G.dead || G.runEnded) return;
   if(G.inCombat){ Delve.flash("Can't retreat mid-fight!"); return; }
-  const gained = Delve.convertGold();
+  const gained = Delve.convertGold();            // js/rewards.js
   Delve.recordStat("retreated", 1);
   if(Delve.logSystem) Delve.logSystem("Retreated — " + gained + " shards banked.");
   Delve.endRun("retreat", { shards: gained });
@@ -226,8 +143,8 @@ window.Delve = window.Delve || {};
    if(Delve.sfx) Delve.sfx("crit");
   }
 
-  // FIX #23: weaken applied BEFORE display — floater, log, and stats
-  // all show the real damage dealt.
+  // Weaken applied BEFORE display — floater, log, and stats all show
+  // the real damage dealt.
   if(weakened){
    const wpct = (C().STATUS_EFFECTS.weaken && C().STATUS_EFFECTS.weaken.pct) || 0.30;
    dmg = Math.max(1, Math.round(dmg * (1 - wpct)));
@@ -284,7 +201,6 @@ window.Delve = window.Delve || {};
   }
 
   m.hasActed = true;
-  // #20: skipNext was never set anywhere in the codebase — dead check removed.
 
   if(m.isBoss && m.chainHitEvery){
    m.chainHitCount = (m.chainHitCount || 0) + 1;
@@ -346,8 +262,19 @@ window.Delve = window.Delve || {};
 
  // ── Single-step act (tap to move) ────────────────────────────
  Delve.tryAct = function(tx, ty){
-  const G = Delve.G, g = G.grid;
+  // FIX: G was dereferenced (G.grid) one line before the null guard, so a
+  // null G threw instead of bailing. Guard first, then read the grid.
+  const G = Delve.G;
   if(!G || G.dead || G.runEnded) return;
+  const g = G.grid;
+
+  // Shopkeeper: tapping him opens the shop instead of moving.
+  if(G.shop && G.shop.x === tx && G.shop.y === ty && !G.inCombat && !G.targetingAbility){
+   G._path = null;
+   if(G._pathTimer){ clearInterval(G._pathTimer); G._pathTimer = null; }
+   Delve.openShop();
+   return;
+  }
 
   if(G.targetingAbility){
    const ok = Delve.castAbility ? Delve.castAbility(G.targetingAbility, tx, ty) : false;
@@ -394,8 +321,18 @@ window.Delve = window.Delve || {};
 
  // ── Pathfinder step version ──────────────────────────────────
  Delve.tryActOnStep = function(tx, ty){
-  const G = Delve.G, g = G.grid;
+  const G = Delve.G;
   if(!G || G.dead || G.runEnded) return;
+  const g = G.grid;
+
+  // Shopkeeper: same intercept as tryAct, so pathing to him opens the shop.
+  if(G.shop && G.shop.x === tx && G.shop.y === ty && !G.inCombat && !G.targetingAbility){
+   G._path = null;
+   if(G._pathTimer){ clearInterval(G._pathTimer); G._pathTimer = null; }
+   Delve.openShop();
+   return;
+  }
+
   if(!g[ty] || g[ty][tx] === undefined) return;
   if(G.inCombat){ G._path = null; return; }
 
@@ -433,7 +370,9 @@ window.Delve = window.Delve || {};
   let gold = 0;
   if(Math.random() < b.goldChance) gold = Delve.rng(b.goldMin, b.goldMax);
 
-  if(G.grid[ty] && G.grid[ty][tx] === T().BARREL) G.grid[ty][tx] = T.FLOOR;
+  // FIX: T is the function alias `() => Delve.T`, so bare `T.FLOOR` was
+  // undefined — smashing a barrel left an invisible, walkable hole.
+  if(G.grid[ty] && G.grid[ty][tx] === T().BARREL) G.grid[ty][tx] = T().FLOOR;
   G.barrels = (G.barrels || []).filter(x => !(x.x === tx && x.y === ty));
   Delve.addShake(1);
   Delve.recordStat("barrelsSmashed", 1);
@@ -484,7 +423,6 @@ window.Delve = window.Delve || {};
 
  function ambientMob(m){
   const G = Delve.G;
-  // #20: skipNext was never set anywhere — dead check removed.
   if(Delve.mdist(G.px, G.py, m.x, m.y) === 1){
    m.hasActed = true;
    if(Math.random() < Delve.dodge()){
@@ -517,7 +455,7 @@ window.Delve = window.Delve || {};
  Delve.killMonster = function(m){
   const G = Delve.G, g = G.grid;
   const buffs = Delve.itemBuffs();
-  const rewards = Delve.killRewards(m);
+  const rewards = Delve.killRewards(m);          // js/rewards.js
 
   Delve.recordStat("kills", 1);
   if(m.elite) Delve.recordStat("elitesKilled", 1);
@@ -537,7 +475,6 @@ window.Delve = window.Delve || {};
    if(!G.bossesBeaten) G.bossesBeaten = [];
    const wardIdx = Math.ceil(G.floor / 10);
    if(G.bossesBeaten.indexOf(wardIdx) < 0) G.bossesBeaten.push(wardIdx);
-   // drop a guaranteed boss item (legendary-leaning)
    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { guaranteed:true, minTier:3, name:m.name, elite:false, boss:true });
    Delve.triggerVictory(wardIdx);
   } else {
@@ -554,7 +491,6 @@ window.Delve = window.Delve || {};
    }
   }
 
-  // shards: small-int + elite multiplier
   Delve.save.shards += rewards.shards;
   G.runShards += rewards.shards;
   Delve.recordStat("shardsEarned", rewards.shards);
@@ -596,15 +532,14 @@ window.Delve = window.Delve || {};
   G.inCombat = false;
   if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
 
-  const gained = Delve.convertGold();
-  const bonus = Delve._applyBossBonus(idx);
+  const gained = Delve.convertGold();            // js/rewards.js
+  const bonus = Delve._applyBossBonus(idx);      // js/rewards.js
   const totalBanked = gained + bonus;
 
   Delve.recordStat("victories", 1);
   if(Delve.sfx) Delve.sfx("victory");
 
   // canContinue: offer "Descend deeper" only if there's content past this ward.
-  // Ward 2 = floors 11-20. Nothing past 20 yet, so ward 2 forces the exit.
   const canContinue = (idx === 1);
 
   if(Delve.showVictory) Delve.showVictory(totalBanked, canContinue);
