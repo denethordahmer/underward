@@ -16,6 +16,26 @@ window.Delve = window.Delve || {};
   return shards;
  };
 
+ // ── Boss shard bonus ─────────────────────────────────────────
+ // Applied once per boss, at the moment of the victory screen.
+ // Bonus is bossDef.shardBonusPct × current runShards.
+ Delve._applyBossBonus = function(wardIdx){
+  const G = Delve.G;
+  if(!G._bonusesApplied) G._bonusesApplied = [];
+  if(G._bonusesApplied.indexOf(wardIdx) >= 0) return 0;
+  G._bonusesApplied.push(wardIdx);
+  const def = C().BOSS_DEFS[wardIdx];
+  if(!def || !def.shardBonusPct) return 0;
+  const bonus = Math.round((G.runShards || 0) * def.shardBonusPct);
+  if(bonus > 0){
+   Delve.save.shards += bonus;
+   G.runShards += bonus;
+   Delve.recordStat("shardsEarned", bonus);
+   if(Delve.logSystem) Delve.logSystem(def.name + " bonus: +" + bonus + " shards");
+  }
+  return bonus;
+ };
+
  // ── Monster roster / rewards (moved from monsters.js) ────────
  Delve.monsterStats = function(type, floor){
   const cfg = Delve.CONFIG;
@@ -477,13 +497,17 @@ window.Delve = window.Delve || {};
    Delve.recordStat("goldEarned", Math.round(rewards.gold * mult));
    G.stairs = { x: m.x, y: m.y };
    g[m.y][m.x] = T().STAIR;
-   Delve.flash("THE WARDEN FALLS!");
+   const bossName = m.name || "The Warden";
+   Delve.flash(bossName.toUpperCase() + " FALLS!");
    Delve.addShake(6);
    if(Delve.sfx) Delve.sfx("kill");
-   if(Delve.logSystem) Delve.logSystem("The Warden has fallen.");
+   if(Delve.logSystem) Delve.logSystem(bossName + " has fallen.");
+   if(!G.bossesBeaten) G.bossesBeaten = [];
+   const wardIdx = Math.ceil(G.floor / 10);
+   if(G.bossesBeaten.indexOf(wardIdx) < 0) G.bossesBeaten.push(wardIdx);
    // drop a guaranteed boss item (legendary-leaning)
    if(Delve.rollKillDrop) Delve.rollKillDrop(m.x, m.y, { guaranteed:true, minTier:3, name:m.name, elite:false, boss:true });
-   Delve.triggerVictory();
+   Delve.triggerVictory(wardIdx);
   } else {
    G.monsters = G.monsters.filter(x => x !== m);
    const mult = Delve.goldMult ? Delve.goldMult() : 1;
@@ -530,17 +554,30 @@ window.Delve = window.Delve || {};
  };
 
  // ── Victory ──────────────────────────────────────────────────
- Delve.triggerVictory = function(){
+ Delve.triggerVictory = function(wardIdx){
   const G = Delve.G;
-  if(G.victoryDone) return;
-  G.victoryDone = true;
+  const idx = wardIdx || Math.ceil(G.floor / 10);
+  if(!G._victoriesProcessed) G._victoriesProcessed = [];
+  if(G._victoriesProcessed.indexOf(idx) >= 0) return;
+  G._victoriesProcessed.push(idx);
+
   G.inCombat = false;
   if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
+
   const gained = Delve.convertGold();
+  const bonus = Delve._applyBossBonus(idx);
+  const totalBanked = gained + bonus;
+
   Delve.recordStat("victories", 1);
   if(Delve.sfx) Delve.sfx("victory");
-  if(Delve.showVictory) Delve.showVictory(gained);
-  else Delve.flash("WARD CLEARED! +" + gained + " shards");
+
+  // canContinue: offer "Descend deeper" only if there's content past this ward.
+  // Ward 2 = floors 11-20. Nothing past 20 yet, so ward 2 forces the exit.
+  const canContinue = (idx === 1);
+
+  if(Delve.showVictory) Delve.showVictory(totalBanked, canContinue);
+  else Delve.flash("WARD CLEARED! +" + totalBanked + " shards");
+
   Delve.updateHUD();
   Delve.draw();
  };
