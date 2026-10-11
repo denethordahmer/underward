@@ -82,7 +82,7 @@ These shape every decision. Do not propose solutions that break them.
 
 ## 3. File map
 
-26 scripts. This is the `index.html` load order (§5 has the constraints).
+27 scripts. This is the `index.html` load order (§5 has the constraints).
 
 ### 3.1 Content — data only, safe to edit blind
 
@@ -232,21 +232,34 @@ each frame**, and `input.js` reads those for tap→tile conversion. Uses
 `document.getElementById` directly rather than `ui.js`'s guarded `$`, because `ui.js`
 doesn't exist yet at this file's load time.
 Never owns screen orchestration or DOM wiring.
+Publishes `Delve._drawUtils` for `decor.js` (below).
 
 **Draw order inside `Delve.draw`** (all private helpers, no new `Delve.*` symbols):
-floor slabs → wall tiles (each with `drawWallDecor`: moss, cracks, chains, banners,
-corner webs) → `drawWallShadows` (soft occlusion bleeding out of every wall onto
-adjacent floor) → a soft warm pool of light around the player → `drawProps`
-(hash-placed dressing: pillars, braziers, crates, rubble, bones, mushrooms, runes,
-cobwebs, plus a rare 3x3 mosaic medallion — sorted by row so nearer props overlap) →
-path/adjacency highlights → chests/items/gold/barrels → monsters/boss →
-player → floaters → `drawMotes` (drifting dust) → vignette.
+floor slabs → wall tiles (each with `decor.drawWallDecor`) → `decor.drawWallShadows`
+→ a soft warm pool of light around the player → `decor.drawProps` → path/adjacency
+highlights → chests/items/gold/barrels → monsters/boss → player → floaters →
+`decor.drawMotes` → vignette.
 Floor and wall tiles are drawn with rounded, gradient-lit slabs and a translucent
 seam rather than flat fills plus a solid mortar border — that was what made the map
 read as a hard grid of squares. `drawWallTile` is neighbour-aware: a run of wall
-tiles draws one continuous face instead of a stack of cubes. `blendHex` and
-`lightPool` are shared colour helpers; `rrectPath` is the rounded-rect helper (with
-an `arcTo` fallback for engines lacking `ctx.roundRect`).
+tiles draws one continuous face instead of a stack of cubes. `rrectPath` is the
+rounded-rect helper (with an `arcTo` fallback for engines lacking `ctx.roundRect`).
+
+**`js/decor.js`** — ⚠️ **must load AFTER `js/render.js`.** Engine file (not content),
+split out of `render.js` to keep that file about the core. Owns everything that
+*dresses* the world rather than defines it:
+- `Delve.decor.drawProps` — hash-placed floor litter: pillars, braziers (flickering
+  flame + light pool), crates, rubble, bones, glowing mushrooms, rune circles,
+  cobwebs, plus a rare 3x3 mosaic medallion. Sorted by row so nearer props overlap.
+- `Delve.decor.drawWallDecor` — wall-face detail: moss drips, cracks, hanging chains,
+  banners, corner webs. Called per wall tile from `drawWallTile`, so it rides the
+  tile cache for free.
+- `Delve.decor.drawWallShadows` — soft occlusion bleeding out of every wall onto the
+  floor beside it.
+- `Delve.decor.drawMotes` — drifting dust motes.
+Consumes `Delve._drawUtils` at load (same pattern as `con-bosssprites.js`), and
+no-ops if it is missing. Densities in `drawProps`/`drawWallDecor` are the only knobs
+worth turning; they are tuned to ~4% of floor tiles and ~40% of wall tiles.
 **Note:** `hash2`/`hash3` are noticeably non-uniform for small integer coordinates —
 the fraction of tiles below `0.18` is closer to 36% than 18%. Anything whose
 threshold should equal a density (prop placement, wall dressing) uses `uhash`
@@ -449,17 +462,21 @@ update both in the same order.**
 19  js/sfx.js
 20  js/log.js
 21  js/render.js
-22  js/pathfind.js
-23  js/input.js
-24  js/ui.js
-25  js/progression.js
-26  js/main.js
+22  js/decor.js                       ← ordering exception (needs render.js)
+23  js/pathfind.js
+24  js/input.js
+25  js/ui.js
+26  js/progression.js
+27  js/main.js
 ```
 
 ### Hard constraints (violate = silent breakage)
 1. `config.js` **before** all `con-*` — they assign into `CONFIG`.
 2. `sprites.js` **before** `con-bosssprites.js` — needs `_spriteUtils`,
    `registerBossSprite`, `rebuildSprites`.
+2b. `render.js` **before** `decor.js` — needs `Delve._drawUtils`. `decor.js` bails out
+   silently if it is missing, so a swap costs you all the props/dressing with no
+   error. This is the same trap as #2; `test.html` §1 catches the order.
 3. `state.js` **before** anything using `Delve.T` or `Delve.G`: `levels`, `traits`,
    `combat`, `movement`, `rewards`, `effects`, `render`, `pathfind`, `input`, `ui`.
 4. `save.js` **before** `ui`, `progression`, `main` — they read `Delve.save` at load.
@@ -486,6 +503,7 @@ update both in the same order.**
 9. `main.js` calls `resize()` (sets `Delve.ts`, view size), then `showHub()`.
 10. `render.js` starts its 400ms redraw interval — harmless in the hub, since `draw()`
     returns early when there's no `G`.
+11. `decor.js` publishes `Delve.decor`; no-op if `render.js` didn't run first.
 
 ---
 
@@ -742,6 +760,9 @@ browser. Mitigations now in place: all tap errors caught and flashed, fallback
 | `?v=N` | Cache-buster for `index.html`. **Always use a new N after an upload.** |
 | `Delve.missingEls` | Ids `ui.js` looked for and didn't find. |
 | `Delve._lastBlockers` | Which overlays blocked the most recent tap. |
+| `Delve._spriteUtils` | Canvas helpers `sprites.js` publishes for `con-bosssprites.js`. |
+| `Delve._drawUtils` | Drawing helpers `render.js` publishes for `decor.js` (`hash3`, `uhash`, `rrectPath`, `lightPool`, `blendHex`, `tileAt`). |
+| `Delve.decor` | The world-dressing pass (`drawProps`, `drawWallDecor`, `drawWallShadows`, `drawMotes`), called from `render.js`. |
 
 **Flag syntax:** the first flag uses `?`, every one after uses `&`.
 `index.html?v=16&debug=1` — **not** `?v=16?debug=1`.
