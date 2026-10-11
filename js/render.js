@@ -1,6 +1,16 @@
 window.Delve = window.Delve || {};
 (function(){
 
+ // ── render.js ────────────────────────────────────────────────
+ // Owns all canvas drawing: tiles, sprites, entities, floaters, camera,
+ // plus the two figure-drawing routines that used to live in ui.js —
+ // the inventory paper doll and the minimap.
+ // Depends on: Delve.SPR (sprites.js), Delve.T / Delve.G (state.js),
+ //             Delve.TIERS (con-items.js), Delve.CONFIG.BIOMES (con-biomes.js).
+ // Loads BEFORE ui.js and input.js.
+ // Uses document.getElementById directly (not ui.js's guarded $), because
+ // ui.js does not exist yet at this file's load time.
+
  let shakeT = 0, shakeMag = 0;
  let floaters = [];
  const FLOAT_LIFE = 1200;
@@ -268,9 +278,8 @@ window.Delve = window.Delve || {};
    let px=cx+rx-totalW/2; const py=cy+ry-ts*0.55;
    m.effects.forEach(e => { ctx.fillStyle=Delve.statusColor?Delve.statusColor(e.id):"#fff"; ctx.fillRect(px,py,pw,3); px+=pw+gap; });
   }
-  
-  // FIX #35: Delve.bossHp() was never defined — every frame with a boss
-  // on screen threw a TypeError. Boss objects carry maxHp like all monsters.
+
+  // Boss objects carry maxHp like all monsters — read it directly.
   const mhp = m.maxHp;
   const frac = Math.max(0,Math.min(1,m.hp/mhp));
   ctx.fillStyle="rgba(0,0,0,0.6)"; ctx.fillRect(cx+rx-ts*0.34, cy+ry-ts*0.48, ts*0.68, 4);
@@ -286,7 +295,6 @@ window.Delve = window.Delve || {};
 
  function drawBarrel(ctx, cx, cy, ts){ drawWorldSprite(ctx, "barrel", cx, cy, ts); }
 
- // ── CHESTS (fixed: now actually drawn) ───────────────────────
  function drawChest(ctx, chest, cx, cy, ts){
   drawShadow(ctx, cx, cy, ts*0.5);
   drawWorldSprite(ctx, chest.open ? "chestOpen" : "chestClosed", cx, cy, ts);
@@ -309,6 +317,174 @@ window.Delve = window.Delve || {};
   ctx.fillRect(cx+ts*0.03, cy+ts*0.05, ts*0.12, ts*0.12);
  }
 
+ // ── PAPER DOLL (inventory character figure) ──────────────────
+ // Moved here from ui.js: it is canvas drawing, and ui.js loads later.
+ Delve.drawPaperDoll = function(){
+  const cv = document.getElementById("charCanvas");
+  if(!cv || !cv.getContext) return;
+  const W = cv.width, H = cv.height;
+  const ctx = cv.getContext("2d");
+  if(!ctx) return;
+  ctx.clearRect(0,0,W,H);
+
+  const eq = Delve.equipSlots();
+  const cx = W/2;
+
+  // backdrop shadow
+  ctx.fillStyle = "rgba(0,0,0,0.30)";
+  ctx.beginPath(); ctx.ellipse(cx, H-24, 46, 10, 0, 0, Math.PI*2); ctx.fill();
+
+  const skin = "#e8c39a", hair = "#5a3d2c", bodyBase = "#33507a", bodyDark = "#233a5c";
+  const tier = function(item){
+   return item ? (Delve.TIERS.colors[item.tier] || "#cfd8e0") : "#1a2532";
+  };
+
+  // cloak (behind everything)
+  if(eq.cloak){
+   ctx.fillStyle = tier(eq.cloak);
+   ctx.beginPath();
+   ctx.moveTo(cx-16, H-120);
+   ctx.lineTo(cx-42, H-36);
+   ctx.lineTo(cx+42, H-36);
+   ctx.lineTo(cx+16, H-120);
+   ctx.closePath();
+   ctx.fill();
+  }
+
+  // legs
+  ctx.fillStyle = "#4d3622";
+  ctx.fillRect(cx-15, H-80, 12, 52);
+  ctx.fillRect(cx+3, H-80, 12, 52);
+  // feet
+  if(eq.feet){ drawSwatch(ctx, cx-17, H-32, 16, 8, tier(eq.feet)); drawSwatch(ctx, cx+1, H-32, 16, 8, tier(eq.feet)); }
+  else { ctx.fillStyle = "#2b2118"; ctx.fillRect(cx-17, H-34, 16, 8); ctx.fillRect(cx+1, H-34, 16, 8); }
+
+  // torso
+  const bodyCol = eq.body ? tier(eq.body) : bodyBase;
+  ctx.fillStyle = bodyCol;
+  ctx.beginPath();
+  ctx.roundRect(cx-22, H-132, 44, 58, 8);
+  ctx.fill();
+  ctx.fillStyle = eq.body ? bodyCol : bodyDark;
+  ctx.fillRect(cx-22, H-132, 5, 58);
+  ctx.fillRect(cx+17, H-132, 5, 58);
+
+  // arms
+  ctx.fillStyle = skin;
+  ctx.fillRect(cx-36, H-128, 9, 40);
+  ctx.fillRect(cx+27, H-128, 9, 40);
+  // hands
+  if(eq.hands){ drawSwatch(ctx, cx-37, H-90, 11, 8, tier(eq.hands)); drawSwatch(ctx, cx+26, H-90, 11, 8, tier(eq.hands)); }
+  else { ctx.fillStyle = skin; ctx.fillRect(cx-37, H-90, 11, 7); ctx.fillRect(cx+26, H-90, 11, 7); }
+
+  // neck + head
+  ctx.fillStyle = skin;
+  ctx.fillRect(cx-5, H-140, 10, 8);
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(cx, H-152, 20, 0, Math.PI*2); ctx.fill();
+  // hair
+  ctx.fillStyle = hair;
+  ctx.beginPath(); ctx.arc(cx, H-158, 20, Math.PI, 0); ctx.fill();
+  // face
+  ctx.fillStyle = "#1d232b";
+  ctx.fillRect(cx-8, H-156, 3, 3); ctx.fillRect(cx+5, H-156, 3, 3);
+  // head equipment
+  if(eq.head){
+   ctx.fillStyle = tier(eq.head);
+   ctx.beginPath(); ctx.arc(cx, H-156, 21, Math.PI, Math.PI*2); ctx.fill();
+   ctx.fillRect(cx-22, H-158, 44, 7);
+  }
+
+  // weapon (right hand side)
+  if(eq.weapon){
+   ctx.save();
+   ctx.translate(cx+30, H-98);
+   ctx.rotate(-0.6);
+   ctx.fillStyle = tier(eq.weapon);
+   ctx.fillRect(-3, -34, 6, 34);      // blade
+   ctx.fillStyle = "#8a5a33"; ctx.fillRect(-8, -4, 16, 5);   // hilt
+   ctx.restore();
+  }
+  // offhand
+  if(eq.offhand){
+   ctx.fillStyle = tier(eq.offhand);
+   ctx.beginPath(); ctx.arc(cx-40, H-106, 13, 0, Math.PI*2); ctx.fill();
+   ctx.fillStyle = "rgba(0,0,0,0.2)";
+   ctx.beginPath(); ctx.arc(cx-40, H-106, 13, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // amulet (chest)
+  if(eq.amulet){
+   ctx.fillStyle = tier(eq.amulet);
+   ctx.beginPath(); ctx.arc(cx, H-112, 5, 0, Math.PI*2); ctx.fill();
+  }
+
+  function drawSwatch(ctx2, x, y, w, h, col){
+   ctx2.fillStyle = col; ctx2.fillRect(x, y, w, h);
+   ctx2.fillStyle = "rgba(255,255,255,0.12)"; ctx2.fillRect(x, y, w, 2);
+  }
+ };
+
+ // ── MINIMAP ──────────────────────────────────────────────────
+ // markVisited records the fog-of-war reveal radius as the player moves;
+ // renderMinimap draws it. Delve.draw() calls markVisited, and
+ // ui.js's updateHUD() calls renderMinimap every HUD refresh.
+ Delve.markVisited = function(x, y){
+  const G = Delve.G; if(!G || !G.grid || !G.grid.length) return;
+  if(G._visitedFloor !== G.floor){ G.visited = []; G._visitedFloor = G.floor; }
+  if(!G.visited) G.visited = [];
+  const h = G.grid.length, w = G.grid[0].length, R = 5;
+  for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+   if(Math.abs(dx)+Math.abs(dy) > R) continue;
+   const ux=x+dx, uy=y+dy;
+   if(ux<0||uy<0||ux>=w||uy>=h) continue;
+   if(!G.visited[uy]) G.visited[uy] = [];
+   G.visited[uy][ux] = 1;
+  }
+ };
+
+ Delve.renderMinimap = function(){
+  const wrap = document.getElementById("minimapWrap");
+  if(!wrap || getComputedStyle(wrap).display === "none") return;
+  const cv = document.getElementById("minimap"); if(!cv || !cv.getContext) return;
+  const ctx = cv.getContext("2d");
+  if(!ctx) return;
+  const G = Delve.G;
+  ctx.fillStyle = "#070a0e";
+  ctx.fillRect(0,0,cv.width,cv.height);
+  if(!G || !G.grid || !G.grid.length) return;
+  const gw = G.grid[0].length, gh = G.grid.length;
+  const s = Math.min(cv.width/gw, cv.height/gh);
+  const ox = (cv.width-gw*s)/2, oy = (cv.height-gh*s)/2;
+  const vis = G.visited || [];
+  const T = Delve.T;
+  const seen = function(x,y){ return vis[y] && vis[y][x]; };
+  for(let y=0;y<gh;y++) for(let x=0;x<gw;x++){
+   const t = G.grid[y][x];
+   if(t === T.WALL || !seen(x,y)) continue;
+   let col = "#2a333d";
+   if(t === T.STAIR) col = "#2ad0b0";
+   else if(t === T.GOLD) col = "#d9a11f";
+   else if(t === T.CHEST) col = "#c9971f";
+   else if(t === T.BARREL) col = "#7a5c3a";
+   ctx.fillStyle = col;
+   ctx.fillRect(ox+x*s, oy+y*s, s+0.5, s+0.5);
+  }
+  if(G.shop && G.shop.x >= 0 && seen(G.shop.x, G.shop.y)){
+   ctx.fillStyle = "#ffd75e";
+   ctx.fillRect(ox+G.shop.x*s, oy+G.shop.y*s, s+1, s+1);
+  }
+  const dot = function(x,y,col,r){
+   ctx.fillStyle = col;
+   ctx.beginPath();
+   ctx.arc(ox+x*s+s/2, oy+y*s+s/2, s*r, 0, Math.PI*2);
+   ctx.fill();
+  };
+  (G.monsters||[]).forEach(function(m){ if(seen(m.x,m.y)) dot(m.x,m.y,m.elite?"#c98aff":"#e05a6a",0.45); });
+  if(G.boss && seen(G.boss.x,G.boss.y)) dot(G.boss.x,G.boss.y,"#ff4a3d",0.6);
+  dot(G.px,G.py,"#ffffff",0.4);
+ };
+
  // ── MAIN DRAW ────────────────────────────────────────────────
  Delve.draw = function(){
   const G = Delve.G;
@@ -330,24 +506,24 @@ window.Delve = window.Delve || {};
 
   // floors
   for(let y=0;y<vh+1;y++) for(let x=0;x<vw+1;x++){
-    const gx=camX+x, gy=camY+y, t=tileAt(gx,gy);
-    if(t===null||t===T.WALL) continue;
-    const sx=x*ts, sy=y*ts;
-    blitTile(ctx,gx,gy,sx,sy,ts,b,t);
-    if(t===T.FLOOR) drawClutter(ctx,sx,sy,ts,gx,gy);
+   const gx=camX+x, gy=camY+y, t=tileAt(gx,gy);
+   if(t===null||t===T.WALL) continue;
+   const sx=x*ts, sy=y*ts;
+   blitTile(ctx,gx,gy,sx,sy,ts,b,t);
+   if(t===T.FLOOR) drawClutter(ctx,sx,sy,ts,gx,gy);
   }
   // walls
   for(let y=0;y<vh+1;y++) for(let x=0;x<vw+1;x++){
-    const gx=camX+x, gy=camY+y, t=tileAt(gx,gy);
-    if(t!==T.WALL) continue;
-    const sx=x*ts, sy=y*ts;
-    if(isTorchTile(gx,gy)){ drawWallTile(ctx,sx,sy,ts,gx,gy,b); drawWallTorch(ctx,sx,sy,ts,b); }
-    else blitTile(ctx,gx,gy,sx,sy,ts,b,t);
-    const fd=G.floorData;
-    if(fd && fd.secretRoom && fd.secretRoom.falseWallX===gx && fd.secretRoom.falseWallY===gy){
-     const pulse=0.5+0.5*Math.sin(Date.now()*0.003);
-     ctx.save(); ctx.globalAlpha=pulse*0.55; ctx.fillStyle="#7ee0ff"; ctx.beginPath(); ctx.arc(sx+ts*0.5,sy+ts*0.5,ts*0.15,0,Math.PI*2); ctx.fill(); ctx.restore();
-    }
+   const gx=camX+x, gy=camY+y, t=tileAt(gx,gy);
+   if(t!==T.WALL) continue;
+   const sx=x*ts, sy=y*ts;
+   if(isTorchTile(gx,gy)){ drawWallTile(ctx,sx,sy,ts,gx,gy,b); drawWallTorch(ctx,sx,sy,ts,b); }
+   else blitTile(ctx,gx,gy,sx,sy,ts,b,t);
+   const fd=G.floorData;
+   if(fd && fd.secretRoom && fd.secretRoom.falseWallX===gx && fd.secretRoom.falseWallY===gy){
+    const pulse=0.5+0.5*Math.sin(Date.now()*0.003);
+    ctx.save(); ctx.globalAlpha=pulse*0.55; ctx.fillStyle="#7ee0ff"; ctx.beginPath(); ctx.arc(sx+ts*0.5,sy+ts*0.5,ts*0.15,0,Math.PI*2); ctx.fill(); ctx.restore();
+   }
   }
 
   // path highlight
