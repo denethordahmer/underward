@@ -13,7 +13,8 @@ window.Delve = window.Delve || {};
 
  function hideAll(){
   ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
-   "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","introOverlay"].forEach(function(id){
+   "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","introOverlay",
+   "pauseMenu"].forEach(function(id){
    const el = $(id); if(el) el.style.display = "none";
   });
  }
@@ -457,6 +458,7 @@ window.Delve = window.Delve || {};
  };
 
  Delve.startRun = function(){
+  if(Delve.hideIntro) Delve.hideIntro();
   hideAll();
   $("hud").style.display = "flex";
   Delve.newRun();
