@@ -31,32 +31,6 @@ window.Delve = window.Delve || {};
  }
  Delve.onHitEffectFor = onHitEffectFor;
 
- // ── End a run (death / retreat / victory) ────────────────────
- Delve.endRun = function(kind, extra){
- const G = Delve.G;
- G.runEnded = true;
- G.inCombat = false;
- if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
- if(Delve.sfxStopAmbience) Delve.sfxStopAmbience();
- Delve.persist();
- if(Delve.showEndScreen){
- Delve.showEndScreen(kind, extra);
- } else if(kind === "death"){
- if(document.getElementById("deathScreen")) document.getElementById("deathScreen").style.display = "flex";
- }
- };
-
- // ── Retreat to surface — counts as a SUCCESS (gold kept) ────
- Delve.retreat = function(){
- const G = Delve.G;
- if(!G || G.dead || G.runEnded) return;
- if(G.inCombat){ Delve.flash("Can't retreat mid-fight!"); return; }
- const gained = Delve.convertGold(); // js/rewards.js
- Delve.recordStat("retreated", 1);
- if(Delve.logSystem) Delve.logSystem("Retreated — " + gained + " shards banked.");
- Delve.endRun("retreat", { shards: gained });
- };
-
  // ── Start auto-combat ────────────────────────────────────────
  Delve.startCombat = function(m){
  const G = Delve.G;
@@ -389,43 +363,4 @@ window.Delve = window.Delve || {};
  G.energy = Math.min(100, (G.energy || 0) + C().energyPerKill + (tb().extraEnergyPerKill || 0));
  };
 
- // ── Victory ──────────────────────────────────────────────────
- Delve.triggerVictory = function(wardIdx){
- const G = Delve.G;
- const idx = wardIdx || Math.ceil(G.floor / 10);
- if(!G._victoriesProcessed) G._victoriesProcessed = [];
- if(G._victoriesProcessed.indexOf(idx) >= 0) return;
- G._victoriesProcessed.push(idx);
-
- G.inCombat = false;
- if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
-
- const gained = Delve.convertGold(); // js/rewards.js
- const bonus = Delve._applyBossBonus(idx); // js/rewards.js
- const totalBanked = gained + bonus;
-
- Delve.recordStat("victories", 1);
- if(Delve.sfx) Delve.sfx("victory");
-
- // canContinue: offer "Descend deeper" only if there's content past this ward.
- const canContinue = (idx === 1);
-
- if(Delve.showVictory) Delve.showVictory(totalBanked, canContinue);
- else Delve.flash("WARD CLEARED! +" + totalBanked + " shards");
-
- Delve.updateHUD();
- Delve.draw();
- };
-
- // ── Die ────────────────────────────────────────────────────────
- Delve.die = function(){
- const G = Delve.G;
- if(G.dead || G.runEnded) return;
- G.dead = true;
- G.inCombat = false;
- if(G.combatTimer){ clearInterval(G.combatTimer); G.combatTimer = null; }
- if(Delve.sfx) Delve.sfx("death");
- if(Delve.logDeath) Delve.logDeath();
- Delve.endRun("death", {});
- };
 })();

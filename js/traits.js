@@ -87,7 +87,7 @@ window.Delve = window.Delve || {};
  if(Delve.sfx) Delve.sfx("levelup");
  if(Delve.logXP) Delve.logXP(0, G.level);
  else if(Delve.logSystem) Delve.logSystem("Reached Level " + G.level + "!");
- showLevelUpChoices();
+ Delve.showLevelUpChoices();
  }
  return true;
  }
@@ -104,7 +104,7 @@ window.Delve = window.Delve || {};
  }
 
  // ── Level-up choices ────────────────────────────────────────
- function showLevelUpChoices(){
+ Delve.showLevelUpChoices = function(){
  const G = Delve.G;
  const cfg = Delve.CONFIG.TRAITS;
  const passives = cfg.passives || [];
@@ -135,48 +135,7 @@ window.Delve = window.Delve || {};
  }
 
  G.levelUpChoices = pool;
- renderLevelUpChoices(pool);
- }
-
- function renderLevelUpChoices(choices){
- const G = Delve.G;
- if(!G) return;
- const overlay = document.getElementById("levelupScreen");
- if(!overlay) return;
- overlay.style.display = "flex";
- const slot = document.getElementById("levelupChoices");
- slot.innerHTML = "";
-
- choices.forEach(function(t){
- const card = document.createElement("button");
- card.className = "btn";
- card.style.cssText = "width:100%;padding:14px;text-align:left;font-size:17px;min-height:82px;background:#1a2a3a;box-shadow:0 3px 0 #0b141c;overflow:hidden;";
- const isAbility = t.cost !== undefined;
- const cost = isAbility ? abilityCost(t) : 0;
- const title = document.createElement("div");
- title.style.cssText = "font-weight:800;font-size:19px;margin-bottom:4px;";
- title.textContent = (isAbility ? "⚡ " : "") + t.name + (isAbility ? " (" + cost + " energy)" : "");
- const desc = document.createElement("div");
- desc.style.cssText = "font-size:14px;color:#a9bccd;white-space:normal;";
- desc.textContent = t.desc;
- card.appendChild(title);
- card.appendChild(desc);
-
- card.addEventListener("click", function(){
- applyTrait(t);
- overlay.style.display = "none";
- G.pendingLevelUps = (G.pendingLevelUps || 1) - 1;
- if(G.pendingLevelUps > 0){
- G.levelUpOpen = true;
- showLevelUpChoices();
- } else {
- G.levelUpOpen = false;
- }
- Delve.updateHUD();
- Delve.draw();
- });
- slot.appendChild(card);
- });
+ if(Delve.renderLevelUpChoices) Delve.renderLevelUpChoices(pool);
  }
 
  function applyTrait(t){

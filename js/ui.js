@@ -561,91 +561,6 @@ window.Delve = window.Delve || {};
   $("deathScreen").style.display = "flex";
  };
 
- // ── DEBUG PANEL ──────────────────────────────────────────────
- function applyDebugEffect(id){
-  return function(){
-   const G = Delve.G; if(!G) return;
-   let t = null;
-   if(G.boss && Delve.mdist(G.boss.x,G.boss.y,G.px,G.py)<=1) t = G.boss;
-   else t = G.monsters.find(function(m){ return Delve.mdist(m.x,m.y,G.px,G.py)<=1; }) || G.monsters[0];
-   if(t && Delve.applyEffect){ Delve.applyEffect(t, id); Delve.flash(id + " applied"); }
-   else Delve.flash("No target");
-   Delve.updateHUD(); Delve.draw();
-  };
- }
-
- Delve.initDebug = function(){
-  const p = $("debugPanel"); if(!p) return;
-  p.style.display = "flex";
-  const need = function(){ return Delve.G && !Delve.G.runEnded; };
-
-  (function fillFloorSelect(){
-   const sel = $("dbgFloor"); if(!sel) return;
-   sel.innerHTML = "";
-   (Delve.CONFIG.WARDS || []).forEach(function(w){
-    const lo = w.floors[0], hi = w.floors[1];
-    for(let f = lo; f <= hi; f++){
-     const o = document.createElement("option");
-     o.value = f;
-     let label = "Floor " + f;
-     if(f % 10 === 0) label += " (boss — " + w.name + ")";
-     else if(Delve.isShopFloor && Delve.isShopFloor(f)) label += " (shop)";
-     if(f >= 11 && f <= 19) label += " (swarm/cluster pool)";
-     o.textContent = label;
-     sel.appendChild(o);
-    }
-   });
-   sel.value = (Delve.G && Delve.G.floor) || 1;
-  })();
-
-  $("dbgGo").addEventListener("click", function(){
-   if(!need()) return;
-   Delve.G.floor = parseInt($("dbgFloor").value,10);
-   Delve.genFloor(); Delve.updateHUD(); Delve.draw();
-   Delve.showFloorCard(Delve.G.floor);
-  });
-
-  $("dbgGold").addEventListener("click", function(){ if(!need()) return; Delve.G.gold += 25; Delve.updateHUD(); });
-  $("dbgShards").addEventListener("click", function(){ Delve.save.shards += 5; Delve.persist(); Delve.updateHUD(); });
-  $("dbgHeal").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = Delve.maxHp(); Delve.updateHUD(); });
-  $("dbgLowHp").addEventListener("click", function(){ if(!need()) return; Delve.G.hp = 5; Delve.updateHUD(); });
-
-  $("dbgPoison").addEventListener("click", applyDebugEffect("poison"));
-  $("dbgBleed").addEventListener("click", applyDebugEffect("bleed"));
-  $("dbgBurn").addEventListener("click", applyDebugEffect("burn"));
-  $("dbgWeaken").addEventListener("click", function(){ if(!need()) return; if(Delve.applyPlayerEffect) Delve.applyPlayerEffect("weaken"); Delve.flash("Weaken applied (you)"); });
-
-  $("dbgElite").addEventListener("click", function(){
-   if(!need()) return;
-   const m = Delve.G.monsters.find(function(x){ return !x.elite; });
-   if(m){ Delve.makeElite(m); Delve.draw(); Delve.flash("Elite created"); }
-   else Delve.flash("No monster to promote");
-  });
-
-  $("dbgXP").addEventListener("click", function(){ if(!need()) return; Delve.addXP(20); });
-  $("dbgShop").addEventListener("click", function(){ if(!need()) return; Delve.openShop(); });
-  $("dbgVictory").addEventListener("click", function(){
-   if(!need()) return;
-   Delve.triggerVictory(Math.ceil(Delve.G.floor / 10));
-  });
-  $("dbgDeath").addEventListener("click", function(){ if(!need()) return; Delve.die(); });
-
-  $("dbgRender").addEventListener("click", function(){
-   if(!Delve.G) return;
-   Delve.genFloor(); Delve.updateHUD(); Delve.draw();
-   Delve.showFloorCard(Delve.G.floor);
-  });
-  $("dbgDump").addEventListener("click", function(){
-   console.log("RUN STATS", Delve.G && Delve.G.runStats);
-   console.log("SAVE", Delve.save);
-   Delve.flash("Dumped to console");
-  });
-  $("dbgReset").addEventListener("click", function(){
-   Object.keys(localStorage).forEach(function(k){ if(/underward|delve/i.test(k)) localStorage.removeItem(k); });
-   location.reload();
-  });
- };
-
  // ── WIRING ───────────────────────────────────────────────────
  $("startBtn").addEventListener("click", Delve.startRun);
  $("deathBtn").addEventListener("click", Delve.showHub);
@@ -708,4 +623,47 @@ window.Delve = window.Delve || {};
 
  Delve.showHub();
 
+  // ── LEVEL-UP CHOICES ─────────────────────────────────────────
+ // MOVED here from traits.js: traits.js decides WHICH options to offer
+ // (Delve.showLevelUpChoices), this file draws them. DOM belongs with DOM.
+ Delve.renderLevelUpChoices = function(choices){
+ const G = Delve.G;
+ if(!G) return;
+ const overlay = document.getElementById("levelupScreen");
+ if(!overlay) return;
+ overlay.style.display = "flex";
+ const slot = document.getElementById("levelupChoices");
+ slot.innerHTML = "";
+
+ choices.forEach(function(t){
+ const card = document.createElement("button");
+ card.className = "btn";
+ card.style.cssText = "width:100%;padding:14px;text-align:left;font-size:17px;min-height:82px;background:#1a2a3a;box-shadow:0 3px 0 #0b141c;overflow:hidden;";
+ const isAbility = t.cost !== undefined;
+ const cost = isAbility ? abilityCost(t) : 0;
+ const title = document.createElement("div");
+ title.style.cssText = "font-weight:800;font-size:19px;margin-bottom:4px;";
+ title.textContent = (isAbility ? "⚡ " : "") + t.name + (isAbility ? " (" + cost + " energy)" : "");
+ const desc = document.createElement("div");
+ desc.style.cssText = "font-size:14px;color:#a9bccd;white-space:normal;";
+ desc.textContent = t.desc;
+ card.appendChild(title);
+ card.appendChild(desc);
+
+ card.addEventListener("click", function(){
+ Delve.applyTrait(t);
+ overlay.style.display = "none";
+ G.pendingLevelUps = (G.pendingLevelUps || 1) - 1;
+ if(G.pendingLevelUps > 0){
+ G.levelUpOpen = true;
+ Delve.showLevelUpChoices();
+ } else {
+ G.levelUpOpen = false;
+ }
+ Delve.updateHUD();
+ Delve.draw();
+ });
+ slot.appendChild(card);
+ });
+ }
 })();
