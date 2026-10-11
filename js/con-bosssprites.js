@@ -5,8 +5,10 @@ window.Delve = window.Delve || {};
  const mk = U.mk, gx = U.gx, R = U.R;
 
  // ═══════════════════════════════════════════════════════════
- // ONE BUILDER PER BOSS. Add new ones below; sprites.js never
- // needs editing again. BOSS_DEFS[n].sprite names the key.
+ // content/con-bosssprites.js : one builder per boss (data only).
+ // Add new ones below; sprites.js never needs editing again.
+ // BOSS_DEFS[n].sprite names the key (see con-monsters.js).
+ // ⚠ Load-order constraint: must load AFTER js/sprites.js.
  // ═══════════════════════════════════════════════════════════
 
  function buildBossWarden(){
