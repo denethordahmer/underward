@@ -578,14 +578,12 @@ body{
     </div>
   </div>
 
-  <!-- Debug panel -->
+    <!-- Debug panel -->
   <div id="debugPanel">
     <div class="dbg-row">
-      <select id="dbgFloor">
-        <option value="1">Floor 1</option><option value="3">Floor 3</option>
-        <option value="5">Floor 5 (shop)</option><option value="7">Floor 7</option>
-        <option value="9">Floor 9 (elites)</option><option value="10">Floor 10 (boss)</option>
-      </select>
+      <!-- Floor options are auto-built from WARDS in js/ui.js initDebug.
+           This select starts empty and is filled on ?debug=1 load. -->
+      <select id="dbgFloor"></select>
       <button class="dbg-btn" id="dbgGo">Go</button>
     </div>
     <div class="dbg-row">
@@ -597,6 +595,7 @@ body{
     <div class="dbg-row">
       <button class="dbg-btn" id="dbgPoison">Poison</button>
       <button class="dbg-btn" id="dbgBleed">Bleed</button>
+      <button class="dbg-btn" id="dbgBurn">Burn</button>
       <button class="dbg-btn" id="dbgWeaken">Weaken</button>
       <button class="dbg-btn" id="dbgElite">Elite</button>
     </div>
@@ -607,6 +606,7 @@ body{
       <button class="dbg-btn" id="dbgDeath">Death</button>
     </div>
     <div class="dbg-row">
+      <button class="dbg-btn" id="dbgRender">Re-render</button>
       <button class="dbg-btn" id="dbgDump">Dump stats</button>
       <button class="dbg-btn" id="dbgReset">Reset save</button>
     </div>
