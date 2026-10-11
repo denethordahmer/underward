@@ -21,15 +21,16 @@ window.Delve = window.Delve || {};
   return Math.max(1, Math.round(a));
  };
 
- // ── Luck / Agility / Toughness ─────────────────────────────────
+ // ── Luck / Agility / Toughness / Strength ─────────────────────
  Delve.baseLuck = function(){ return C().ATTRS.luc.base + bought("luc"); };
- Delve.luckPts = function(){ 
+ Delve.luckPts = function(){
   let v = Delve.baseLuck() + n(ib().luck) + n(tb().luck);
   if(Delve.G) v += n(Delve.G.luckBuff);
   return v;
  };
  Delve.agiPts = function(){ return C().ATTRS.agi.base + bought("agi") + n(tb().agi); };
  Delve.touPts = function(){ return C().ATTRS.tou.base + bought("tou") + n(tb().tou); };
+ Delve.strPts = function(){ return C().ATTRS.str.base + bought("str") + n(tb().str); };  // FIX #1: was missing — items.js playerSpeed() reads it for heavy armour
 
  // ── Damage reduction (TOU % + flat from items + temp buff) ────
  Delve.dmgRed = function(){
@@ -42,7 +43,9 @@ window.Delve = window.Delve || {};
   return Math.round(r);
  };
 
- // ── Dodge / Crit (add item + trait bonuses) ───────────────────
+ // ── Dodge / Crit (add item + trait bonuses) ──────────────────
+ // outer caps (0.60 dodge / 0.80 crit) are hard ceilings on top of
+ // the config's soft caps — keep in sync if balance changes.
  Delve.dodge = function(){
   const s = C().secondaries;
   const itemDodge = n(ib().dodge) + n(ib().weightDodge);
@@ -86,13 +89,8 @@ window.Delve = window.Delve || {};
  Delve.attrCost = function(id){
   const a = C().ATTRS[id];
   return Math.round(a.costBase * Math.pow(C().costGrowth, bought(id)));
- };
+ };  // FIX #18: was defined twice — single definition now
  Delve.attrLvl = function(id){ return bought(id); };
  Delve.attrLevel = Delve.attrLvl;
  Delve.attrValue = function(id){ const a = C().ATTRS[id]; return a.base + a.perLevel * bought(id); };
- Delve.attrCost = function(id){
-  const a = C().ATTRS[id];
-  return Math.round(a.costBase * Math.pow(C().costGrowth, bought(id)));
- };
-
 })();
