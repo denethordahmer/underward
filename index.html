@@ -403,6 +403,32 @@ body{
 .dbg-btn:active{ background:#22303c; }
 #debugPanel select{ background:#141b23;color:#d7e3ee;border:1px solid #2a3440;border-radius:6px;font-size:11px;padding:3px; }
 </style>
+
+<style>
+/* ── Shop layout fix ─────────────────────────────────────────
+   The shop was a flex column taller than the viewport with no scroll,
+   so the heal/leave buttons could sit off-screen unreachable. */
+#shopScreen{
+  flex-direction: column;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 12px 12px 8px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+#shopGold, #shopGreeting, #shopStock{ flex: 0 0 auto; min-height: 0; }
+#shopHealBtn, #shopLeaveBtn{
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 8px;
+}
+#shopLeaveBtn{ margin-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+</style>
 </head>
 <body>
 <div id="app">
