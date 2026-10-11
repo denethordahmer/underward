@@ -233,6 +233,22 @@ each frame**, and `input.js` reads those for tap→tile conversion. Uses
 doesn't exist yet at this file's load time.
 Never owns screen orchestration or DOM wiring.
 
+**Draw order inside `Delve.draw`** (all private helpers, no new `Delve.*` symbols):
+floor slabs → wall tiles → `drawWallShadows` (soft occlusion bleeding out of every
+wall onto adjacent floor) → `drawProps` (hash-placed dressing: pillars, braziers,
+crates, rubble, bones, mushrooms, runes, cobwebs — sorted by row so nearer props
+overlap) → path/adjacency highlights → chests/items/gold/barrels → monsters/boss →
+player → floaters → `drawMotes` (drifting dust) → vignette.
+Floor and wall tiles are drawn with rounded, gradient-lit slabs and a translucent
+seam rather than flat fills plus a solid mortar border — that was what made the map
+read as a hard grid of squares. `blendHex` and `lightPool` are shared colour helpers;
+`rrectPath` is the rounded-rect helper (with an `arcTo` fallback for engines lacking
+`ctx.roundRect`).
+**Note:** `hash2`/`hash3` are noticeably non-uniform for small integer coordinates —
+the fraction of tiles below `0.18` is closer to 36% than 18%. Prop/web density
+thresholds in `drawProps` were calibrated against the measured distribution, so
+retune them empirically (don't assume the threshold is the density).
+
 **`js/pathfind.js`**
 `findPath` (A*), `stepPath`.
 

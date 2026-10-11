@@ -11,9 +11,12 @@
 *{ margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent; }
 html,body{ height:100%; }
 body{
-  background:#0b0f14;color:#d7e3ee;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #131c26 0%, #0d141b 45%, #070a0e 100%);
+  color:#d7e3ee;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;font-size:16px;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
 #app{ position:fixed;inset:0; }
 #canvas{ display:block;width:100%;height:100%; }
@@ -23,21 +26,28 @@ body{
   position:absolute;top:0;left:0;right:0;z-index:5;
   display:flex;flex-wrap:wrap;align-items:center;gap:5px;
   padding:6px 8px env(safe-area-inset-top,0px);
-  background:rgba(8,12,16,.88);backdrop-filter:blur(6px);
+  background:linear-gradient(180deg,rgba(10,15,20,.92),rgba(8,12,16,.72));
+  backdrop-filter:blur(8px);
+  box-shadow:0 1px 0 rgba(126,224,255,.06), 0 6px 18px rgba(0,0,0,.35);
 }
 .stat{
-  display:flex;align-items:center;gap:4px;background:#141b23;
-  border:1px solid #2a3440;border-radius:9px;padding:4px 8px;
+  display:flex;align-items:center;gap:4px;
+  background:linear-gradient(180deg,#1a2330,#121922);
+  border:1px solid #2c3846;border-radius:11px;padding:4px 9px;
   font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 2px 5px rgba(0,0,0,.3);
 }
 .sico{ font-size:13px;line-height:1;flex-shrink:0; }
 .spacer{ flex:1;min-width:4px; }
 #invBtn,#minimapBtn,#gearBtn{
-  background:#141b23;border:1px solid #7ee0ff44;border-radius:9px;
-  padding:5px 9px;font-size:12px;font-weight:700;color:#7ee0ff;
+  background:linear-gradient(180deg,#182534,#121922);
+  border:1px solid #7ee0ff44;border-radius:11px;
+  padding:5px 10px;font-size:12px;font-weight:700;color:#7ee0ff;
   font-family:inherit;cursor:pointer;white-space:nowrap;flex-shrink:0;touch-action:manipulation;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 2px 6px rgba(0,0,0,.32);
+  transition:transform .08s ease, box-shadow .15s ease;
 }
-#invBtn:active,#minimapBtn:active,#gearBtn:active{ background:#1a2a3a; }
+#invBtn:active,#minimapBtn:active,#gearBtn:active{ background:#1a2a3a; transform:translateY(1px); box-shadow:inset 0 1px 0 rgba(255,255,255,.04); }
 #restDots{ display:flex;gap:3px;align-items:center;flex-shrink:0; }
 .rest-dot{
   width:7px;height:7px;border-radius:50%;background:#2ad0b0;
@@ -67,11 +77,14 @@ body{
   display:flex;gap:6px;padding-bottom:env(safe-area-inset-bottom,0px);
 }
 .ability-btn{
-  min-width:76px;background:#141b23;border:1px solid #7ee0ff44;border-radius:10px;
-  padding:7px 10px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  min-width:76px;background:linear-gradient(180deg,#1a2330,#121922);
+  border:1px solid #7ee0ff44;border-radius:13px;
+  padding:8px 11px;display:flex;flex-direction:column;gap:2px;align-items:flex-start;
   font-family:inherit;color:#d7e3ee;cursor:pointer;text-align:left;touch-action:manipulation;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.35);
+  transition:transform .08s ease;
 }
-.ability-btn:active{ background:#1a2a3a; }
+.ability-btn:active{ background:#1a2a3a; transform:translateY(1px); }
 .ability-btn:disabled{ opacity:.4;cursor:default; }
 .ability-name{ font-size:11px;font-weight:800; }
 .ability-cost{ font-size:10px;color:#7ee0ff;font-weight:700; }
@@ -102,7 +115,9 @@ body{
 .overlay{
   position:absolute;inset:0;z-index:10;
   display:flex;flex-direction:column;align-items:center;
-  text-align:center;background:rgba(8,11,15,.97);
+  text-align:center;
+  background:radial-gradient(130% 100% at 50% 0%, rgba(20,30,40,.98) 0%, rgba(9,13,18,.98) 55%, rgba(5,8,11,.99) 100%);
+  backdrop-filter:blur(3px);
 }
 .overlay h1{ font-size:clamp(36px,10vw,58px);letter-spacing:2px;margin:4px 0 0;line-height:1; }
 .overlay h2{ font-size:clamp(22px,6vw,30px);color:#ff9a9a;margin:0; }
@@ -120,18 +135,24 @@ body{
 .upgrade .desc{ font-size:13px;line-height:1.4;color:#9fb3c5;text-align:left;margin-top:3px; }
 .lvl{ color:#7f94a8;font-size:12px;font-weight:700;margin-left:4px; }
 .btn{
-  background:#1f7a5c;color:#eafff5;border:none;border-radius:14px;
+  background:linear-gradient(180deg,#269a72,#1c6e52);color:#eafff5;border:none;border-radius:16px;
   padding:14px 16px;font-size:17px;font-weight:800;cursor:pointer;
-  min-width:90px;box-shadow:0 4px 0 #0e3d2e;flex-shrink:0;touch-action:manipulation;
+  min-width:90px;box-shadow:0 4px 0 #0e3d2e, 0 8px 18px rgba(0,0,0,.35);
+  flex-shrink:0;touch-action:manipulation;transition:transform .08s ease, box-shadow .12s ease;
+  font-family:inherit;letter-spacing:.2px;
 }
-.btn:active{ transform:translateY(2px);box-shadow:0 2px 0 #0e3d2e; }
+.btn:active{ transform:translateY(2px);box-shadow:0 2px 0 #0e3d2e, 0 4px 10px rgba(0,0,0,.3); }
 .btn:disabled{ background:#2f3d48;color:#83939f;box-shadow:none;cursor:default; }
 .btn.big{ width:100%;max-width:460px;padding:18px;font-size:20px; }
 .btn-ghost{
-  background:#141b23;color:#7ee0ff;border:1px solid #7ee0ff44;border-radius:14px;
+  background:linear-gradient(180deg,#1a2330,#121922);color:#7ee0ff;
+  border:1px solid #7ee0ff44;border-radius:16px;
   padding:14px 16px;font-size:17px;font-weight:800;cursor:pointer;
   width:100%;max-width:460px;touch-action:manipulation;font-family:inherit;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 3px 10px rgba(0,0,0,.3);
+  transition:transform .08s ease;
 }
+.btn-ghost:active{ transform:translateY(1px); }
 .close-btn{
   background:none;border:none;color:#7f94a8;font-size:22px;
   cursor:pointer;padding:0 4px;line-height:1;font-family:inherit;
@@ -435,6 +456,41 @@ body{
   margin-top: 8px;
 }
 #shopLeaveBtn{ margin-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+
+/* ── Visual polish pass ───────────────────────────────────────
+   Flat single-colour cards are what made the UI read as a wall of
+   squares. Everything below is a soft gradient + inner highlight +
+   soft drop shadow so surfaces have a little depth instead of one
+   flat fill. Purely cosmetic — no layout or sizing changes. */
+.walletbar,
+.upgrade,
+.node-card,
+.equip-cell,
+.inv-item-btn,
+.hub-tab,
+#minimapWrap,
+#logExpandBtn{
+  background-image:linear-gradient(180deg,#1a2330,#121922);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.055), 0 3px 10px rgba(0,0,0,.32);
+}
+.walletbar{ border-color:#31404f; }
+.upgrade,.node-card,.equip-cell,.inv-item-btn{ border-color:#2c3846; }
+.upgrade:active,.node-card:active,.equip-cell:active:not(.locked),
+.inv-item-btn:active,.hub-tab:active{ box-shadow:inset 0 1px 0 rgba(255,255,255,.03), 0 1px 4px rgba(0,0,0,.3); }
+.hub-tab.active{
+  background-image:linear-gradient(180deg,#269a72,#1c6e52);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 3px 10px rgba(0,0,0,.35);
+}
+.node-card.owned{
+  background-image:linear-gradient(180deg,#17242c,#121922);
+  box-shadow:inset 3px 0 0 #2ad0b0, 0 3px 10px rgba(0,0,0,.32);
+}
+/* softer overlay headings and section rules */
+.overlay h1{ text-shadow:0 2px 12px rgba(0,0,0,.5); }
+#hubFooter{ border-top-color:#26333f; box-shadow:0 -8px 20px rgba(0,0,0,.35); }
+.pause-section{ border-radius:14px; }
+#minimapWrap{ border-color:#2c3846; }
+
 </style>
 </head>
 <body>
