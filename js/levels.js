@@ -115,11 +115,14 @@ window.Delve = window.Delve || {};
   if(Delve.logSystem) Delve.logSystem("The air thickens — a swarm fills the chamber.");
  }
 
- // Clustered loot floor: 4-5 guards ring a high-value chest.
+  // Clustered loot floor: 4-5 guards ring a high-value chest.
  function applyClusteredLootFloor(G, rooms){
   const usable = specialRooms(G, rooms);
   if(!usable.length) return;
 
+  const room = usable[Math.floor(Math.random() * usable.length)];
+  const cx = room.cx, cy = room.cy;
+  if(!G.grid[cy]) return;
   const room = usable[Math.floor(Math.random() * usable.length);
   const cx = room.cx, cy = room.cy;
   if(!G.grid[cy]) return;
