@@ -25,7 +25,7 @@
 <body>
 <div id="results">
   <h1>underward · test</h1>
-  <div class="sub">Loads every script, records ownership, then runs floor-generation checks.</div>
+  <div class="sub">Loads every script in current index.html order, checks ownership/duplicates, then runs functional checks.</div>
   <div id="console"></div>
 </div>
 
@@ -55,10 +55,9 @@
   <div id="stairsPrompt"><div id="stairsCard"><button id="stairsYes"></button><button id="stairsNo"></button></div></div>
 
   <div id="itemCardOverlay"><div id="itemCard">
-    <div id="icHeader"><div id="icName"></div><div id="icTier"></div></div>
+    <div id="icHeader"><div><div id="icName"></div><div id="icTier"></div></div><button id="icCloseBtn"></button></div>
     <div id="icFlavour"></div><div id="icStats"></div>
     <div id="icButtons"><button id="icPrimaryBtn"></button><button id="icSecondaryBtn"></button></div>
-    <button id="icCloseBtn"></button>
   </div></div>
 
   <div id="inventoryScreen"><div class="inv-header"><button id="invCloseBtn2"></button></div>
@@ -78,7 +77,7 @@
   <div id="deathScreen"><div id="deathInfo"></div><div id="deathQuote"></div>
     <div id="deathSummary"></div><span id="deathShards"></span><button id="deathBtn"></button></div>
 
-  <div id="retreatMenu"><button id="retreatYes"></button><button id="retreatNo"></button></div>
+  <div id="introOverlay"><div id="introCard"><button id="introStartBtn"></button></div></div>
 
   <div id="pauseMenu"><div id="pauseCard">
     <button id="muteBtn"></button>
@@ -86,10 +85,21 @@
     <button id="pauseRetreatBtn"></button>
     <button id="pauseCloseBtn"></button>
   </div></div>
+
+  <div id="debugPanel">
+    <select id="dbgFloor"></select>
+    <button id="dbgGo"></button><button id="dbgGold"></button><button id="dbgShards"></button>
+    <button id="dbgHeal"></button><button id="dbgLowHp"></button><button id="dbgPoison"></button>
+    <button id="dbgBleed"></button><button id="dbgBurn"></button><button id="dbgWeaken"></button>
+    <button id="dbgElite"></button><button id="dbgXP"></button><button id="dbgShop"></button>
+    <button id="dbgVictory"></button><button id="dbgDeath"></button><button id="dbgRender"></button>
+    <button id="dbgDump"></button><button id="dbgReset"></button>
+  </div>
 </div>
 
 <script>
-function makeCtx() {
+/* ── stubs for canvas (Android/headless safe) ─────────────────── */
+function makeCtx(){
   var gradient = { addColorStop: function(){} };
   return new Proxy(function(){}, {
     get: function(t, p){
@@ -103,10 +113,10 @@ function makeCtx() {
 }
 var canvases = document.querySelectorAll("canvas");
 for (var c = 0; c < canvases.length; c++) canvases[c].getContext = function(){ return makeCtx(); };
-
 window.requestAnimationFrame = function(){};
 window.cancelAnimationFrame = function(){};
 
+/* ── output helpers ───────────────────────────────────────────── */
 var outBox = document.getElementById("console");
 function out(html){ outBox.insertAdjacentHTML("beforeend", html); }
 function sec(title){
@@ -115,12 +125,33 @@ function sec(title){
   return document.getElementById(id);
 }
 
+/* ── CURRENT load order (mirrors index.html — 25 files) ──────── */
 var FILES = [
-  "js/config.js","js/content/con-monsters.js","js/content/con-items.js","js/content/con-biomes.js","js/content/con-traits.js",
-  "js/save.js","js/attrs.js","js/items.js","js/sprites.js","js/bosssprites.js",
-  "js/state.js","js/levels.js","js/traits.js","js/combat.js",
-  "js/effects.js","js/sfx.js","js/log.js","js/render.js","js/pathfind.js","js/input.js",
-  "js/ui.js","js/progression.js","js/main.js","js/onboarding.js"
+  "js/config.js",
+  "js/content/con-monsters.js",
+  "js/content/con-items.js",
+  "js/content/con-biomes.js",
+  "js/content/con-traits.js",
+  "js/content/con-progression.js",
+  "js/save.js",
+  "js/attrs.js",
+  "js/items.js",
+  "js/sprites.js",
+  "js/content/con-bosssprites.js",
+  "js/state.js",
+  "js/levels.js",
+  "js/traits.js",
+  "js/combat.js",
+  "js/effects.js",
+  "js/sfx.js",
+  "js/log.js",
+  "js/render.js",
+  "js/pathfind.js",
+  "js/input.js",
+  "js/ui.js",
+  "js/progression.js",
+  "js/main.js",
+  "js/onboarding.js"
 ];
 
 var ownership = {};
@@ -128,143 +159,262 @@ var dupes = {};
 var errors = [];
 var floorFailures = 0;
 var bossSpriteFailures = 0;
+var extraFailures = 0;
 
-var s1 = sec("1. Script loading &amp; ownership");
+/* ── 0. Load every file IN ORDER with per-file diff ───────────── */
+var s0 = sec("0. Load order &amp; ownership");
 FILES.forEach(function(file){
-  var before = {};
-  for (var k in window.Delve) before[k] = 1;
-
+  var before = Object.keys(window.Delve || {});
   var loaded = false;
   try {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", file, false);
+    xhr.open("GET", file + "?v=" + Date.now(), false);   // cache-bust for Android
     xhr.send();
-    if (xhr.status !== 0 && xhr.status !== 200) {
-      errors.push(file + " status " + xhr.status);
-      s1.insertAdjacentHTML("beforeend", '<div class="fail">✗ ' + file + ' — fetch status ' + xhr.status + '</div>');
+    if (xhr.status !== 200 && xhr.status !== 0){
+      errors.push(file + " — HTTP " + xhr.status);
+      s0.insertAdjacentHTML("beforeend", '<div class="fail">✗ ' + file + ' — HTTP ' + xhr.status + ' (missing at this path?)</div>');
     } else {
       (new Function(xhr.responseText))();
       loaded = true;
     }
-  } catch (err) {
-    errors.push(file + ": " + err.message);
-    s1.insertAdjacentHTML("beforeend", '<div class="fail">✗ ' + file + ' — ' + err.message + '</div>');
+  } catch (err){
+    errors.push(file + " — " + err.message);
+    s0.insertAdjacentHTML("beforeend",
+      '<div class="fail">✗ ' + file + ' — <b>' + err.message + '</b></div>');
   }
-
-  if (loaded) {
+  if (loaded){
+    var after = Object.keys(window.Delve || {});
     var added = [];
-    for (var k in window.Delve) {
-      if (!before[k]) {
+    after.forEach(function(k){
+      if (before.indexOf(k) < 0){
         added.push(k);
         if (ownership[k]) (dupes[k] = dupes[k] || []).push(file);
         else ownership[k] = file;
       }
-    }
-    s1.insertAdjacentHTML("beforeend", '<div class="pass">✓ ' + file + ' <span style="color:#9fb3c5">(' + added.length + ' new)</span></div>');
+    });
+    s0.insertAdjacentHTML("beforeend",
+      '<div class="pass">✓ ' + file + ' <span style="color:#9fb3c5">(' + added.length + ' new)</span></div>');
   }
 });
 
 if (typeof window.Delve.draw === "function") window.Delve.draw = function(){};
 
-var s2 = sec("2. Duplicate definitions");
+/* ── 1. Duplicates ───────────────────────────────────────────── */
+var s1 = sec("1. Duplicate definitions");
 var dupKeys = Object.keys(dupes);
-if (!dupKeys.length) s2.innerHTML = '<div class="pass">✓ No duplicates.</div>';
+if (!dupKeys.length) s1.innerHTML = '<div class="pass">✓ No duplicates.</div>';
 else {
-  s2.innerHTML = '<div class="warn">Defined in more than one file:</div><table><tr><th>Function</th><th>Files</th></tr>';
-  dupKeys.forEach(function(k){ s2.innerHTML += '<tr><td class="dup">' + k + '</td><td>' + [ownership[k]].concat(dupes[k]).join(", ") + '</td></tr>'; });
-  s2.innerHTML += '</table>';
+  s1.innerHTML = '<div class="warn">Re-defined (last file wins):</div><table><tr><th>Key</th><th>First defined in</th><th>Re-defined by</th></tr>';
+  dupKeys.forEach(function(k){
+    s1.innerHTML += '<tr><td class="dup">' + k + '</td><td>' + ownership[k] + '</td><td>' + dupes[k].join(", ") + '</td></tr>';
+  });
+  s1.innerHTML += '</table>';
 }
 
-var s3 = sec("3. Required functions");
+/* ── 2. Required functions (incl. all Tier 1–3 additions) ─────── */
+var s2 = sec("2. Required functions");
 var REQUIRED = [
-  "newRun","genFloor","maxHp","atk","dmgRed","dodge","crit","luckPts","agiPts","touPts",
-  "equipItem","unequipItem","useConsumable","itemStatLines","itemBuffs","makeItem","rollTier",
-  "killRewards","floorClearBonus","makeElite","startCombat","triggerVictory","tryRest","descend",
-  "die","retreat","convertGold","recordStat","addFloater","draw","updateHUD","renderMinimap",
-  "refreshHub","openInventory","openShop","buildShop","applyEffect","applyPlayerEffect",
-  "registerBossSprite"
+  "newRun","genFloor","openChest","maxHp","atk","dmgRed","dodge","crit",
+  "luckPts","agiPts","touPts","strPts","baseAtk","baseLuck",
+  "equipItem","unequipItem","useConsumable","itemStatLines","itemBuffs",
+  "makeItem","rollTier","pickupItem","playerSpeed","wardOf",
+  "killRewards","floorClearBonus","makeElite","startCombat","endCombat",
+  "triggerVictory","tryRest","descend","die","retreat","convertGold",
+  "applyBossBonus","recordStat","addFloater","updateHUD","renderMinimap",
+  "refreshHub","openInventory","openShop","buildShop",
+  "applyEffect","applyPlayerEffect","tickPlayerEffects","statusColor",
+  "registerBossSprite","rebuildSprites","castAbility","addXP","addAbility",
+  "logXP","logKill","logSystem","logFloor","hasProgression","markRunTrait",
+  "injectHubAbilities","save","persist","isShopFloor","getWard","getMonsterBand",
+  "findPath","stepPath","uiBlocked"
 ];
 var missing = REQUIRED.filter(function(k){ return typeof window.Delve[k] !== "function"; });
-if (!missing.length) s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED.length + ' required functions present.</div>';
-else s3.innerHTML = '<div class="fail">Missing:</div><div class="missing">' + missing.join(", ") + '</div>';
+if (!missing.length) s2.innerHTML = '<div class="pass">✓ All ' + REQUIRED.length + ' required functions present (incl. strPts, logXP, injectHubAbilities, uiBlocked).</div>';
+else s2.innerHTML = '<div class="fail">Missing:</div><div class="missing">' + missing.join(", ") + '</div>';
 
-var s3b = sec("3b. Boss sprite registry");
+/* ── 3. Content registries (all con- files) ───────────────────── */
+var s3 = sec("3. Content registries");
+try {
+  var cfg = window.Delve.CONFIG, d = window.Delve;
+  var needCfg = ["MONSTER_ROSTER","MONSTER_BANDS","BOSS_DEFS","elite","xpKill",
+                 "WARDS","BIOMES","TRAITS","PROGRESSION","loot","STATUS_EFFECTS",
+                 "statusChance","SLOTS","SLOT_ORDER","ATTRS","WEIGHT","WEAPON_SPEEDS"];
+  var needDelve = ["TIERS","SLOT_DEFS","itemDefs","potionDefs"];
+  var absentCfg = needCfg.filter(function(k){ return !cfg[k]; });
+  var absentDelve = needDelve.filter(function(k){ return !d[k]; });
+  var rosterCount = Object.keys(cfg.MONSTER_ROSTER || {}).length;
+  var itemCount = Object.keys(d.itemDefs || {}).length;
+  var trees = (cfg.PROGRESSION && cfg.PROGRESSION.TREES || []).length;
+  var nodeTrees = Object.keys((cfg.PROGRESSION && cfg.PROGRESSION.NODES) || {}).length;
+  var abilities = (cfg.TRAITS && cfg.TRAITS.abilities) || [];
+  var noData = abilities.filter(function(a){ return !a.data; }).map(function(a){ return a.id; });
+  if (!absentCfg.length && !absentDelve.length && !noData.length){
+    s3.innerHTML = '<div class="pass">✓ All registries loaded — monsters: ' + rosterCount +
+      ', items: ' + itemCount + ', trees: ' + trees + ', node trees: ' + nodeTrees +
+      ', abilities with data: ' + abilities.length + '/' + abilities.length + '</div>';
+  } else {
+    extraFailures += absentCfg.length + absentDelve.length + noData.length;
+    s3.innerHTML = '<div class="fail">Content problems:</div>';
+    if (absentCfg.length)   s3.innerHTML += '<div class="missing">CONFIG missing: ' + absentCfg.join(", ") + '</div>';
+    if (absentDelve.length) s3.innerHTML += '<div class="missing">Delve missing: ' + absentDelve.join(", ") + '</div>';
+    if (noData.length)      s3.innerHTML += '<div class="missing">Abilities without data{}: ' + noData.join(", ") + '</div>';
+  }
+} catch (err){
+  extraFailures++;
+  s3.innerHTML = '<div class="fail">Content check aborted: ' + err.message + '</div>';
+}
+
+/* ── 4. Boss data + sprite registry ──────────────────────────── */
+var s4 = sec("4. Boss data &amp; sprite registry");
 try {
   var registered = window.Delve._bossSpriteBuilders || {};
-  var expectedKeys = [];
   var bossDefs = (window.Delve.CONFIG && window.Delve.CONFIG.BOSS_DEFS) || {};
-  for (var bk in bossDefs) {
-    if (bossDefs[bk] && bossDefs[bk].sprite) expectedKeys.push(bossDefs[bk].sprite);
+  var problems = [], expectedKeys = [];
+  for (var bk in bossDefs){
+    var bd = bossDefs[bk];
+    if (bd.sprite) expectedKeys.push(bd.sprite);
+    else problems.push(bd.name + " — missing .sprite");
+    if (!bd.accent) problems.push(bd.name + " — missing .accent");
   }
   var missingBuilders = expectedKeys.filter(function(k){ return typeof registered[k] !== "function"; });
   var missingSprites = expectedKeys.filter(function(k){ return !(window.Delve.SPR && window.Delve.SPR[k] && window.Delve.SPR[k].idle); });
-  if (!expectedKeys.length) {
-    s3b.innerHTML = '<div class="warn">No BOSS_DEFS.sprite entries to verify.</div>';
-  } else if (!missingBuilders.length && !missingSprites.length) {
-    s3b.innerHTML = '<div class="pass">✓ ' + expectedKeys.length + ' boss sprite(s) registered and built: ' + expectedKeys.join(", ") + '</div>';
+  if (!problems.length && !missingBuilders.length && !missingSprites.length){
+    s4.innerHTML = '<div class="pass">✓ ' + expectedKeys.length + ' boss(es) — sprite + accent set, registered, built: ' + expectedKeys.join(", ") + '</div>';
   } else {
-    bossSpriteFailures = missingBuilders.length + missingSprites.length;
-    s3b.innerHTML = '<div class="fail">Problems with boss sprites:</div>';
-    if (missingBuilders.length) s3b.innerHTML += '<div class="missing">No builder registered: ' + missingBuilders.join(", ") + '</div>';
-    if (missingSprites.length) s3b.innerHTML += '<div class="missing">No sprite built: ' + missingSprites.join(", ") + '</div>';
+    bossSpriteFailures = problems.length + missingBuilders.length + missingSprites.length;
+    s4.innerHTML = '<div class="fail">Boss problems:</div><div class="missing">';
+    if (problems.length)        s4.innerHTML += problems.join("<br>") + "<br>";
+    if (missingBuilders.length) s4.innerHTML += "No builder registered: " + missingBuilders.join(", ") + "<br>";
+    if (missingSprites.length)  s4.innerHTML += "No sprite built: " + missingSprites.join(", ");
+    s4.innerHTML += '</div>';
   }
-} catch (err) {
+} catch (err){
   bossSpriteFailures = 1;
-  s3b.innerHTML = '<div class="fail">Boss sprite check aborted: ' + err.message + '</div>';
+  s4.innerHTML = '<div class="fail">Boss check aborted: ' + err.message + '</div>';
 }
 
-var s4 = sec("4. Floor generation (50 trials, floors 1-20)");
+/* ── 5. Save schema + persistence round-trip ──────────────────── */
+var s5 = sec("5. Save schema &amp; persistence");
 try {
-  if (typeof window.Delve.newRun !== "function") throw new Error("newRun missing — cannot seed a run");
+  var s = window.Delve.save;
+  var need = ["version","shards","bestFloor","lvls","unlocks","nodes","inventoryCap",
+              "abilities","abilityRanks","runTraits","runTraitsSeen","seenTutorial"];
+  var absent = need.filter(function(k){ return !(k in s); });
+  // persistence round-trip: write a probe node, persist, re-read from localStorage
+  s.nodes = s.nodes || {};
+  s.nodes.__probe = 1;
+  window.Delve.persist();
+  var reread = JSON.parse(localStorage.getItem("underward_save_v3") || "null");
+  var persisted = !!(reread && reread.nodes && reread.nodes.__probe);
+  delete s.nodes.__probe;
+  window.Delve.persist();   // clean the probe out of storage
+  if (!absent.length && persisted){
+    s5.innerHTML = '<div class="pass">✓ Save schema complete; purchases survive persist() round-trip (#37 fixed).</div>';
+  } else {
+    extraFailures += absent.length + (persisted ? 0 : 1);
+    s5.innerHTML = '<div class="fail">Save problems:</div>';
+    if (absent.length)    s5.innerHTML += '<div class="missing">Missing fields: ' + absent.join(", ") + '</div>';
+    if (!persisted)       s5.innerHTML += '<div class="missing">Node purchases do NOT survive persist() — whitelist still dropping them.</div>';
+  }
+} catch (err){
+  extraFailures++;
+  s5.innerHTML = '<div class="fail">Save check aborted: ' + err.message + '</div>';
+}
+
+/* ── 6. Floor generation (50 trials, floors 1–20) ─────────────── */
+var s6 = sec("6. Floor generation (50 trials, floors 1-20)");
+try {
+  if (typeof window.Delve.newRun !== "function") throw new Error("newRun missing");
   window.Delve.newRun();
   var G = window.Delve.G;
   if (!G) throw new Error("Delve.G still null after newRun");
 
   var trials = 50, fails = [];
-  for (var t = 0; t < trials; t++) {
+  for (var t = 0; t < trials; t++){
     G.floor = (t % 20) + 1;
-    var ward = Delve.getWard(G.floor);
-    if (!ward) fails.push("trial " + t + ": no ward for floor " + G.floor);
-    var biomeIdx = (ward && ward.biome !== undefined) ? ward.biome : -1;
-    if (biomeIdx < 0 || !Delve.CONFIG.BIOMES[biomeIdx]) {
+    var ward = window.Delve.getWard(G.floor);
+    if (!ward){ fails.push("trial " + t + ": no ward for floor " + G.floor); continue; }
+    var biomeIdx = (ward.biome !== undefined) ? ward.biome : -1;
+    if (biomeIdx < 0 || !(window.Delve.CONFIG.BIOMES && window.Delve.CONFIG.BIOMES[biomeIdx]))
       fails.push("trial " + t + ": biome " + biomeIdx + " missing for floor " + G.floor);
-    }
-    Delve.genFloor();
+    window.Delve.genFloor();
     var w = G.grid[0].length, h = G.grid.length;
     if (G.px < 0 || G.py < 0 || G.px >= w || G.py >= h) fails.push("trial " + t + ": player outside map");
-    else if (G.grid[G.py][G.px] !== Delve.T.FLOOR) fails.push("trial " + t + ": player not on floor tile");
+    else if (G.grid[G.py][G.px] !== window.Delve.T.FLOOR) fails.push("trial " + t + ": player not on floor tile");
     if (G.floor % 10 !== 0 && !G.stairs) fails.push("trial " + t + ": no stairs on floor " + G.floor);
-    G.monsters.forEach(function(m){
-      if (Delve.mdist(m.x, m.y, G.px, G.py) <= 1) fails.push("trial " + t + ": monster adjacent to spawn");
+    (G.monsters || []).forEach(function(m){
+      if (window.Delve.mdist(m.x, m.y, G.px, G.py) <= 1) fails.push("trial " + t + ": monster adjacent to spawn");
     });
+    if (G.floor % 10 === 0){
+      if (!G.boss) fails.push("trial " + t + ": boss floor " + G.floor + " has no boss");
+      else {
+        // #43: no guard inside the boss arena room + boss sprite key check
+        if (G.boss.kind !== (window.Delve.CONFIG.BOSS_DEFS[Math.ceil(G.floor/10)] || {}).sprite)
+          fails.push("trial " + t + ": boss kind '" + G.boss.kind + "' ≠ BOSS_DEFS.sprite");
+        (G.monsters || []).forEach(function(m){
+          if (window.Delve.mdist(m.x, m.y, G.boss.x, G.boss.y) <= 1)
+            fails.push("trial " + t + ": guard inside boss arena");
+        });
+      }
+    }
     if (fails.length > 25) break;
   }
   floorFailures = fails.length;
-  if (!fails.length) s4.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly across both biomes.</div>';
+  if (!fails.length) s6.innerHTML = '<div class="pass">✓ ' + trials + ' floors generated cleanly across both wards (incl. boss arena exclusion).</div>';
   else {
-    s4.innerHTML = '<div class="fail">' + fails.length + ' problem(s):</div><ul style="margin-left:18px">';
-    fails.slice(0, 25).forEach(function(f){ s4.innerHTML += "<li>" + f + "</li>"; });
-    s4.innerHTML += "</ul>";
+    s6.innerHTML = '<div class="fail">' + fails.length + ' problem(s):</div><ul style="margin-left:18px">';
+    fails.slice(0, 25).forEach(function(f){ s6.innerHTML += "<li>" + f + "</li>"; });
+    s6.innerHTML += "</ul>";
   }
-} catch (err) {
+} catch (err){
   floorFailures = 1;
-  s4.innerHTML = '<div class="fail">Floor checks aborted: ' + err.message + '</div>';
+  s6.innerHTML = '<div class="fail">Floor checks aborted: ' + err.message + '</div>';
 }
 
-var s5 = sec("5. Summary");
-if (errors.length) s5.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
-if (missing.length) s5.innerHTML += '<div class="fail">Missing functions: ' + missing.length + '</div>';
-if (dupKeys.length) s5.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.length + '</div>';
-if (bossSpriteFailures) s5.innerHTML += '<div class="fail">Boss sprite issues: ' + bossSpriteFailures + '</div>';
-if (floorFailures) s5.innerHTML += '<div class="fail">Floor generation issues: ' + floorFailures + '</div>';
-if (!errors.length && !missing.length && !dupKeys.length && !bossSpriteFailures && !floorFailures) s5.innerHTML += '<div class="pass">✓ All checks passed.</div>';
+/* ── 7. Tier rolls + loot sanity ──────────────────────────────── */
+var s7 = sec("7. Tier rolls");
+try {
+  var counts = {1:0, 2:0, 3:0, 4:0};
+  var bad = 0;
+  for (var i = 0; i < 200; i++){
+    var tier = window.Delve.rollTier(15);
+    if (!counts[tier]) { bad++; continue; }
+    counts[tier]++;
+  }
+  // legendary unreachable without ward 3 — by design; just verify roll never crashes and tiers 1-3 appear
+  if (bad === 0 && counts[1] > 0 && counts[2] > 0 && counts[3] > 0){
+    s7.innerHTML = '<div class="pass">✓ 200 tier rolls OK (tier 4 = 0 as expected until ward 3): ' +
+      "T1:" + counts[1] + " T2:" + counts[2] + " T3:" + counts[3] + " T4:" + counts[4] + '</div>';
+  } else {
+    extraFailures++;
+    s7.innerHTML = '<div class="fail">Tier roll problems — bad rolls: ' + bad + '</div>';
+  }
+} catch (err){
+  extraFailures++;
+  s7.innerHTML = '<div class="fail">Tier roll check aborted: ' + err.message + '</div>';
+}
 
-var s6 = sec("6. Ownership registry");
+/* ── 8. Summary ────────────────────────────────────────────────── */
+var s8 = sec("8. Summary");
+var total = errors.length + missing.length + dupKeys.length + bossSpriteFailures + floorFailures + extraFailures;
+if (!total) s8.innerHTML = '<div class="pass">✓ All checks passed — Tiers 1–3 verified.</div>';
+else {
+  s8.innerHTML = '';
+  if (errors.length)          s8.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
+  if (missing.length)         s8.innerHTML += '<div class="fail">Missing functions: ' + missing.length + '</div>';
+  if (dupKeys.length)        s8.innerHTML += '<div class="warn">Duplicates: ' + dupKeys.length + '</div>';
+  if (bossSpriteFailures)    s8.innerHTML += '<div class="fail">Boss sprite issues: ' + bossSpriteFailures + '</div>';
+  if (floorFailures)         s8.innerHTML += '<div class="fail">Floor generation issues: ' + floorFailures + '</div>';
+  if (extraFailures)         s8.innerHTML += '<div class="fail">Other issues: ' + extraFailures + '</div>';
+}
+
+/* ── 9. Ownership registry ─────────────────────────────────────── */
+var s9 = sec("9. Ownership registry");
 var keys = Object.keys(ownership).sort();
-var table = '<table><tr><th>Function</th><th>Owned by</th></tr>';
+var table = '<table><tr><th>Key</th><th>First defined by</th></tr>';
 keys.forEach(function(k){ table += '<tr><td><code>' + k + '</code></td><td>' + ownership[k] + '</td></tr>'; });
 table += '</table>';
-s6.innerHTML = table;
+s9.innerHTML = table;
 </script>
 </body>
 </html>
