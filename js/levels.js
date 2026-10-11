@@ -218,7 +218,7 @@ window.Delve = window.Delve || {};
     const bossDef = cfg.BOSS_DEFS[Math.ceil(G.floor/10)] || cfg.BOSS_DEFS[1] || {};
     G.boss = {
      id:"boss", isBoss:true, x:bossRoom.cx, y:bossRoom.cy,
-     name:bossDef.name || "The Warden", kind:"boss",
+     name:bossDef.name || "The Warden", kind:bossDef.sprite || "boss_warden",
      maxHp:bossDef.hp || cfg.bossHpBase, hp:bossDef.hp || cfg.bossHpBase,
      atk:bossDef.atk || cfg.bossAtkBase,
      speed:bossDef.speed || cfg.bossSpeed,
