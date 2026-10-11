@@ -152,19 +152,23 @@ var FILES = [
   "js/main.js"
 ];
 
-// ids ui.js legitimately references but which no longer exist (dead wiring
-// from the deleted onboarding file). Reported as a warning, not a failure.
 var LEGACY_IDS = ["introOverlay"];
+
+// overlays that must be closed before the uiBlocked test, in case an earlier
+// section left one open (e.g. showBossIntro fires on floors 10 and 20)
+var ALL_OVERLAYS = ["hubScreen","deathScreen","inventoryScreen","shopScreen","victoryScreen",
+  "stairsPrompt","bossIntroOverlay","itemCardOverlay","logWindow","pauseMenu","levelUpScreen"];
 
 var ownership = {};
 var dupes = {};
 var errors = [];
-var floorFailures = 0;
-var bossSpriteFailures = 0;
-var extraFailures = 0;
 var parityFailures = 0;
+var extraFailures = 0;
+var bossSpriteFailures = 0;
+var floorFailures = 0;
 var movementFailures = 0;
 var domFailures = 0;
+var missing = [];
 
 /* ── 0. Load every file IN ORDER with per-file diff ───────────── */
 var s0 = sec("0. Load order &amp; ownership");
@@ -173,7 +177,7 @@ FILES.forEach(function(file){
   var loaded = false;
   try {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", file + "?v=" + Date.now(), false);   // cache-bust for Android
+    xhr.open("GET", file + "?v=" + Date.now(), false);
     xhr.send();
     if (xhr.status !== 200 && xhr.status !== 0){
       errors.push(file + " — HTTP " + xhr.status);
@@ -204,7 +208,7 @@ FILES.forEach(function(file){
 
 if (typeof window.Delve.draw === "function") window.Delve.draw = function(){};
 
-/* ── 1. index.html script parity ──────────────────────────────── */
+/* ── 1. index.html script tag parity (duplicate-aware) ────────── */
 var s1 = sec("1. index.html script tag parity");
 try {
   var idxText = null;
@@ -216,12 +220,17 @@ try {
   } catch(eIdx){ idxText = null; }
 
   if (!idxText){
-    s1.innerHTML = '<div class="warn">Could not read index.html (serve this page over http). Parity not verified.</div>';
+    s1.innerHTML = '<div class="warn">Could not read index.html (serve over http). Parity not verified.</div>';
   } else {
-    var found = idxText.match(/js\/[A-Za-z0-9_\-.\/]+\.js/g) || [];
-    // de-dupe while preserving order
-    var seen = {}, live = [];
-    found.forEach(function(f){ if(!seen[f]){ seen[f] = 1; live.push(f); } });
+    // strip HTML comments so a commented-out script tag cannot count
+    var stripped = idxText.replace(/<!--[\s\S]*?-->/g, "");
+    var raw = stripped.match(/js\/[A-Za-z0-9_\-.\/]+\.js/g) || [];
+
+    var seen = {}, live = [], repeated = [];
+    raw.forEach(function(f){
+      if (seen[f]) repeated.push(f);
+      else { seen[f] = 1; live.push(f); }
+    });
 
     var mismatch = (live.length !== FILES.length);
     if (!mismatch){
@@ -230,13 +239,24 @@ try {
       }
     }
 
-    if (!mismatch){
-      s1.innerHTML = '<div class="pass">✓ index.html loads exactly these ' + live.length +
-        ' scripts, in this order — FILES[] matches live (load order verified).</div>';
+    var head = '<div style="color:#9fb3c5;font-size:13px;margin-bottom:6px">' +
+      'references found: ' + raw.length + ' · unique: ' + live.length +
+      ' · expected: ' + FILES.length + '</div>';
+
+    if (repeated.length){
+      var uniqRep = [];
+      repeated.forEach(function(r){ if (uniqRep.indexOf(r) < 0) uniqRep.push(r); });
+      head += '<div class="fail">✗ Duplicated in index.html: ' + uniqRep.join(", ") +
+        ' — each script must appear exactly once.</div>';
+    }
+
+    if (!mismatch && !repeated.length){
+      s1.innerHTML = head + '<div class="pass">✓ index.html loads exactly these ' + live.length +
+        ' scripts, in this order — FILES[] matches live.</div>';
     } else {
       parityFailures = 1;
-      s1.innerHTML = '<div class="fail">FILES[] has drifted from index.html.</div>' +
-        '<table><tr><th>#</th><th>test.html FILES[]</th><th>index.html</th></tr>';
+      s1.innerHTML = head + '<div class="fail">FILES[] has drifted from index.html.</div>' +
+        '<table><tr><th>#</th><th>test.html FILES[]</th><th>index.html (first occurrence)</th></tr>';
       var maxN = Math.max(live.length, FILES.length);
       for (var n = 0; n < maxN; n++){
         var a = FILES[n] || "—", b = live[n] || "—";
@@ -281,25 +301,24 @@ var REQUIRED_FN = [
   "injectHubAbilities","persist","isShopFloor","getWard","getMonsterBand",
   "findPath","stepPath","uiBlocked"
 ];
-// Non-function globals that must exist. `save` lives here, NOT in REQUIRED_FN —
-// Delve.save is the DATA object, so a typeof==="function" check could never pass.
+// Non-function globals. `save` lives here, NOT in REQUIRED_FN — Delve.save is
+// the DATA object, so a typeof==="function" check could never pass.
 var REQUIRED_OBJ = [
   "CONFIG","save","T","TIERS","SLOT_DEFS","itemDefs","potionDefs","SPR","_hooks"
 ];
 
 var missingFn = REQUIRED_FN.filter(function(k){ return typeof window.Delve[k] !== "function"; });
-var missingObj = REQUIRED_OBJ.filter(function(k){ return !window.Delve[k] || typeof window.Delve[k] === "undefined"; });
+var missingObj = REQUIRED_OBJ.filter(function(k){ return !window.Delve[k]; });
+missing = missingFn.concat(missingObj);
 
-if (!missingFn.length && !missingObj.length){
+if (!missing.length){
   s3.innerHTML = '<div class="pass">✓ All ' + REQUIRED_FN.length + ' required functions and ' +
     REQUIRED_OBJ.length + ' required objects present.</div>';
 } else {
-  missing = missingFn.concat(missingObj);
   s3.innerHTML = '';
   if (missingFn.length)  s3.innerHTML += '<div class="fail">Missing functions:</div><div class="missing">' + missingFn.join(", ") + '</div>';
   if (missingObj.length) s3.innerHTML += '<div class="fail">Missing objects:</div><div class="missing">' + missingObj.join(", ") + '</div>';
 }
-var missing = missingFn.concat(missingObj);
 
 /* ── 4. Content registries (all con- files) ───────────────────── */
 var s4 = sec("4. Content registries");
@@ -318,14 +337,12 @@ try {
   var abilities = (cfg.TRAITS && cfg.TRAITS.abilities) || [];
   var noData = abilities.filter(function(a){ return !a.data; }).map(function(a){ return a.id; });
 
-  // every monster band weight must name a real roster row
   var badWeights = [];
   (cfg.MONSTER_BANDS || []).forEach(function(b, bi){
     Object.keys(b.weights || {}).forEach(function(k){
       if (!cfg.MONSTER_ROSTER[k]) badWeights.push("band " + bi + " → " + k);
     });
   });
-  // every BOSS_DEFS entry must name a registered sprite (checked again in §5)
 
   if (!absentCfg.length && !absentDelve.length && !noData.length && !badWeights.length){
     s4.innerHTML = '<div class="pass">✓ All registries loaded — monsters: ' + rosterCount +
@@ -450,11 +467,20 @@ try {
 }
 
 /* ── 8. Movement, rest &amp; pathfinding (regression test) ────── */
-// This is the check that would have caught the "can't move" bug.
 var s8 = sec("8. Movement, rest &amp; pathfinding");
 try {
   var G8 = window.Delve.G;
   if (!G8) throw new Error("no run — section 7 did not produce G");
+
+  // Neutralise anything an earlier section left on screen. Section 7 generates
+  // floors 10 and 20, which call showBossIntro() and leave the overlay up for
+  // 3s — that would make uiBlocked() correctly report true later on.
+  clearTimeout(window.Delve._bossIntroT);
+  clearTimeout(window.Delve._floorCardT);
+  ALL_OVERLAYS.forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
 
   var notes = [];
   var mfails = [];
@@ -462,7 +488,6 @@ try {
   G8.floor = 1;
   window.Delve.genFloor();
 
-  // clear the floor of threats so the movement test is deterministic
   G8.monsters.forEach(function(m){
     if (G8.grid[m.y] && G8.grid[m.y][m.x] === window.Delve.T.MONSTER) G8.grid[m.y][m.x] = window.Delve.T.FLOOR;
   });
@@ -477,8 +502,7 @@ try {
     var nx = G8.px + dirs[di][0], ny = G8.py + dirs[di][1];
     if (!G8.grid[ny] || G8.grid[ny][nx] === undefined) continue;
     var cell = G8.grid[ny][nx];
-    if (cell === window.Delve.T.WALL) continue;
-    if (cell !== window.Delve.T.FLOOR) continue;   // avoid chests/stairs/items
+    if (cell !== window.Delve.T.FLOOR) continue;
     blockedAll = false;
     var ox = G8.px, oy = G8.py;
     var beforeHp = G8.hp;
@@ -524,14 +548,15 @@ try {
     }
   }
 
-  // --- 8d: uiBlocked toggling --------------------------------------
+  // --- 8d: uiBlocked toggling (all overlays now closed) ------------
   var hub = document.getElementById("hubScreen");
   hub.style.display = "flex";
   var blockedWhenShown = window.Delve.uiBlocked();
   hub.style.display = "none";
   var blockedWhenHidden = window.Delve.uiBlocked();
   if (blockedWhenShown && !blockedWhenHidden) notes.push("uiBlocked correctly gates on visible overlays");
-  else mfails.push("uiBlocked wrong (shown=" + blockedWhenShown + ", hidden=" + blockedWhenHidden + ")");
+  else mfails.push("uiBlocked wrong (shown=" + blockedWhenShown + ", hidden=" + blockedWhenHidden +
+    " — blockers: " + ((window.Delve._lastBlockers || []).join("+") || "none") + ")");
 
   movementFailures = mfails.length;
   if (!mfails.length){
@@ -540,6 +565,10 @@ try {
   } else {
     s8.innerHTML = '<div class="fail">' + mfails.length + ' movement problem(s):</div><ul style="margin-left:18px">' +
       mfails.map(function(f){ return "<li>" + f + "</li>"; }).join("") + '</ul>';
+    if (notes.length){
+      s8.innerHTML += '<div style="color:#9fb3c5;font-size:13px;margin-top:6px">Passed:</div><ul style="margin-left:18px;color:#9fb3c5">' +
+        notes.map(function(n){ return "<li>" + n + "</li>"; }).join("") + '</ul>';
+    }
   }
 } catch (err){
   movementFailures = 1;
@@ -549,9 +578,8 @@ try {
 /* ── 9. Missing DOM elements ──────────────────────────────────── */
 var s9 = sec("9. DOM integrity (missingEls)");
 try {
-  if (window.Delve.showHub) window.Delve.showHub();   // force a full refresh pass
+  if (window.Delve.showHub) window.Delve.showHub();
 
-  // loading ui.js runs hideAll() once, which is what records most misses
   var misses = (window.Delve.missingEls || []).slice();
   var legacy = misses.filter(function(id){ return LEGACY_IDS.indexOf(id) >= 0; });
   var real = misses.filter(function(id){ return LEGACY_IDS.indexOf(id) < 0; });
@@ -582,17 +610,25 @@ var s10 = sec("10. Tier rolls");
 try {
   var counts = {1:0, 2:0, 3:0, 4:0};
   var bad = 0;
-  for (var i = 0; i < 200; i++){
+  var N = 400;
+  for (var i = 0; i < N; i++){
     var tier = window.Delve.rollTier(15);
-    if (!counts[tier]) { bad++; continue; }
+    // counts[tier] is 0 initially, so `!counts[tier]` is ALWAYS true — must use
+    // an explicit membership test instead. (This check was wrong before.)
+    if (!(tier in counts)) { bad++; continue; }
     counts[tier]++;
   }
-  if (bad === 0 && counts[1] > 0 && counts[2] > 0 && counts[3] > 0){
-    s10.innerHTML = '<div class="pass">✓ 200 tier rolls OK (tier 4 = 0 as expected until ward 3): ' +
-      "T1:" + counts[1] + " T2:" + counts[2] + " T3:" + counts[3] + " T4:" + counts[4] + '</div>';
+  var sum = counts[1] + counts[2] + counts[3] + counts[4];
+  var outcomesOk = (bad === 0 && sum === N && counts[4] === 0 &&
+                    counts[1] > 0 && counts[2] > 0 && counts[3] > 0);
+  if (outcomesOk){
+    s10.innerHTML = '<div class="pass">✓ ' + N + ' tier rolls on floor 15 (ward 2) all returned 1-3: ' +
+      "T1:" + counts[1] + " T2:" + counts[2] + " T3:" + counts[3] + " T4:" + counts[4] +
+      ' <span style="color:#9fb3c5">(T4 = 0 by design until ward 3)</span></div>';
   } else {
     extraFailures++;
-    s10.innerHTML = '<div class="fail">Tier roll problems — bad rolls: ' + bad + '</div>';
+    s10.innerHTML = '<div class="fail">Tier roll problems — out-of-range: ' + bad +
+      ', total counted: ' + sum + '/' + N + ', T4: ' + counts[4] + '</div>';
   }
 } catch (err){
   extraFailures++;
@@ -605,7 +641,7 @@ var total = errors.length + missing.length + dupKeys.length + bossSpriteFailures
             floorFailures + extraFailures + parityFailures + movementFailures + domFailures;
 if (!total){
   s11.innerHTML = '<div class="pass">✓ ALL GREEN — load order matches index.html, no duplicates, ' +
-    'tap chain intact, save round-trips, floors generate.</div>';
+    'tap chain intact, save round-trips, floors generate, tier rolls healthy.</div>';
 } else {
   s11.innerHTML = '';
   if (errors.length)         s11.innerHTML += '<div class="fail">Script errors: ' + errors.length + '</div>';
