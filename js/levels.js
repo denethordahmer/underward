@@ -32,23 +32,31 @@ window.Delve = window.Delve || {};
   return false;
  }
 
- // ── Blackvein floor plan: rolled once per run ──
- // Picks 2-3 clustered loot floors and a random set of swarm floors from 11-19.
- function ensureBlackveinPlan(G){
-  if(G._bvPlan) return G._bvPlan;
-  const pool = [11,12,13,14,15,16,17,18,19];
-  const clustered = [];
-  const clusterCount = Delve.rng(2, 3);
-  for(let i=0; i<clusterCount && pool.length; i++){
-   const idx = Math.floor(Math.random() * pool.length);
-   clustered.push(pool.splice(idx, 1)[0]);
+ // ── Ward floor plan: rolled once per ward per run ──
+ // Driven by the ward's own `special` block (con-biomes.js): how many
+ // clustered-loot floors, and the per-floor chance of a swarm chamber. The
+ // offsets in that block are ward-relative (1 = the ward's first floor).
+ function ensureWardPlan(G, ward){
+  G._wardPlans = G._wardPlans || {};
+  const key = ward.id || 1;
+  if(G._wardPlans[key]) return G._wardPlans[key];
+  const plan = { clustered: [], swarm: [] };
+  const s = ward.special;
+  if(s && s.floors){
+   const pool = [];
+   for(let f = s.floors[0]; f <= s.floors[1]; f++) pool.push(ward.floors[0] + f - 1);
+   const range = s.clustered || [2, 3];
+   const clusterCount = Delve.rng(range[0], range[1]);
+   for(let i=0; i<clusterCount && pool.length; i++){
+    const idx = Math.floor(Math.random() * pool.length);
+    plan.clustered.push(pool.splice(idx, 1)[0]);
+   }
+   for(let i=0; i<pool.length; i++){
+    if(Math.random() < (s.swarmChance || 0)) plan.swarm.push(pool[i]);
+   }
   }
-  const swarm = [];
-  for(let i=0; i<pool.length; i++){
-   if(Math.random() < 0.25) swarm.push(pool[i]);
-  }
-  G._bvPlan = { clustered: clustered, swarm: swarm };
-  return G._bvPlan;
+  G._wardPlans[key] = plan;
+  return plan;
  }
 
  // Kind-specific spawner used by swarm/cluster floors. Skips the standard
@@ -84,7 +92,7 @@ window.Delve = window.Delve || {};
 
  // Swarm floor: clear the spread-out spawns, fill one chamber with a tight
  // pack of one enemy kind, drop a high-value chest at its centre.
- function applySwarmFloor(G, rooms){
+ function applySwarmFloor(G, rooms, special){
   const usable = specialRooms(G, rooms);
   if(!usable.length) return;
 
@@ -94,8 +102,8 @@ window.Delve = window.Delve || {};
   G.monsters = [];
 
   const room = usable[Math.floor(Math.random() * usable.length)];
-  const kind = "spore_swarm";
-  const count = Delve.rng(18, 26);
+  const kind = (special && special.swarmKind) || "spore_swarm";
+  const count = Delve.rng((special && special.swarmMin) || 18, (special && special.swarmMax) || 26);
   let placed = 0, attempts = 400;
   while(placed < count && attempts-- > 0){
    const ox = room.x + Delve.rng(0, room.w - 1);
@@ -155,6 +163,89 @@ window.Delve = window.Delve || {};
  // `bossArena` block to a WARDS entry in con-biomes.js to override any of:
  //   { bossW, bossH, entryW, entryH, corridorW, pad }
  // Defaults scale with the ward's dungeonSize, so they work unmodified.
+ // ── ARENA DRESSING ───────────────────────────────────────────
+ // Decoration only. Props live in G.decor and are DRAWN, never written into the
+ // grid, so they cannot block movement, be tapped, or show on the minimap.
+ // Positions are derived from G.bossArena, so the engine owns *where* and a ward
+ // only chooses *what* (CONFIG.DRESSING: which art fills each role). Placement is
+ // position-based, never random, so the same floor always dresses identically.
+ function dressBossArena(G, ward, boss, A){
+  const T = Delve.T;
+  const recipe = (C().DRESSING && C().DRESSING[ward && ward.id]) || null;
+  if(!recipe || !A) return [];
+  const out = [], used = {};
+  const floorAt = function(x, y){ const g = G.grid; return !!(g[y] && g[y][x] === T.FLOOR); };
+  const wallAt  = function(x, y){ const g = G.grid; return !!(g[y] && g[y][x] === T.WALL); };
+
+  // Never dress the tiles the fight needs: the boss's art footprint, and the
+  // tile the player arrives on.
+  const blocked = {};
+  const bw = (boss && boss.size && boss.size.w) || 1;
+  const bh = (boss && boss.size && boss.size.h) || 1;
+  if(boss){
+   for(let y = boss.y - bh + 1; y <= boss.y; y++)
+    for(let x = boss.x; x < boss.x + bw; x++) blocked[x + "," + y] = 1;
+  }
+  blocked[G.px + "," + G.py] = 1;
+
+  const put = function(x, y, key, layer){
+   if(!key) return;
+   const k = x + "," + y;
+   if(used[k]) return;
+   if(blocked[k]) return;
+   if(x <= 0 || y <= 0 || x >= G.gridW - 1 || y >= G.gridH - 1) return;
+   if(layer === "wall"){ if(!wallAt(x, y)) return; }
+   else if(!floorAt(x, y)) return;
+   used[k] = 1;
+   out.push({ x:x, y:y, key:key, layer:layer });
+  };
+
+  // pillars at the chamber's four inner corners
+  [A.bossX + 1, A.bossX + A.bossW - 2].forEach(function(px){
+   [A.bossY + 1, A.bossY + A.bossH - 2].forEach(function(py){
+    put(px, py, recipe.pillar, "floor");
+   });
+  });
+
+  // banners and a hanging piece across the chamber's back wall. The columns are
+  // chosen to fall BETWEEN the braziers render.js derives (arenaTorches), so a
+  // prop never covers a torch.
+  put(A.bossX + Math.floor(A.bossW * 0.25), A.bossY - 1, recipe.banner, "wall");
+  put(A.bossX + Math.floor(A.bossW * 0.75), A.bossY - 1, recipe.banner, "wall");
+  put(A.bossX + Math.floor(A.bossW * 0.40), A.bossY - 1, recipe.wallBit, "wall");
+
+  // hanging pieces on both side walls (rows well clear of the brazier rows),
+  // and one on each wall of the approach corridor
+  put(A.bossX - 1, A.bossY + 1, recipe.wallBit, "wall");
+  put(A.bossX + A.bossW, A.bossY + A.bossH - 3, recipe.wallBit, "wall");
+  const corrMid = A.corrTop + Math.floor(A.corrH * 0.5);
+  put(A.corrX - 1, corrMid, recipe.wallBit, "wall");
+  put(A.corrX + A.corrW, corrMid, recipe.wallBit, "wall");
+
+  // debris and remains along the chamber walls: every third tile, alternating
+  // rubble and bones, skipping anything the guards above refuse
+  const lastRow = A.bossY + A.bossH - 2;
+  for(let x = A.bossX + 1; x < A.bossX + A.bossW - 1; x += 3){
+   put(x, lastRow, ((x - A.bossX) % 6 === 1) ? recipe.bone : recipe.rubble, "floor");
+   put(x, A.bossY + 1, ((x - A.bossX) % 6 === 1) ? recipe.rubble : recipe.bone, "floor");
+  }
+  const lastCol = A.bossX + A.bossW - 2;
+  for(let y = A.bossY + 3; y < lastRow; y += 3){
+   put(A.bossX + 1, y, ((y - A.bossY) % 6 === 0) ? recipe.bone : recipe.rubble, "floor");
+   put(lastCol, y, ((y - A.bossY) % 6 === 0) ? recipe.rubble : recipe.bone, "floor");
+  }
+
+  // a feature either side of the way in, so the entrance frames itself
+  put(A.corrX - 1, A.bossY + A.bossH - 1, recipe.cluster, "floor");
+  put(A.corrX + A.corrW, A.bossY + A.bossH - 1, recipe.cluster, "floor");
+
+  // and something in the entry chamber, so arriving isn't bare
+  put(A.entryX + 1, A.entryY + 1, recipe.bone, "floor");
+  put(A.entryX + A.entryW - 2, A.entryY + 1, recipe.rubble, "floor");
+
+  return out;
+ }
+
  Delve.genBossFloor = function(G, ward){
   const t = Delve.T;
   const cfg = C();
@@ -211,6 +302,7 @@ window.Delve = window.Delve || {};
    atk:bossDef.atk || cfg.bossAtkBase,
    speed:bossDef.speed || cfg.bossSpeed,
    chainHitEvery:bossDef.chainHitEvery || 3, chainHitCount:0,
+   size:bossDef.size || { w:1, h:1 },   // tiles its art covers (own tile = bottom-left)
    effects:[], elite:false, hasActed:false
   };
   G.grid[by][bx] = t.BOSS;
@@ -218,13 +310,16 @@ window.Delve = window.Delve || {};
   G.stairs = null;
   G.shop = { x:-1, y:-1 };
   G.floorType = "boss";
-  // Exposed so future ward-specific dressing (torches, braziers, banners) can
-  // place props relative to the arena without re-deriving the geometry.
+  // Exposed so dressing can place props relative to the arena without re-deriving
+  // the geometry: render.js derives its braziers from this, and dressBossArena above
+  // derives every arena prop position from it.
   G.bossArena = {
    bossX:bossX, bossY:bossY, bossW:bossW, bossH:bossH,
    entryX:entryX, entryY:entryY, entryW:entryW, entryH:entryH,
    corrX:corrX, corrTop:corrTop, corrW:corrW, corrH:corrH, bossCx:bx, bossCy:by
   };
+  // Dress the arena (Batch 8). Read-only with respect to the grid.
+  G.decor = dressBossArena(G, ward, G.boss, G.bossArena);
  };
 
  Delve.genFloor = function(){
@@ -239,6 +334,7 @@ window.Delve = window.Delve || {};
   G.chests = [];
   G.boss = null;
   G.bossArena = null;
+  G.decor = [];   // arena props (Batch 8): decoration only, never tiles
   G.shop = { x:-1, y:-1 };
   G.stairs = null;
   // FIX: floorData used to persist across floors, so a secret room found on
@@ -375,11 +471,12 @@ window.Delve = window.Delve || {};
    }
   }
 
-  // Blackvein special floors: swarm or clustered loot
-  if(G.floor >= 11 && G.floor <= 19){
-   const plan = ensureBlackveinPlan(G);
+  // Ward special floors: a swarm chamber or a clustered-loot room. The plan is
+  // per ward and comes from its `special` block in con-biomes.js.
+  if(ward.special){
+   const plan = ensureWardPlan(G, ward);
    if(plan.swarm.indexOf(G.floor) >= 0){
-    applySwarmFloor(G, rooms);
+    applySwarmFloor(G, rooms, ward.special);
    } else if(plan.clustered.indexOf(G.floor) >= 0){
     applyClusteredLootFloor(G, rooms);
    }
@@ -445,5 +542,58 @@ window.Delve = window.Delve || {};
   G.grid[y][x] = T().MONSTER;
   return m;
  }
+
+ // opening a chest: item, potion, or gold, with provenance
+  Delve.openChest = function(x, y){
+  const G = Delve.G;
+  if(!G) return;
+  const chest = G.chests.find(function(c){ return c.x===x && c.y===y; });
+  if(!chest || chest.open) return;
+  chest.open = true;
+  G.grid[y][x] = T().FLOOR;
+  if(Delve.sfx) Delve.sfx("chest");
+  if(Delve.logSystem) Delve.logSystem("You open a chest.");
+  const source = chest.secret ? { kind:"secret" } : { kind:"chest" };
+
+  // high-value chest (Blackvein cluster or swarm): guaranteed tier 3+ item,
+  // tier 3 potion, and boosted gold
+  if(chest.highValue){
+   let tier = Math.max(3, Delve.rollTier(G.floor, (Delve.CONFIG.loot.sourceRarityMult || {}).treasure || 1));
+   if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
+   const it = Delve.makeItem(tier);
+   it.x = x; it.y = y;
+   Delve.stampProvenance(it, source);
+   G.items.push(it);
+   Delve.dropPotion(x, y, 3, source);
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   const gold = Math.round((30 + Math.floor(Math.random()*20) + G.floor*3) * mult);
+   G.gold += gold;
+   Delve.recordStat("goldEarned", gold);
+   Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
+   Delve.updateHUD();
+   Delve.draw();
+   return;
+  }
+
+  if(prob(0.45)){
+   let tier = Delve.rollTier(G.floor, (Delve.CONFIG.loot.sourceRarityMult || {}).chest || 1);
+   if(Delve.hasProgression && Delve.hasProgression("lucky_find")) tier = Math.min(4, tier+1);
+   const it = Delve.makeItem(tier);
+   it.x = x; it.y = y;
+   Delve.stampProvenance(it, source);
+   G.items.push(it);
+  } else if(prob(0.8)){
+   Delve.dropPotion(x, y, 2, source);
+  } else {
+   const mult = Delve.goldMult ? Delve.goldMult() : 1;
+   const gold = Math.round((15 + Math.floor(Math.random()*10) + G.floor*2) * mult);
+   G.gold += gold;
+   Delve.recordStat("goldEarned", gold);
+   Delve.addFloater("+" + gold + "g", x, y, "#ffd75e");
+   if(Delve.logSystem) Delve.logSystem("Chest contained " + gold + " gold.");
+  }
+  Delve.updateHUD();
+  Delve.draw();
+ };
 
 })();
